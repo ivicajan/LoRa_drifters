@@ -14,13 +14,11 @@
 #include <Wire.h>           // for reseting NMEA output from some T-Beam units
 #include <TinyGPS++.h>      // decoding GPS 
 
-// #include <SparkFun_Ublox_Arduino_Library.h> //http://librarymanager/All#SparkFun_Ublox_GPS
-
 // D. Power management on the TTGo T-beam
-#include "axp20x.h"         // Not used on the versions I have but the new ones may need it
+#include "axp20x.h"         // I need it for the new ones
 AXP20X_Class PMU;
 
-// E. Defines
+// E. Defines for TTGO T Beam V1.1 with LoRa
 #define GPS_RX_PIN 34
 #define GPS_TX_PIN 12
 #define BUTTON_PIN 38
@@ -45,23 +43,13 @@ AXP20X_Class PMU;
 #define LED_ON                      LOW
 #define LED_OFF                     HIGH
 
-#define nSamplesFileWrite  300      // Number of samples to store in memory before file write
-#define SCK     5    // GPIO5  -- SX1278's SCK
-#define MISO    19   // GPIO19 -- SX1278's MISnO
-#define MOSI    27   // GPIO27 -- SX1278's MOSI
-#define SS      18   // GPIO18 -- SX1278's CS
-#define RST     14   // GPIO14 -- SX1278's RESET
-#define DI0     26   // GPIO26 -- SX1278's IRQ(Interrupt Request)
-#define BAND  915E6
-
+#define nSamplesFileWrite  100      // Number of samples to store in memory before file write
 
 // F. Functions
 void onTxDone();
-// void resetGPSNMEAOutput(Stream &mySerial);
 void startWebServer(bool webServerOn);
 String processor(const String& var);
 String IpAddress2String(const IPAddress& ipAddress);
-
 bool initPMU()
 {
     Wire.begin(I2C_SDA, I2C_SCL);
@@ -137,13 +125,12 @@ void initBoard()
     * T-BeamV1.0, V1.1 LED defaults to low level as trun on,
     * so it needs to be forced to pull up
     * * * * */
-#if LED_ON == LOW
-    gpio_hold_dis(GPIO_NUM_4);
-#endif
+    #if LED_ON == LOW
+        gpio_hold_dis(GPIO_NUM_4);
+    #endif
     pinMode(BOARD_LED, OUTPUT);
     digitalWrite(BOARD_LED, LED_ON);
-#endif
-
+    #endif
 }
 
 // =======================================================================================
@@ -154,19 +141,19 @@ int drifterTimeSlotSec = 15; // seconds after start of each GPS minute
 TinyGPSPlus gps;
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
-String csvOutStr = "";                // Buffer for output file
+String hour,minute,second,year,month,day,tTime,tDate;
+String csvOutStr = "";                 // Buffer for output file
 String lastFileWrite = "";
 AsyncWebServer server(80);
 bool webServerOn = false;
 String csvFileName = "";
 File file;                            // Data file for the SPIFFS output
 int nSamples;                         // Counter for the number of samples gathered
-int ledState = LOW;
-int ledPin = 14;
-int webServerPin = 38;
+//int webServerPin = BUTTON_PIN;
 int gpsLastSecond = -1;
-int myear, mmonth, mday;
-int mhour, mminute, msecond;
+
+int ledState = LOW;
+int ledPin = BOARD_LED;
 
 // H. This is the string literal for the main web page
 
@@ -211,7 +198,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <td> <label for="fname">Drifter ID:</label> </td>
     <td> %DRIFTERID% </td>
     <td> <input type="text" id="fname" name="drifterID"></td>
-    <td> Drifter IDs from D01 to D49 </td>
+    <td> Drifter IDs from D01 to D12 </td>
     </tr>
     <tr>
     <td> <label for="lname">LoRa Sending Second:</label> </td>
@@ -231,20 +218,20 @@ const char index_html[] PROGMEM = R"rawliteral(
 // B. Setup
 // =======================================================================================
 void setup() {
-  // A. TTGO Power ups
+  // A. TTGO Power ups and init radio
   initBoard();
   delay(1500);
   
-  // B. Setup LEDs for information
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
-  pinMode(webServerPin, INPUT);
+  // B. Setup LEDs for information   
+//  Need to setup this part
+//  pinMode(BOARD_LED, OUTPUT);
+//  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
+//  pinMode(webServerPin, INPUT);
 
   // C. Local GPS
-
+  // Started inside initBoard()
+  
   //Setup LoRa
-//  SPI.begin(SCK, MISO, MOSI, SS);
-//  LoRa.setPins(SS, RST, DI0);
     LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
     if (!LoRa.begin(LoRa_frequency)) {
         Serial.println("Starting LoRa failed!");
@@ -276,6 +263,7 @@ void setup() {
 
   csvFileName="/svt"+String(drifterName)+".csv";
 
+  pinMode(BUTTON_PIN, INPUT);
   delay(1500);
 }
 
@@ -285,24 +273,66 @@ void setup() {
 // C. Loop
 // =======================================================================================
 void loop() {
-  if (!webServerOn) {
+  
+  // E. Check for button press
+  if ( digitalRead(BUTTON_PIN) == LOW ) {
+    if (webServerOn) {
+      Serial.println("Web server already started");
+      webServerOn = false;
+      startWebServer(webServerOn);
+      delay(1000);
+    } else {
+      webServerOn = true;
+      startWebServer(webServerOn);
+      Serial.println("Web server started");
+      delay(1000);
+    }
+  }
 
+  if (!webServerOn) {
     // A. Receive and Encode GPS data
     unsigned long start = millis();
     do
     {
       while (Serial1.available() > 0)
         gps.encode(Serial1.read());     
-    } while (millis() - start < 500);
+    } while (millis() - start < 700);
     // C. If this is a new GPS record then save it
     if (gps.time.second() != gpsLastSecond) {
-          // B. Send GPS data on LoRa if it is this units timeslot
+        gpsLastSecond = gps.time.second();
+        hour = String(gps.time.hour());
+        minute = String(gps.time.minute());
+        second = String(gps.time.second());
+        year = String(gps.date.year());
+        month = String(gps.date.month());
+        day = String(gps.date.day());      
+        if (hour.length() == 1)
+        {
+           hour = "0" + hour;     
+        }
+        if (minute.length() == 1)
+        {
+           minute = "0" + minute;     
+        }
+        if (second.length() == 1)
+        {
+           second = "0" + second;     
+        } 
+        if (month.length() == 1)
+        {
+           month = "0" + month;     
+        }  
+        if (day.length() == 1)
+        {
+           day = "0" + day;     
+        }
+         tDate = year + "-" + month + "-" + day;
+         tTime = hour + ":" + minute + ":" + second;
+         String tLocation = String(gps.location.lat(), 8) + "," + String(gps.location.lng(), 8) + "," + String(gps.location.age());
+         // B. Send GPS data on LoRa if it is this units timeslot
           if (gps.time.second() == drifterTimeSlotSec) {
               Serial.println("sending packet");
               LoRa.beginPacket();
-              String tDate = String(gps.date.year()) + "-" + String(gps.date.month()) + "-" + String(gps.date.day());
-              String tTime = String(gps.time.hour()) + ":" + String(gps.time.minute()) + ":" + String(gps.time.second());
-              String tLocation = String(gps.location.lat(), 8) + "," + String(gps.location.lng(), 8) + "," + String(gps.location.age());
               String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
               Serial.println(sendPacket);
               LoRa.print(sendPacket);
@@ -310,50 +340,27 @@ void loop() {
               delay(1000); // Don't send more than 1 packet
               csvOutStr += sendPacket; // Save any packets that are sent (debugging purposes).
           }
-      float mlon = gps.location.lng();
-      float mlat = gps.location.lat();
-      myear = gps.date.year();
-      mmonth = gps.date.month();
-      mday = gps.date.day();
-      mhour = gps.time.hour();
-      mminute = gps.time.minute();
-      msecond = gps.time.second();
-      int mage = gps.location.age();
-      gpsLastSecond = msecond;
+      csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
       nSamples += 1;
-      csvOutStr += String(myear) + "," + String(mmonth) + "," + String(mday) + "," + String(mhour) +  "," + String(mminute) + "," + String(msecond) + "," + String(mlon, 8) + "," + String(mlat, 8) + "," + String(mage) + "\n";
     }
-
+    
     // D. Write data to onboard flash if nSamples is large enough
     Serial.println("nSamples:" + String(nSamples));
     if (nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
-      writeData2Flash();
+        Serial.println("Dump in the memory");
+        writeData2Flash();
     }
   }
 
   if (webServerOn){
-    digitalWrite(ledPin, HIGH);
+    Serial.println("Web server is ON, not GPS data during the time");
+    digitalWrite(BOARD_LED, HIGH);
     delay(40);
-    digitalWrite(ledPin, LOW); 
+    digitalWrite(BOARD_LED, LOW); 
     delay(40);
   }
-
-  // E. Check for button press
-  if ( digitalRead(webServerPin) == LOW ) {
-    if (webServerOn) {
-      webServerOn = false;
-      startWebServer(webServerOn);
-      delay(1000);
-    } else {
-      webServerOn = true;
-      startWebServer(webServerOn);
-      delay(1000);
-    }
-  }
-
 
 }
-
 
 
 // =======================================================================================
@@ -371,8 +378,10 @@ void writeData2Flash (){
   } else {
     if (file.println(csvOutStr)) {
       file.close();
+      Serial.println("Wrote data in file");
       csvOutStr = ""; nSamples = 0;
-      lastFileWrite = String(mhour, DEC) + ":" + String(mminute, DEC) + ":" + String(msecond, DEC);
+//      lastFileWrite = String(gps.time.hour()) + ":" + String(gps.time.minute()) + ":" + String(gps.time.second());
+      lastFileWrite = tTime;
     } else {
       lastFileWrite = "FAILED WRITE";
     }
@@ -383,26 +392,15 @@ void writeData2Flash (){
 // D1. LoRa has transmitted callback - flip flop the LED
 void onTxDone() {
   Serial.println("TxDone");
-
-  if (ledState == LOW) {
-    digitalWrite(ledPin, HIGH);
+  if (BOARD_LED == LOW) {
+    digitalWrite(BOARD_LED, HIGH);
     ledState = HIGH;
   } else {
-    digitalWrite(ledPin, LOW);
+    digitalWrite(BOARD_LED, LOW);
     ledState = LOW;
   }
 }
 
-
-// D2. Reset NMEA serial output
-//   Makes sure the onboard GPS has Serial NMEA output turned on
-/*
-void resetGPSNMEAOutput(Stream &mySerial) {
-  myGPS.begin(mySerial);
-  myGPS.setUART1Output(COM_TYPE_NMEA); //Set the UART port to output NMEA only
-  myGPS.saveConfiguration(); //Save the current settings to flash and BBR
-}
-*/
 
 // D3. Web Server Setup
 void startWebServer(bool webServerOn) {
@@ -461,8 +459,6 @@ void startWebServer(bool webServerOn) {
   }
 
 }
-
-
 
 
 // D4. Used to update sections of the webpages

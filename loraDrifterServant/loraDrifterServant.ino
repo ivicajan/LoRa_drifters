@@ -114,11 +114,6 @@ bool initPMU()
 
 void initBoard()
 {
-    Serial.begin(115200);
-    Serial.println("initBoard");
-    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
-    Wire.begin(I2C_SDA, I2C_SCL);
     initPMU();
     #ifdef BOARD_LED
     /*
@@ -131,6 +126,12 @@ void initBoard()
     pinMode(BOARD_LED, OUTPUT);
     digitalWrite(BOARD_LED, LED_ON);
     #endif
+
+    Serial.begin(115200);
+    Serial.println("initBoard");
+    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
+    Wire.begin(I2C_SDA, I2C_SCL);
 }
 
 // =======================================================================================
@@ -238,7 +239,6 @@ void setup() {
         while (1);
     }
   LoRa.onTxDone(onTxDone);
-  Serial.println("init ok");
 
   
   // G. SPIFFS to write data to onboard Flash
@@ -264,6 +264,7 @@ void setup() {
   csvFileName="/svt"+String(drifterName)+".csv";
 
   pinMode(BUTTON_PIN, INPUT);
+  Serial.println("init ok");
   delay(1500);
 }
 

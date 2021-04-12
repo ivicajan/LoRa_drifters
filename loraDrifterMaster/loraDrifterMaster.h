@@ -46,7 +46,7 @@ AXP20X_Class PMU;
 #define LED_OFF                     HIGH
 
 #define nServantsMax  12           // Maximum number of servant drifters (just for setting array size)
-#define nSamplesFileWrite  300      // Number of samples to store in memory before file write
+#define nSamplesFileWrite  100      // Number of samples to store in memory before file write
 
 // F. Function definitions
 //void resetGPSNMEAOutput(Stream &mySerial);
@@ -120,14 +120,7 @@ SPIClass SDSPI(HSPI);
 
 void initBoard()
 {
-    Serial.begin(115200);
-    Serial.println("initBoard");
-    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
-    Wire.begin(I2C_SDA, I2C_SCL);
-    
     initPMU();
-    
     #ifdef BOARD_LED
     /*
     * T-BeamV1.0, V1.1 LED defaults to low level as trun on,
@@ -140,6 +133,12 @@ void initBoard()
     digitalWrite(BOARD_LED, LED_ON);
 #endif
 
+    Serial.begin(115200);
+    Serial.println("initBoard");
+    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
+    Wire.begin(I2C_SDA, I2C_SCL);
+    
 }
 
 

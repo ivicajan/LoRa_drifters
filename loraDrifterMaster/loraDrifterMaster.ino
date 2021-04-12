@@ -20,7 +20,8 @@ int nSamples;                         // Counter for the number of samples gathe
 int ledState = LOW;
 int ledPin = 14;
 int gpsLastSecond = -1;
-int webServerPin = 38;
+int webServerPin = BUTTON_PIN;
+String hour,minute,second,year,month,day,tTime,tDate;
 
 // =======================================================================================
 // B. Setup
@@ -32,9 +33,9 @@ void setup() {
   delay(1500);
   
   // B. Setup LEDs for information
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
-  pinMode(webServerPin, INPUT);
+  // pinMode(ledPin, OUTPUT);
+  // digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
+  pinMode(BUTTON_PIN, INPUT);
 
   // C. Local GPS
   // moved inside initBoard();
@@ -46,8 +47,11 @@ void setup() {
         Serial.println("Starting LoRa failed!");
         while (1);
     }
+  LoRa.onTxDone(onTxDone);
     
-  // E. WiFi Access Point start up
+  // E. WiFi Access Point start up, by default it is always on
+  // could think of saving energy and fire up on demand (i.e. BUTTON_PIN)
+ 
   WiFi.softAP(ssid, password);
   Serial.println(WiFi.softAPIP());    // Print ESP32 Local IP Address
 
@@ -96,7 +100,7 @@ void loop() {
         }
         Serial.println(recv);
         // Get ID and then send to class for decoding
-        //if (recv.startsWith("D",1)) 
+        if (recv.substring(0, 1) == "D") 
         {
           Serial.println(".. valid signal ..");
           csvOutStr += recv; // Save all packets recevied (debugging purposes)
@@ -229,10 +233,39 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     while (mySerial.available() > 0) {
       myGPS.encode(mySerial.read());
     }
-  } while (millis() - start < 500);
+  } while (millis() - start < 700);
 
   if (gps.time.second() != gpsLastSecond) {
     // Update Master Data
+    gpsLastSecond = gps.time.second();
+    hour = String(gps.time.hour());
+    minute = String(gps.time.minute());
+    second = String(gps.time.second());
+    year = String(gps.date.year());
+    month = String(gps.date.month());
+    day = String(gps.date.day());      
+    if (hour.length() == 1)
+    {
+       hour = "0" + hour;     
+    }
+    if (minute.length() == 1)
+    {
+       minute = "0" + minute;     
+    }
+    if (second.length() == 1)
+    {
+       second = "0" + second;     
+    } 
+    if (month.length() == 1)
+    {
+       month = "0" + month;     
+    }  
+    if (day.length() == 1)
+    {
+       day = "0" + day;     
+    }
+    tDate = year + "-" + month + "-" + day;
+    tTime = hour + ":" + minute + ":" + second;
     m.lon = gps.location.lng();
     m.lat = gps.location.lat();
     m.year = gps.date.year();
@@ -242,12 +275,9 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     m.minute = gps.time.minute();
     m.second = gps.time.second();
     m.age = gps.location.age();
-    gpsLastSecond = m.second;
     nSamples += 1;
 
-    String tTime = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
-    String tDate = String(m.year) + "-" + String(m.month, DEC) + "-" + String(m.day, DEC);
-    masterData = "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lon, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
+    masterData = "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lon, 8) + "</td><td>" + String(m.lat, 8) + "</td><td>" + String(m.age) + "</td>";
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/getMaster\"> GET </a></td>";
     masterData += "<td>" + lastFileWrite + "</td>";
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/deleteMaster\"> ERASE </a></td>";

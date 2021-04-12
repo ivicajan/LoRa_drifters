@@ -135,8 +135,8 @@ void loop() {
     servantsData += "<td>" + String(s[i].loraUpdatePlanSec) + "</td>";
     servantsData += "<td>" + String((millis() - s[i].lastUpdateMasterTime) / 1000) + "</td>";
     servantsData += "<td>" + String(s[i].hour) + ":" + String(s[i].minute) + ":" + String(s[i].second) + "</td>";
-    servantsData += "<td>" + String(s[i].lon, 8) + "</td>";
-    servantsData += "<td>" + String(s[i].lat, 8) + "</td>";
+    servantsData += "<td>" + String(s[i].lon, 6) + "</td>";
+    servantsData += "<td>" + String(s[i].lat, 6) + "</td>";
     servantsData += "<td>" + String(s[i].dist) + "</td>";
     servantsData += "<td>" + String(s[i].bear) + "</td>";
     servantsData += "<td>" + String(s[i].count) + "</td>";
@@ -276,7 +276,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     m.age = gps.location.age();
     nSamples += 1;
 
-    masterData = "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lon, 8) + "</td><td>" + String(m.lat, 8) + "</td><td>" + String(m.age) + "</td>";
+    masterData = "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lon, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/getMaster\"> GET </a></td>";
     masterData += "<td>" + lastFileWrite + "</td>";
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/deleteMaster\"> ERASE </a></td>";

@@ -221,7 +221,7 @@ void Servant::updateDistBear(float fromLon,float fromLat) {
 }
 
 void Servant::decode(String packet) {
-  // Example:  D01,15,6:36:15,-31.97758433,115.88428733,151,4104
+  // Example:  D01,15,yyyy-mm-dd,HH:MM:SS,-31.97758433,115.88428733,151,4104
   
   // Update Plan
   int comma1=packet.indexOf(",");

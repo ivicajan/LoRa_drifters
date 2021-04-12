@@ -47,7 +47,6 @@ void setup() {
         Serial.println("Starting LoRa failed!");
         while (1);
     }
-  LoRa.onTxDone(onTxDone);
     
   // E. WiFi Access Point start up, by default it is always on
   // could think of saving energy and fire up on demand (i.e. BUTTON_PIN)

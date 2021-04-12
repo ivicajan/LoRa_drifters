@@ -47,7 +47,12 @@ void setup() {
         Serial.println("Starting LoRa failed!");
         while (1);
     }
-    
+  // register the receive callback
+  LoRa.onReceive(onReceive);
+
+  // put the radio into receive mode
+  LoRa.receive();
+  
   // E. WiFi Access Point start up, by default it is always on
   // could think of saving energy and fire up on demand (i.e. BUTTON_PIN)
  
@@ -156,6 +161,20 @@ void loop() {
 // =======================================================================================
 // D. Functions
 // =======================================================================================
+
+void onReceive(int packetSize) {
+  // received a packet
+  Serial.print("Received packet '");
+
+  // read packet
+  for (int i = 0; i < packetSize; i++) {
+    Serial.print((char)LoRa.read());
+  }
+
+  // print RSSI of packet
+  Serial.print("' with RSSI ");
+  Serial.println(LoRa.packetRssi());
+}
 
 // D0. Write data to flash
 // 

@@ -238,7 +238,6 @@ void setup() {
         Serial.println("Starting LoRa failed!");
         while (1);
     }
-  LoRa.onTxDone(onTxDone);
 
   
   // G. SPIFFS to write data to onboard Flash
@@ -333,9 +332,9 @@ void loop() {
          // B. Send GPS data on LoRa if it is this units timeslot
           if (gps.time.second() == drifterTimeSlotSec) {
               Serial.println("sending packet");
-              LoRa.beginPacket();
               String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
               Serial.println(sendPacket);
+              LoRa.beginPacket();
               LoRa.print(sendPacket);
               LoRa.endPacket(true);
               delay(1000); // Don't send more than 1 packet

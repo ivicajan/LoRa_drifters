@@ -114,6 +114,11 @@ bool initPMU()
 
 void initBoard()
 {
+    Serial.begin(115200);
+    Serial.println("initBoard");
+    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
+    Wire.begin(I2C_SDA, I2C_SCL);
     initPMU();
     #ifdef BOARD_LED
     /*
@@ -126,19 +131,13 @@ void initBoard()
     pinMode(BOARD_LED, OUTPUT);
     digitalWrite(BOARD_LED, LED_ON);
     #endif
-
-    Serial.begin(115200);
-    Serial.println("initBoard");
-    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
-    Wire.begin(I2C_SDA, I2C_SCL);
 }
 
 // =======================================================================================
 // A. Global variables
 // =======================================================================================
-String drifterName = "D01";   // ID send with packet
-int drifterTimeSlotSec = 15; // seconds after start of each GPS minute
+String drifterName = "D00";   // ID send with packet
+int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
 TinyGPSPlus gps;
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -199,7 +198,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <td> <label for="fname">Drifter ID:</label> </td>
     <td> %DRIFTERID% </td>
     <td> <input type="text" id="fname" name="drifterID"></td>
-    <td> Drifter IDs from D01 to D12 </td>
+    <td> Drifter IDs from D00 to D11 </td>
     </tr>
     <tr>
     <td> <label for="lname">LoRa Sending Second:</label> </td>
@@ -238,6 +237,7 @@ void setup() {
         Serial.println("Starting LoRa failed!");
         while (1);
     }
+//  LoRa.onTxDone(onTxDone);
 
   
   // G. SPIFFS to write data to onboard Flash
@@ -263,6 +263,7 @@ void setup() {
   csvFileName="/svt"+String(drifterName)+".csv";
 
   pinMode(BUTTON_PIN, INPUT);
+
   Serial.println("init ok");
   delay(1500);
 }
@@ -296,7 +297,7 @@ void loop() {
     {
       while (Serial1.available() > 0)
         gps.encode(Serial1.read());     
-    } while (millis() - start < 700);
+    } while (millis() - start < 500);
     // C. If this is a new GPS record then save it
     if (gps.time.second() != gpsLastSecond) {
         gpsLastSecond = gps.time.second();
@@ -332,12 +333,12 @@ void loop() {
          // B. Send GPS data on LoRa if it is this units timeslot
           if (gps.time.second() == drifterTimeSlotSec) {
               Serial.println("sending packet");
-              String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
-              Serial.println(sendPacket);
               LoRa.beginPacket();
+              String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
               LoRa.print(sendPacket);
               LoRa.endPacket(true);
               delay(1000); // Don't send more than 1 packet
+              Serial.println(sendPacket);
               csvOutStr += sendPacket; // Save any packets that are sent (debugging purposes).
           }
       csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
@@ -380,7 +381,6 @@ void writeData2Flash (){
       file.close();
       Serial.println("Wrote data in file");
       csvOutStr = ""; nSamples = 0;
-//      lastFileWrite = String(gps.time.hour()) + ":" + String(gps.time.minute()) + ":" + String(gps.time.second());
       lastFileWrite = tTime;
     } else {
       lastFileWrite = "FAILED WRITE";
@@ -468,10 +468,10 @@ String processor(const String& var) {
   if (var == "SERVANT") { 
     
      String servantData = "";
-     servantData += "<td>"+csvFileName+"</td>";
-     servantData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/getServant\"> GET </a></td>";
+     servantData += "<td>" + csvFileName +"</td>";
+     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
      servantData += "<td>" + lastFileWrite + "</td>";
-     servantData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/deleteServant\"> ERASE </a></td>";
+     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
      servantData += "</tr>";
      return servantData;  
   }

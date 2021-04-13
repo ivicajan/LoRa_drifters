@@ -43,7 +43,7 @@ AXP20X_Class PMU;
 #define LED_ON                      LOW
 #define LED_OFF                     HIGH
 
-#define nSamplesFileWrite  100      // Number of samples to store in memory before file write
+#define nSamplesFileWrite  600      // Number of samples to store in memory before file write
 
 // F. Functions
 void onTxDone();
@@ -237,7 +237,6 @@ void setup() {
         Serial.println("Starting LoRa failed!");
         while (1);
     }
-//  LoRa.onTxDone(onTxDone);
 
   
   // G. SPIFFS to write data to onboard Flash
@@ -300,7 +299,6 @@ void loop() {
     } while (millis() - start < 500);
     // C. If this is a new GPS record then save it
     if (gps.time.second() != gpsLastSecond) {
-        gpsLastSecond = gps.time.second();
         hour = String(gps.time.hour());
         minute = String(gps.time.minute());
         second = String(gps.time.second());
@@ -330,16 +328,18 @@ void loop() {
          tDate = year + "-" + month + "-" + day;
          tTime = hour + ":" + minute + ":" + second;
          String tLocation = String(gps.location.lat(), 8) + "," + String(gps.location.lng(), 8) + "," + String(gps.location.age());
+         String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
+         gpsLastSecond = gps.time.second();
+
          // B. Send GPS data on LoRa if it is this units timeslot
           if (gps.time.second() == drifterTimeSlotSec) {
-              Serial.println("sending packet");
+              Serial.println("sending packet via LoRa");
+              Serial.println(sendPacket);
+              csvOutStr += sendPacket; // Save any packets that are sent (debugging purposes).
               LoRa.beginPacket();
-              String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
               LoRa.print(sendPacket);
               LoRa.endPacket(true);
               delay(1000); // Don't send more than 1 packet
-              Serial.println(sendPacket);
-              csvOutStr += sendPacket; // Save any packets that are sent (debugging purposes).
           }
       csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
       nSamples += 1;
@@ -347,14 +347,14 @@ void loop() {
     
     // D. Write data to onboard flash if nSamples is large enough
     Serial.println("nSamples:" + String(nSamples));
-    if (nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
-        Serial.println("Dump in the memory");
+    if (nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
+        Serial.println("Dump data into the memory");
         writeData2Flash();
     }
   }
 
   if (webServerOn){
-    Serial.println("Web server is ON, not GPS data during the time");
+    Serial.println("Web server is ON, not GPS data or saving during the time");
     digitalWrite(BOARD_LED, HIGH);
     delay(40);
     digitalWrite(BOARD_LED, LOW); 
@@ -385,19 +385,6 @@ void writeData2Flash (){
     } else {
       lastFileWrite = "FAILED WRITE";
     }
-  }
-}
-
-
-// D1. LoRa has transmitted callback - flip flop the LED
-void onTxDone() {
-  Serial.println("TxDone");
-  if (BOARD_LED == LOW) {
-    digitalWrite(BOARD_LED, HIGH);
-    ledState = HIGH;
-  } else {
-    digitalWrite(BOARD_LED, LOW);
-    ledState = LOW;
   }
 }
 

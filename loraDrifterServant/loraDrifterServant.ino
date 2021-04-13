@@ -43,10 +43,8 @@ AXP20X_Class PMU;
 #define LED_ON                      LOW
 #define LED_OFF                     HIGH
 
-#define nSamplesFileWrite  600      // Number of samples to store in memory before file write
 
 // F. Functions
-void onTxDone();
 void startWebServer(bool webServerOn);
 String processor(const String& var);
 String IpAddress2String(const IPAddress& ipAddress);
@@ -136,11 +134,14 @@ void initBoard()
 // =======================================================================================
 // A. Global variables
 // =======================================================================================
-String drifterName = "D00";   // ID send with packet
-int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
 TinyGPSPlus gps;
+
+String drifterName = "D08";   // ID send with packet
+int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
+int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
+
 String hour,minute,second,year,month,day,tTime,tDate;
 String csvOutStr = "";                 // Buffer for output file
 String lastFileWrite = "";
@@ -244,8 +245,8 @@ void setup() {
     Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
     while (1);
   }
-  
-  
+delay(500);
+
   //H. Read config file if exists
   file = SPIFFS.open("/config.txt", FILE_READ);
   if (!file){
@@ -258,6 +259,7 @@ void setup() {
     Serial.println(inData);
     file.close();
   }
+
 
   csvFileName="/svt"+String(drifterName)+".csv";
 

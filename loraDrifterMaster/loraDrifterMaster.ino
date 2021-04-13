@@ -48,7 +48,7 @@ void setup() {
         while (1);
     }
   // register the receive callback
-  LoRa.onReceive(onReceive);
+  // LoRa.onReceive(onReceive);
 
   // put the radio into receive mode
   LoRa.receive();
@@ -251,11 +251,10 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     while (mySerial.available() > 0) {
       myGPS.encode(mySerial.read());
     }
-  } while (millis() - start < 700);
+  } while (millis() - start < 500);
 
   if (gps.time.second() != gpsLastSecond) {
     // Update Master Data
-    gpsLastSecond = gps.time.second();
     hour = String(gps.time.hour());
     minute = String(gps.time.minute());
     second = String(gps.time.second());
@@ -293,21 +292,19 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     m.minute = gps.time.minute();
     m.second = gps.time.second();
     m.age = gps.location.age();
-    nSamples += 1;
-
     masterData = "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lon, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/getMaster\"> GET </a></td>";
     masterData += "<td>" + lastFileWrite + "</td>";
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/deleteMaster\"> ERASE </a></td>";
-    masterData += "</tr>";
-    
+    masterData += "</tr>";    
     // Update String to be written to file
     csvOutStr += tDate + "," + tTime + "," + String(m.lon, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
+    gpsLastSecond = gps.time.second();
+    Serial.println("nSamples: " +  String(nSamples));
+    nSamples += 1;
 
   }
 }
-
-
 
 // D3. Used to update sections of the webpages
 //  Replaces placeholder with button section in your web page

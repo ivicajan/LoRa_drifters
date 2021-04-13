@@ -46,7 +46,7 @@ AXP20X_Class PMU;
 #define LED_OFF                     HIGH
 
 #define nServantsMax  12           // Maximum number of servant drifters (just for setting array size)
-#define nSamplesFileWrite  100      // Number of samples to store in memory before file write
+#define nSamplesFileWrite  300      // Number of samples to store in memory before file write
 
 // F. Function definitions
 //void resetGPSNMEAOutput(Stream &mySerial);

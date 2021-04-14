@@ -55,7 +55,7 @@ void setup() {
   
   // E. WiFi Access Point start up, by default it is always on
   // could think of saving energy and fire up on demand (i.e. BUTTON_PIN)
- 
+
   WiFi.softAP(ssid, password);
   Serial.println(WiFi.softAPIP());    // Print ESP32 Local IP Address
 

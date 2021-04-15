@@ -17,8 +17,8 @@ String lastFileWrite = "";
 AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 File file;                            // Data file for the SPIFFS output
 int nSamples;                         // Counter for the number of samples gathered
-int ledState = LOW;
-int ledPin = 14;
+//int ledState = LOW;
+//int ledPin = 14;
 int gpsLastSecond = -1;
 int webServerPin = BUTTON_PIN;
 String hour,minute,second,year,month,day,tTime,tDate;
@@ -30,7 +30,7 @@ String hour,minute,second,year,month,day,tTime,tDate;
 void setup() {
   // A. Init Board
   initBoard();
-  delay(1500);
+  delay(500);
   
   // B. Setup LEDs for information
   // pinMode(ledPin, OUTPUT);
@@ -48,11 +48,11 @@ void setup() {
         while (1);
     }
   // register the receive callback
-  // LoRa.onReceive(onReceive);
+  LoRa.onReceive(onReceive);
 
   // put the radio into receive mode
   LoRa.receive();
-  
+  delay(50);
   // E. WiFi Access Point start up, by default it is always on
   // could think of saving energy and fire up on demand (i.e. BUTTON_PIN)
 
@@ -75,13 +75,13 @@ void setup() {
       request->send(200, "text/html", "<html><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"\">Success!  BACK </a></html>");
   });
   server.begin();
-
+  delay(50);
   // G. SPIFFS to write data to onboard Flash
   if (!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
     while (1);
   }
-  
+  delay(50);
 Serial.println("init setup ok");
 }
 
@@ -92,44 +92,10 @@ Serial.println("init setup ok");
 void loop() {
 
   // A. LoRa is on interrupt / callback
-
-    int packetSize = LoRa.parsePacket();
-    if (packetSize) {
-        // received a packet
-        Serial.print("Received packet:");         
-        String recv = "";
-        // read packet
-        while (LoRa.available()) {
-            recv += (char)LoRa.read();
-        }
-        Serial.println(recv);
-        // Get ID and then send to class for decoding
-        if (recv.substring(0, 1) == "D") 
-        {
-          Serial.println(".. valid signal ..");
-          csvOutStr += recv; // Save all packets recevied (debugging purposes)
-          int id = recv.substring(1, 3).toInt();
-          Serial.print("GotID:" + String(id) + " ");
-          s[id].ID = id;
-          s[id].decode(recv);
-          s[id].rssi = LoRa.packetRssi();
-          s[id].updateDistBear(m.lon, m.lat);    
-          Serial.println("RX from LoRa - decoding completed");
-          Serial.println(String(s[id].ID));
-      
-          if (ledState == LOW) {
-            digitalWrite(ledPin, HIGH);
-            ledState = HIGH;
-          } else {
-            digitalWrite(ledPin, LOW);
-            ledState = LOW;
-          }
-        }
-    }
     
   // B. Read and decode Master GPS
   SerialGPSDecode(Serial1, gps);
-
+  delay(10);
   // C. Make Servants Data HTML
   servantsData = "";
   for (int i = 0; i < nServantsMax; i++) {
@@ -163,17 +129,28 @@ void loop() {
 // =======================================================================================
 
 void onReceive(int packetSize) {
-  // received a packet
-  Serial.print("Received packet '");
-
-  // read packet
-  for (int i = 0; i < packetSize; i++) {
-    Serial.print((char)LoRa.read());
-  }
-
-  // print RSSI of packet
-  Serial.print("' with RSSI ");
-  Serial.println(LoRa.packetRssi());
+        // received a packet
+        Serial.print("Received packet:");         
+        String recv = "";
+        // read packet
+        for (int i = 0; i < packetSize; i++) {
+            recv += (char)LoRa.read();
+        }
+        Serial.println(recv);
+        // Get ID and then send to class for decoding
+        if (recv.substring(0, 1) == "D") 
+        {
+          Serial.println(".. valid signal ..");
+          csvOutStr += recv; // Save all packets recevied (debugging purposes)
+          int id = recv.substring(1, 3).toInt();
+          Serial.print("GotID:" + String(id) + " ");
+          s[id].ID = id;
+          s[id].decode(recv);
+          s[id].rssi = LoRa.packetRssi();
+          s[id].updateDistBear(m.lon, m.lat);    
+          Serial.println("RX from LoRa - decoding completed");
+        }
+        delay(50);
 }
 
 // D0. Write data to flash
@@ -185,57 +162,15 @@ void writeData2Flash (){
       lastFileWrite = "FAILED OPEN";
     } else {
       if (file.println(csvOutStr)){
-        file.close();
         csvOutStr = ""; nSamples = 0;
         lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
       } else {
         lastFileWrite = "FAILED WRITE";
       }
     }
+    file.close();
+    delay(50);
 }
-
-// D1. Processing LoRa Packets - this is the callback called when a packet is recevied
-// The function:
-//   Reads the entire packet
-//   Checks if the packet starts with a "D"
-//   Gets the drifter ID of the packet
-//   Runs the packet decoder built into the Servant class object
-//   Updates the distance and bearing of the Servant from the Master
-//   Toggles the LED
-
-void loraProcessRXData(int packetSize) {
-  String packet = "";
-  String packSize = String(packetSize, DEC);
-  for (int i = 0; i < packetSize; i++) {
-    packet += (char) LoRa.read();
-  }
-  String rssi = String(LoRa.packetRssi(), DEC);
-
-  // Get ID and then send to class for decoding
-  if (packet.substring(0, 1) == "D") {
-    csvOutStr += packet; // Save all packets recevied (debugging purposes)
-    int id = packet.substring(1, 3).toInt();
-    Serial.print("GotID:" + String(id) + " ");
-    s[id].ID = id;
-    s[id].decode(packet);
-    s[id].rssi = rssi.toInt();
-    s[id].updateDistBear(m.lon, m.lat);
-
-    Serial.println("RX from LoRa - decoding completed");
-    Serial.println(String(s[id].ID));
-
-    if (ledState == LOW) {
-      digitalWrite(ledPin, HIGH);
-      ledState = HIGH;
-    } else {
-      digitalWrite(ledPin, LOW);
-      ledState = LOW;
-    }
-  }
-
-
-}
-
 
 // D2. Processing the onboard GPS
 // The function:
@@ -314,19 +249,6 @@ String processor(const String& var) {
   if (var == "MASTER") {    return masterData;  }
   return String();
 }
-
-/*
-// D4. Reset NMEA serial output
-//   Makes sure the onboard GPS has Serial NMEA output turned on
-
-void resetGPSNMEAOutput(Stream &mySerial) {
-  myGPS.begin(mySerial);
-  myGPS.setUART1Output(COM_TYPE_NMEA); //Set the UART port to output NMEA only
-  myGPS.saveConfiguration(); //Save the current settings to flash and BBR
-}
-
-
-*/
 
 // D5. String IP Address
 String IpAddress2String(const IPAddress& ipAddress)

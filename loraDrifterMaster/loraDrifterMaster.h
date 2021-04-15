@@ -55,7 +55,8 @@ void loraProcessRXData(int packetSize);
 
 bool initPMU()
 {
-//    Wire.begin(I2C_SDA, I2C_SCL);
+    Wire.begin(I2C_SDA, I2C_SCL);
+    delay(50);
     if (PMU.begin(Wire, AXP192_SLAVE_ADDRESS) == AXP_FAIL) {
         return false;
     }
@@ -131,13 +132,12 @@ void initBoard()
     pinMode(BOARD_LED, OUTPUT);
     digitalWrite(BOARD_LED, LED_ON);
 #endif
-
+    delay(50);
     Serial.begin(115200);
     Serial.println("initBoard");
     Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
-    Wire.begin(I2C_SDA, I2C_SCL);
-    
+    delay(50);
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);    
 }
 
 

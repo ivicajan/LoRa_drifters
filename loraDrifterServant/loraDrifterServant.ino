@@ -43,15 +43,15 @@ AXP20X_Class PMU;
 #define LED_ON                      LOW
 #define LED_OFF                     HIGH
 
-
 // F. Functions
 void startWebServer(bool webServerOn);
 String processor(const String& var);
 String IpAddress2String(const IPAddress& ipAddress);
+
 bool initPMU()
 {
     Wire.begin(I2C_SDA, I2C_SCL);
-
+    delay(50);
     if (PMU.begin(Wire, AXP192_SLAVE_ADDRESS) == AXP_FAIL) {
         return false;
     }
@@ -73,6 +73,7 @@ bool initPMU()
     /*
      *   Turn off unused power sources to save power
      * **/
+     
     PMU.setPowerOutPut(AXP192_DCDC1, AXP202_OFF);
     PMU.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
     PMU.setPowerOutPut(AXP192_LDO2, AXP202_OFF);
@@ -85,6 +86,7 @@ bool initPMU()
     PMU.setLDO2Voltage(3300);   //LoRa VDD
     PMU.setLDO3Voltage(3300);   //GPS  VDD
     PMU.setDCDC1Voltage(3300);  //3.3V Pin next to 21 and 22 is controlled by DCDC1
+    
     PMU.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
     PMU.setPowerOutPut(AXP192_LDO2, AXP202_ON);
     PMU.setPowerOutPut(AXP192_LDO3, AXP202_ON);
@@ -110,14 +112,13 @@ bool initPMU()
     return true;
 }
 
+SPIClass SDSPI(HSPI);
+
 void initBoard()
 {
-    Serial.begin(115200);
-    Serial.println("initBoard");
-    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
-    Wire.begin(I2C_SDA, I2C_SCL);
     initPMU();
+    delay(50);
+    
     #ifdef BOARD_LED
     /*
     * T-BeamV1.0, V1.1 LED defaults to low level as trun on,
@@ -129,19 +130,24 @@ void initBoard()
     pinMode(BOARD_LED, OUTPUT);
     digitalWrite(BOARD_LED, LED_ON);
     #endif
+    delay(50);
+    Serial.begin(115200);
+    Serial.println("initBoard");
+    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    delay(50);
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
+    delay(50);
 }
 
 // =======================================================================================
 // A. Global variables
 // =======================================================================================
 TinyGPSPlus gps;
-
 String drifterName = "D08";   // ID send with packet
 int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
-
 String hour,minute,second,year,month,day,tTime,tDate;
 String csvOutStr = "";                 // Buffer for output file
 String lastFileWrite = "";
@@ -150,7 +156,7 @@ bool webServerOn = false;
 String csvFileName = "";
 File file;                            // Data file for the SPIFFS output
 int nSamples;                         // Counter for the number of samples gathered
-//int webServerPin = BUTTON_PIN;
+int webServerPin = BUTTON_PIN;
 int gpsLastSecond = -1;
 
 int ledState = LOW;
@@ -218,16 +224,17 @@ const char index_html[] PROGMEM = R"rawliteral(
 // =======================================================================================
 // B. Setup
 // =======================================================================================
+
 void setup() {
   // A. TTGO Power ups and init radio
   initBoard();
-  delay(1500);
+  delay(50);
   
   // B. Setup LEDs for information   
 //  Need to setup this part
-//  pinMode(BOARD_LED, OUTPUT);
-//  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
-//  pinMode(webServerPin, INPUT);
+  pinMode(BOARD_LED, OUTPUT);
+  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
+  pinMode(webServerPin, INPUT);
 
   // C. Local GPS
   // Started inside initBoard()
@@ -238,14 +245,14 @@ void setup() {
         Serial.println("Starting LoRa failed!");
         while (1);
     }
-
+    delay(50);
   
   // G. SPIFFS to write data to onboard Flash
-  if (!SPIFFS.begin(true)) {
-    Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
-    while (1);
-  }
-delay(500);
+    if (!SPIFFS.begin(true)) {
+      Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
+      while (1);
+    }
+    delay(50);
 
   //H. Read config file if exists
   file = SPIFFS.open("/config.txt", FILE_READ);
@@ -257,16 +264,14 @@ delay(500);
     drifterName = inData.substring(0,comma);
     drifterTimeSlotSec = inData.substring(comma+1).toInt();
     Serial.println(inData);
-    file.close();
   }
-
+  file.close();
+  delay(50);
 
   csvFileName="/svt"+String(drifterName)+".csv";
-
-  pinMode(BUTTON_PIN, INPUT);
-
+  webServerOn = false;
   Serial.println("init ok");
-  delay(1500);
+  delay(50);
 }
 
 
@@ -298,7 +303,7 @@ void loop() {
     {
       while (Serial1.available() > 0)
         gps.encode(Serial1.read());     
-    } while (millis() - start < 500);
+    } while (millis() - start < 800);
     // C. If this is a new GPS record then save it
     if (gps.time.second() != gpsLastSecond) {
         hour = String(gps.time.hour());
@@ -341,12 +346,12 @@ void loop() {
               LoRa.beginPacket();
               LoRa.print(sendPacket);
               LoRa.endPacket(true);
-              delay(1000); // Don't send more than 1 packet
+              delay(50); // Don't send more than 1 packet
           }
       csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
       nSamples += 1;
     }
-    
+    delay(50);
     // D. Write data to onboard flash if nSamples is large enough
     Serial.println("nSamples:" + String(nSamples));
     if (nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
@@ -380,7 +385,6 @@ void writeData2Flash (){
     lastFileWrite = "FAILED OPEN";
   } else {
     if (file.println(csvOutStr)) {
-      file.close();
       Serial.println("Wrote data in file");
       csvOutStr = ""; nSamples = 0;
       lastFileWrite = tTime;
@@ -388,6 +392,8 @@ void writeData2Flash (){
       lastFileWrite = "FAILED WRITE";
     }
   }
+ file.close();
+ delay(50);
 }
 
 

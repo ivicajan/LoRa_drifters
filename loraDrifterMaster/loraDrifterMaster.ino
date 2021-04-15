@@ -5,7 +5,6 @@
 // A. Global variables
 // =======================================================================================
 TinyGPSPlus gps;                      // decoder for GPS stream
-AXP20X_Class axp;                     // power management chip on T-Beam
 const char* ssid = "DrifterMaster";   // Wifi ssid and password
 const char* password = "Tracker1";
 Master m;                             // Master data
@@ -96,11 +95,14 @@ void loop() {
   // B. Read and decode Master GPS
   SerialGPSDecode(Serial1, gps);
   delay(10);
+  
   // C. Make Servants Data HTML
   servantsData = "";
   for (int i = 0; i < nServantsMax; i++) {
     String tTime = String(gps.time.hour()) + ":" + String(gps.time.minute()) + ":" + String(gps.time.second());
     String tDate = String(gps.date.year()) + "-" + String(gps.date.month()) + "-" + String(gps.date.day());
+  // would be better to display only those sending any data and skip non-working servants
+    if (s[i].ID != -1) {
     servantsData += "<tr>";
     servantsData += "<td>" + String(s[i].ID) + "</td>";
     servantsData += "<td>" + String(s[i].loraUpdatePlanSec) + "</td>";
@@ -113,6 +115,7 @@ void loop() {
     servantsData += "<td>" + String(s[i].count) + "</td>";
     servantsData += "<td>" + String(s[i].rssi) + "</td>";
     servantsData += "</tr>";
+    }
   }
 
   // D. Write data to onboard flash

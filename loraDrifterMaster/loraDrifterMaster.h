@@ -13,13 +13,12 @@
 // C. GPS libraries 
 #include <Wire.h>           // for reseting NMEA output from some T-Beam units
 #include <TinyGPS++.h>      // decoding GPS 
-//#include <SparkFun_Ublox_Arduino_Library.h> //http://librarymanager/All#SparkFun_Ublox_GPS
 
 // D. Power management on the TTGo T-beam
 #include "axp20x.h"         // Not used on the versions I have but the new ones may need it
 AXP20X_Class PMU;
 
-// E. Defines
+// E. Defines for TTGO T Beam V1.1 with LoRa
 #define GPS_RX_PIN 34
 #define GPS_TX_PIN 12
 #define BUTTON_PIN 38
@@ -121,6 +120,8 @@ SPIClass SDSPI(HSPI);
 void initBoard()
 {
     initPMU();
+    delay(50);
+
     #ifdef BOARD_LED
     /*
     * T-BeamV1.0, V1.1 LED defaults to low level as trun on,
@@ -137,10 +138,9 @@ void initBoard()
     Serial.println("initBoard");
     Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     delay(50);
-    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);    
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
+    delay(50);    
 }
-
-
 
 // G. Classes for Master and Servant Data
 

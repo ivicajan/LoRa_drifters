@@ -281,7 +281,7 @@ void setup() {
 // =======================================================================================
 void loop() {
   
-  // E. Check for button press
+  // A. Check for button press
   if ( digitalRead(BUTTON_PIN) == LOW ) {
     if (webServerOn) {
       Serial.println("Web server already started");
@@ -297,62 +297,11 @@ void loop() {
   }
 
   if (!webServerOn) {
-    // A. Receive and Encode GPS data
-    unsigned long start = millis();
-    do
-    {
-      while (Serial1.available() > 0)
-        gps.encode(Serial1.read());     
-    } while (millis() - start < 800);
-    // C. If this is a new GPS record then save it
-    if (gps.time.second() != gpsLastSecond) {
-        hour = String(gps.time.hour());
-        minute = String(gps.time.minute());
-        second = String(gps.time.second());
-        year = String(gps.date.year());
-        month = String(gps.date.month());
-        day = String(gps.date.day());      
-        if (hour.length() == 1)
-        {
-           hour = "0" + hour;     
-        }
-        if (minute.length() == 1)
-        {
-           minute = "0" + minute;     
-        }
-        if (second.length() == 1)
-        {
-           second = "0" + second;     
-        } 
-        if (month.length() == 1)
-        {
-           month = "0" + month;     
-        }  
-        if (day.length() == 1)
-        {
-           day = "0" + day;     
-        }
-         tDate = year + "-" + month + "-" + day;
-         tTime = hour + ":" + minute + ":" + second;
-         String tLocation = String(gps.location.lat(), 8) + "," + String(gps.location.lng(), 8) + "," + String(gps.location.age());
-         String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
-         gpsLastSecond = gps.time.second();
-
-         // B. Send GPS data on LoRa if it is this units timeslot
-          if (gps.time.second() == drifterTimeSlotSec) {
-              Serial.println("sending packet via LoRa");
-              Serial.println(sendPacket);
-              csvOutStr += sendPacket; // Save any packets that are sent (debugging purposes).
-              LoRa.beginPacket();
-              LoRa.print(sendPacket);
-              LoRa.endPacket(true);
-              delay(50); // Don't send more than 1 packet
-          }
-      csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
-      nSamples += 1;
-    }
-    delay(50);
-    // D. Write data to onboard flash if nSamples is large enough
+    // A. Receive and Decode GPS data and send via LoRa if in time slot 
+    SerialGPSDecode(Serial1, gps);
+    delay(10);
+    
+    // B. Write data to onboard flash if nSamples is large enough
     Serial.println("nSamples:" + String(nSamples));
     if (nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
         Serial.println("Dump data into the memory");
@@ -396,6 +345,63 @@ void writeData2Flash (){
  delay(50);
 }
 
+void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
+  // Read GPS and run decoder
+    unsigned long start = millis();
+    do
+    {
+      while (Serial1.available() > 0)
+        gps.encode(Serial1.read());     
+    } while (millis() - start < 800);
+    // C. If this is a new GPS record then save it
+    if (gps.time.second() != gpsLastSecond) {
+        hour = String(gps.time.hour());
+        minute = String(gps.time.minute());
+        second = String(gps.time.second());
+        year = String(gps.date.year());
+        month = String(gps.date.month());
+        day = String(gps.date.day());      
+        if (hour.length() == 1)
+        {
+           hour = "0" + hour;     
+        }
+        if (minute.length() == 1)
+        {
+           minute = "0" + minute;     
+        }
+        if (second.length() == 1)
+        {
+           second = "0" + second;     
+        } 
+        if (month.length() == 1)
+        {
+           month = "0" + month;     
+        }  
+        if (day.length() == 1)
+        {
+           day = "0" + day;     
+        }
+         tDate = year + "-" + month + "-" + day;
+         tTime = hour + ":" + minute + ":" + second;
+         String tLocation = String(gps.location.lat(), 8) + "," + String(gps.location.lng(), 8) + "," + String(gps.location.age());
+         String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
+         gpsLastSecond = gps.time.second();
+         csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
+         nSamples += 1;
+
+         // B. Send GPS data on LoRa if it is this units timeslot
+          if (gps.time.second() == drifterTimeSlotSec) {
+              Serial.println("sending packet via LoRa");
+              Serial.println(sendPacket);
+              csvOutStr += sendPacket; // Save any packets that are sent (debugging purposes).
+              LoRa.beginPacket();
+              LoRa.print(sendPacket);
+              LoRa.endPacket(true);
+              delay(50); // Don't send more than 1 packet
+          }
+    }
+    delay(50);
+}
 
 // D3. Web Server Setup
 void startWebServer(bool webServerOn) {

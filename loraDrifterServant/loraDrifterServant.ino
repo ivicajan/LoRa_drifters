@@ -10,7 +10,6 @@
 
 // B1. SPIFFS
 #include "SPIFFS.h"
-
 // C. GPS libraries
 #include <Wire.h>           // for reseting NMEA output from some T-Beam units
 #include <TinyGPS++.h>      // decoding GPS 
@@ -236,7 +235,7 @@ void setup() {
 //  Need to setup this part
 //  pinMode(BOARD_LED, OUTPUT);
 //  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
-//  pinMode(webServerPin, INPUT);
+  pinMode(webServerPin, INPUT);
 
   // C. Local GPS
   // Started inside initBoard()
@@ -267,7 +266,6 @@ void setup() {
     drifterTimeSlotSec = inData.substring(comma+1).toInt();
     Serial.println(inData);
   }
-  file.close();
   delay(50);
 
   csvFileName="/svt"+String(drifterName)+".csv";
@@ -341,10 +339,11 @@ void writeData2Flash (){
       lastFileWrite = tTime;
     } else {
       lastFileWrite = "FAILED WRITE";
+      ESP.restart();
     }
   }
- file.close();
- delay(50);
+  file.close();
+  delay(50);
 }
 
 void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {

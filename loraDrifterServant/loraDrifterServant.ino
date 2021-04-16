@@ -7,6 +7,7 @@
 // B. SPI & LoRa
 #include <SPI.h>
 #include <LoRa.h>
+
 // B1. SPIFFS
 #include "SPIFFS.h"
 
@@ -58,7 +59,7 @@ bool initPMU()
     /*
      * The charging indicator can be turned on or off
      * * * */
-    // PMU.setChgLEDMode(LED_BLINK_4HZ);
+    PMU.setChgLEDMode(AXP20X_LED_OFF);
 
     /*
     * The default ESP32 power supply has been turned on,
@@ -116,6 +117,8 @@ SPIClass SDSPI(HSPI);
 
 void initBoard()
 {
+    Serial.begin(115200);
+    Serial.println("initBoard");
     initPMU();
     delay(50);
     
@@ -131,8 +134,7 @@ void initBoard()
     digitalWrite(BOARD_LED, LED_ON);
     #endif
     delay(50);
-    Serial.begin(115200);
-    Serial.println("initBoard");
+ 
     Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     delay(50);
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
@@ -175,7 +177,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       h2 {font-size: 3.0rem;}
       p {font-size: 3.0rem;}
       table, th, td { border: 1px solid black;}
-      body {max-width: 600px; margin:0px auto; padding-bottom: 25px;}
+      body {max-width: 700px; margin:0px auto; padding-bottom: 25px;}
     </style>
   </head>
   <body>
@@ -232,9 +234,9 @@ void setup() {
   
   // B. Setup LEDs for information   
 //  Need to setup this part
-  pinMode(BOARD_LED, OUTPUT);
-  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
-  pinMode(webServerPin, INPUT);
+//  pinMode(BOARD_LED, OUTPUT);
+//  digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
+//  pinMode(webServerPin, INPUT);
 
   // C. Local GPS
   // Started inside initBoard()
@@ -352,7 +354,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     {
       while (Serial1.available() > 0)
         gps.encode(Serial1.read());     
-    } while (millis() - start < 800);
+    } while (millis() - start < 500);
     // C. If this is a new GPS record then save it
     if (gps.time.second() != gpsLastSecond) {
         hour = String(gps.time.hour());

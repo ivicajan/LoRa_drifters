@@ -34,7 +34,7 @@ void setup() {
   // B. Setup LEDs for information
   // pinMode(ledPin, OUTPUT);
   // digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
-  pinMode(BUTTON_PIN, INPUT);
+  // pinMode(BUTTON_PIN, INPUT);
 
   // C. Local GPS
   // moved inside initBoard();
@@ -48,13 +48,12 @@ void setup() {
     }
   // register the receive callback
   LoRa.onReceive(onReceive);
-
   // put the radio into receive mode
   LoRa.receive();
   delay(50);
+  
   // E. WiFi Access Point start up, by default it is always on
   // could think of saving energy and fire up on demand (i.e. BUTTON_PIN)
-
   WiFi.softAP(ssid, password);
   Serial.println(WiFi.softAPIP());    // Print ESP32 Local IP Address
 
@@ -75,6 +74,7 @@ void setup() {
   });
   server.begin();
   delay(50);
+ 
   // G. SPIFFS to write data to onboard Flash
   if (!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");

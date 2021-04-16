@@ -332,6 +332,7 @@ void writeData2Flash (){
   if (!file) {
     Serial.println("There was an error opening the file for writing");
     lastFileWrite = "FAILED OPEN";
+    ESP.restart();
   } else {
     if (file.println(csvOutStr)) {
       Serial.println("Wrote data in file");

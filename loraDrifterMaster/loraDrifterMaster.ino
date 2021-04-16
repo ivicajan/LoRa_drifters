@@ -163,12 +163,14 @@ void writeData2Flash (){
     if (!file) {
       Serial.println("There was an error opening the file for writing");
       lastFileWrite = "FAILED OPEN";
+      ESP.restart();
     } else {
       if (file.println(csvOutStr)){
         csvOutStr = ""; nSamples = 0;
         lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
       } else {
         lastFileWrite = "FAILED WRITE";
+        ESP.restart();
       }
     }
     file.close();

@@ -388,9 +388,10 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
          String tLocation = String(gps.location.lat(), 8) + "," + String(gps.location.lng(), 8) + "," + String(gps.location.age());
          String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
          gpsLastSecond = gps.time.second();
+         if (gps.location.lng() != 0.0){
          csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
          nSamples += 1;
-
+         
          // B. Send GPS data on LoRa if it is this units timeslot
           if (gps.time.second() == drifterTimeSlotSec) {
               Serial.println("sending packet via LoRa");
@@ -401,6 +402,10 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
               LoRa.endPacket(true);
               delay(50); // Don't send more than 1 packet
           }
+          } else {
+            Serial.println(" NO GPS FIX ");
+          }
+          
     }
     delay(50);
 }
@@ -446,9 +451,19 @@ void startWebServer(bool webServerOn) {
       writeData2Flash();
       request->send(SPIFFS, csvFileName, "text/plain", true);
     });
-    server.on("/deleteServant", HTTP_GET,
-    [](AsyncWebServerRequest * request) {
+    
+    server.on("/deleteServant", HTTP_GET, [](AsyncWebServerRequest * request) {
+      SPIFFS.remove(csvFileName);
       file = SPIFFS.open(csvFileName, FILE_WRITE);
+      if (!file) {
+        Serial.println("There was an error opening the file for writing");
+        return;
+      }
+      if (file.println("#FILE ERASED at " + lastFileWrite)) {
+        Serial.println("File was created");
+      } else {
+        Serial.println("File creation failed");
+      }
       file.close();
       lastFileWrite = "";
       request->send(200, "text/html", "<html><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"\">Success!  BACK </a></html>");

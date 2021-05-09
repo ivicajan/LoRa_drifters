@@ -65,10 +65,21 @@ void setup() {
     writeData2Flash();
     request->send(SPIFFS, "/master.csv", "text/html", true);
   });
-  server.on("/deleteMaster", HTTP_GET,
-    [](AsyncWebServerRequest * request) {
+  server.on("/deleteMaster", HTTP_GET, [](AsyncWebServerRequest * request) {     
+      SPIFFS.remove("/master.csv");
       file = SPIFFS.open("/master.csv", FILE_WRITE);
-      file.close();
+      if (!file) {
+      Serial.println("There was an error opening the file for writing");
+    return;
+  }
+ 
+  if (file.println("#FILE ERASED at " + String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC))) {
+    Serial.println("File was erased / reinit OK");
+  } else {
+    Serial.println("File reinit failed");
+  }
+ 
+  file.close();
       lastFileWrite="";
       request->send(200, "text/html", "<html><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"\">Success!  BACK </a></html>");
   });
@@ -238,11 +249,14 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/deleteMaster\"> ERASE </a></td>";
     masterData += "</tr>";    
     // Update String to be written to file
+    if (m.lon != 0.0) {
     csvOutStr += tDate + "," + tTime + "," + String(m.lon, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
+    nSamples += 1;
+    } else {
+      Serial.println(" NO GPS FIX !");
+    }
     gpsLastSecond = gps.time.second();
     Serial.println("nSamples: " +  String(nSamples));
-    nSamples += 1;
-
   }
 }
 

@@ -178,6 +178,8 @@ void writeData2Flash (){
     } else {
       if (file.println(csvOutStr)){
         csvOutStr = ""; nSamples = 0;
+        Serial.println("Wrote data in file, current size:");
+        Serial.println(file.size());
         lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
       } else {
         lastFileWrite = "FAILED WRITE";
@@ -253,7 +255,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     csvOutStr += tDate + "," + tTime + "," + String(m.lon, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
     nSamples += 1;
     } else {
-      Serial.println(" NO GPS FIX !");
+      Serial.println(" NO GPS FIX, not WRITING LOCAL DATA !");
     }
     gpsLastSecond = gps.time.second();
     Serial.println("nSamples: " +  String(nSamples));

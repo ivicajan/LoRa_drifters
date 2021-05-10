@@ -335,11 +335,12 @@ void writeData2Flash (){
     ESP.restart();
   } else {
     if (file.println(csvOutStr)) {
-      Serial.println("Wrote data in file");
+      Serial.println("Wrote data in file, current size:");
+      Serial.println(file.size());
       csvOutStr = ""; nSamples = 0;
       lastFileWrite = tTime;
     } else {
-      lastFileWrite = "FAILED WRITE";
+      lastFileWrite = "FAILED WRITE, RESTARTING";
       ESP.restart();
     }
   }
@@ -391,7 +392,6 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
          if (gps.location.lng() != 0.0){
          csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
          nSamples += 1;
-         
          // B. Send GPS data on LoRa if it is this units timeslot
           if (gps.time.second() == drifterTimeSlotSec) {
               Serial.println("sending packet via LoRa");
@@ -403,7 +403,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
               delay(50); // Don't send more than 1 packet
           }
           } else {
-            Serial.println(" NO GPS FIX ");
+            Serial.println(" NO GPS FIX, NOT SENDING OR WRITING ");
           }
           
     }

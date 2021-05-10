@@ -251,7 +251,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     masterData += "<td><a href=\"http://"+IpAddress2String(WiFi.softAPIP())+"/deleteMaster\"> ERASE </a></td>";
     masterData += "</tr>";    
     // Update String to be written to file
-    if (m.lon != 0.0) {
+    if ((m.lon != 0.0) && (m.age < 1000)) {
     csvOutStr += tDate + "," + tTime + "," + String(m.lon, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
     nSamples += 1;
     } else {

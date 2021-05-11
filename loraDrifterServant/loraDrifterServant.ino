@@ -386,7 +386,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
         }
          tDate = year + "-" + month + "-" + day;
          tTime = hour + ":" + minute + ":" + second;
-         String tLocation = String(gps.location.lat(), 8) + "," + String(gps.location.lng(), 8) + "," + String(gps.location.age());
+         String tLocation = String(gps.location.lng(), 8) + "," + String(gps.location.lat(), 8) + "," + String(gps.location.age());
          String sendPacket = String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
          gpsLastSecond = gps.time.second();
          if ((gps.location.lng != 0.0) && (gps.location.age < 1000)){

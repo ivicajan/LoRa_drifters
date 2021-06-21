@@ -247,14 +247,14 @@ void Servant::decode(String packet) {
   minute=timeFull.substring(colon1+1,colon2).toInt();
   second=timeFull.substring(colon2+1).toInt();
   
-  // Latitude
-  comma1=comma2;  comma2=packet.indexOf(",",comma1+1);
-  lat=packet.substring(comma1+1,comma2).toFloat();
-  
   // Longitude
   comma1=comma2;  comma2=packet.indexOf(",",comma1+1);
   lon=packet.substring(comma1+1,comma2).toFloat();
 
+  // Latitude
+  comma1=comma2;  comma2=packet.indexOf(",",comma1+1);
+  lat=packet.substring(comma1+1,comma2).toFloat();
+  
  // Age
   comma1=comma2;  comma2=packet.indexOf(",",comma1+1);
   age=packet.substring(comma1+1,comma2).toInt();

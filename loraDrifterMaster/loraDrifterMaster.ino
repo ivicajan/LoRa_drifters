@@ -82,6 +82,7 @@ void setup(){
   delay(500);
   
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
+
   if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("LoRa init failed. Check your connections.");
     while(1);                       // if failed, do nothing
@@ -207,7 +208,7 @@ void loop(){
   }
 
   // D. Write data to onboard flash
-  if (nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
+  if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
     writeData2Flash();
   }
 }

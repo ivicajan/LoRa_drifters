@@ -8,7 +8,7 @@ String IpAddress2String(const IPAddress& ipAddress);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D01";   // ID send with packet
+String drifterName = "D04";   // ID send with packet
 int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x33;
+byte localAddress = 0x44;
 
 const char index_html[] PROGMEM = R"rawliteral(
   <!DOCTYPE HTML>
@@ -102,13 +102,13 @@ const char index_html[] PROGMEM = R"rawliteral(
 // FUNCTION DEFINITIONS
 void setup(){
   initBoard();
-  delay(50);
+  delay(500);
 
   pinMode(webServerPin, INPUT);
   
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
 
-  if (!LoRa.begin(LORA_FREQUENCY)) {
+  if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("LoRa init failed. Check your connections.");
     while (true);                       // if failed, do nothing
   }
@@ -116,7 +116,6 @@ void setup(){
   
   // Enable CRC --> if packet is corrupted, packet gets dropped silently
   LoRa.enableCrc();
-
   //H. Read config file if exists
   file = SPIFFS.open("/config.txt", FILE_READ);
   if(!file) {
@@ -153,11 +152,8 @@ void loop(){
   }
   if(!webServerOn) {
     int result = daemon(servantMode);
-
     if(loop_runEvery(PL_TX_TIME)) {
-      Serial.println("generate packet called");
       generatePacket(Serial1, gps);
-      
       result = routePayload(
         servantMode,        // Node Mode
         0xAA,               // recipient: Master
@@ -285,64 +281,6 @@ void writeData2Flash() {
   delay(50);
 }
 
-int findMaxRssi(const int minHopCount){
-  //To make sure the nextHop of that entry is not local
-  int currentRssi = 0;
-  int maxRssi = -10000000;
-  byte bestRoute = 0x00;
-
-  for(int i=0; i < 8; i++){
-    byte hopCount = routingTable[(i * 19) + 1];
-    byte nextHopID = routingTable[(i * 19) +2];
-
-    // maintain the currentRssi as maxRssi.
-    if((hopCount == minHopCount) && (nextHopID != localAddress)) {
-      currentRssi = *(int *)(&routingTable[(i * 19) + 3]);
-      if (currentRssi > maxRssi) {
-        maxRssi = currentRssi;
-        bestRoute = routingTable[i * 19];
-      }
-    }
-  }
-  localLinkRssi = maxRssi;
-  return (int)bestRoute;
-}
-
-int setRoutingStatus(){
-  // Update localHopCount and localNextHop
-  deleteOldEntries();
-  if(!checkIfEmpty()) {
-    const bool masterFound = searchMaster();
-    if(!masterFound) {
-      const int minHopCountInt = findMinHopCount();
-      const int bestRouteInt = findMaxRssi(minHopCountInt);
-
-      const byte minHopCount = (byte)minHopCountInt;
-      const byte bestRoute = (byte)bestRouteInt;
-      if(minHopCount != 0x00 && bestRoute != 0x00) {
-        // valid route
-        localHopCount = minHopCount + 1;
-        localNextHopID = bestRoute;
-        return 1;
-      } else {
-        // invalid
-        return -1;
-      }
-    } else {
-      // master is inside the routing table
-      localNextHopID = 0xAA;
-      localHopCount = 0x01;
-      localLinkRssi =  *(int *) (&routingTable[3]);
-      return 1;
-    } 
-  } else {
-    // empty table
-    localNextHopID = 0x00;
-    localHopCount = 0x00;
-    return -1;
-  }
-}
-
 int parsePayload(){
   // Parses the data
   if(LoRa.available() == sizeof(Packet)) {
@@ -361,7 +299,6 @@ int parsePayload(){
 void generatePacket(Stream &Serial1, TinyGPSPlus &gps) {
   //String dName = "D01";
   String dName = drifterName;
-  Serial.println(dName);
   unsigned long start = millis();
   do {
     while(Serial1.available() > 0) {
@@ -372,31 +309,28 @@ void generatePacket(Stream &Serial1, TinyGPSPlus &gps) {
     Serial.println("new GPS record");
     strcpy(packet.name, dName.c_str());
     packet.drifterTimeSlotSec = drifterTimeSlotSec;
+    Serial.println(dName);
     packet.hour = gps.time.hour();
-    Serial.println(packet.hour);
+    // Serial.println(packet.hour);
     packet.minute = gps.time.minute();
-    Serial.println(packet.minute);
+    // Serial.println(packet.minute);
     packet.second = gps.time.second();
-    Serial.println(packet.second);
+    // Serial.println(packet.second);
     packet.year = gps.date.year();
-    Serial.println(packet.year);
+    // Serial.println(packet.year);
     packet.month = gps.date.month();
-    Serial.println(packet.month);
+    // Serial.println(packet.month);
     packet.day = gps.date.day();
-    Serial.println(packet.day);
+    // Serial.println(packet.day);
     packet.lng = gps.location.lng();
-    Serial.println(packet.lng);
+    // Serial.println(packet.lng);
     packet.lat = gps.location.lat();
-    Serial.println(packet.lat);
+    // Serial.println(packet.lat);
     packet.nSamples = nSamples;
     packet.age = gps.location.age();
     gpsLastSecond = gps.time.second();
-    Serial.print("lng=");
-    Serial.println(gps.location.lng());
-    Serial.print("age=");
-    Serial.println(gps.location.age());
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
-      Serial.println("yes gps");
+      Serial.println("GPS still valid");
       // csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
       nSamples += 1;
       // B. Send GPS data on LoRa if it is this units timeslot

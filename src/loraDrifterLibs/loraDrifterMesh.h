@@ -48,8 +48,8 @@ byte localHopCount = 0x00;
 */
 
 // Timing Parameters
-#define RS_BCAST_TIME   3000    //Time intervals, broadcast for every 6000ms
-#define PL_TX_TIME      5000   //Receive pay load for every ms              //12000
+#define RS_BCAST_TIME   6000    //Time intervals, broadcast for every 6000ms
+#define PL_TX_TIME      10000   //Receive pay load for every ms              // 12000
 #define DELETION_TIME   62000   //Reset the routing table if entry's time is older than 62000ms
 #define ARQ_TIME        2000    //Automatic Repeat Request for every 2000ms
 
@@ -68,9 +68,6 @@ int parsePayload();
 int setRoutingStatus();
 
 int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl);
-
-// extern byte routingTable[153];
-// extern byte localAddress;
 
 extern byte routingTable[153];
 extern byte payload[24];
@@ -665,25 +662,30 @@ void printNodeInfo(){
   Serial.println(nodeRx);
 }
 
+#endif //MESH_MASTER_MODE
+
 int findMaxRssi(const int minHopCount){
   //To make sure the nextHop of that entry is not local
   int currentRssi = 0;
   int maxRssi = -10000000;
   byte bestRoute = 0x00;
 
-  for(int i=0; i<8; i++){
-    byte hopCount = routingTable[(i * 19) + 1];
-    byte nextHopID = routingTable[(i * 19) +2];
+  for(int ii = 0; ii < 8; ii++) {
+    byte hopCount = routingTable[(ii * 19) + 1];
+    byte nextHopID = routingTable[(ii * 19) + 2];
 
     // maintain the currentRssi as maxRssi.
     if((hopCount == minHopCount) && (nextHopID != localAddress)) {
-      currentRssi = *(int *)(&routingTable[(i * 19) + 3]);
+      currentRssi = *(int *)(&routingTable[(ii * 19) + 3]);
       if (currentRssi > maxRssi) {
         maxRssi = currentRssi;
-        bestRoute = routingTable[i * 19];
+        bestRoute = routingTable[ii * 19];
       }
     }
   }
+#ifndef MESH_MASTER_MODE
+  localLinkRssi = maxRssi;
+#endif // MESH_MASTER_MODE
   return (int)bestRoute;
 }
 
@@ -702,6 +704,9 @@ int setRoutingStatus(){
         // valid route
         localHopCount = minHopCount + 1;
         localNextHopID = bestRoute;
+#ifndef MESH_MASTER_MODE
+        localLinkRssi =  *(int *) (&routingTable[3]);
+#endif // MESH_MASTER_MODE
         return 1;
       } else {
         // invalid
@@ -720,7 +725,6 @@ int setRoutingStatus(){
     return -1;
   }
 }
-#endif //MESH_MASTER_MODE
 
 int daemon(const unsigned int mode) {
   if(runEvery(RS_BCAST_TIME)) {

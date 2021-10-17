@@ -311,23 +311,25 @@ void generatePacket(Stream &Serial1, TinyGPSPlus &gps) {
     packet.drifterTimeSlotSec = drifterTimeSlotSec;
     Serial.println(dName);
     packet.hour = gps.time.hour();
-    // Serial.println(packet.hour);
     packet.minute = gps.time.minute();
-    // Serial.println(packet.minute);
     packet.second = gps.time.second();
-    // Serial.println(packet.second);
     packet.year = gps.date.year();
-    // Serial.println(packet.year);
     packet.month = gps.date.month();
-    // Serial.println(packet.month);
     packet.day = gps.date.day();
-    // Serial.println(packet.day);
     packet.lng = gps.location.lng();
-    // Serial.println(packet.lng);
     packet.lat = gps.location.lat();
-    // Serial.println(packet.lat);
     packet.nSamples = nSamples;
     packet.age = gps.location.age();
+#ifdef DEBUG_MODE
+    Serial.println(packet.hour);
+    Serial.println(packet.minute);
+    Serial.println(packet.second);
+    Serial.println(packet.year);
+    Serial.println(packet.month);
+    Serial.println(packet.day);
+    Serial.println(packet.lng);
+    Serial.println(packet.lat);
+#endif //DEBUG_MODE
     gpsLastSecond = gps.time.second();
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       Serial.println("GPS still valid");
@@ -336,6 +338,7 @@ void generatePacket(Stream &Serial1, TinyGPSPlus &gps) {
       // B. Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
         Serial.println("Sending packet via LoRa");
+        // TODO: this does not do anything
       }
     } else {
       Serial.println("NO GPS FIX, NOT SENDING OR WRITING");

@@ -52,7 +52,7 @@ void Servant::decode(Packet * packet) {
     lat = packet->lat;
     age = packet->age;
     nSamples = packet->nSamples;
-
+#ifdef DEBUG_MODE
     // Serial.println(drifterTimeSlotSec);
     // Serial.println(lastUpdateMasterTime);
     // Serial.println(year);
@@ -65,6 +65,7 @@ void Servant::decode(Packet * packet) {
     // Serial.println(lat);
     // Serial.println(age);
     // Serial.println(nSamples);
+#endif //DEBUG_MODE
 }
 
 // H. This is the string literal for the main web page

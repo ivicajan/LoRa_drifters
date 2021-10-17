@@ -247,7 +247,6 @@ int parsePayload() {
     packet = (Packet *)buffer;
     // Get ID and then send to class for decoding
     String name = String(packet->name);
-    //Serial.println(name.substring(0, 1).c_str());
     Serial.println("Packet name:");
     Serial.println(name);
     if(!strcmp(name.substring(0, 1).c_str(), "D")) {

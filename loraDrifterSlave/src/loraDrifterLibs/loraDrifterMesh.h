@@ -53,6 +53,7 @@ byte localHopCount = 0x00;
 #define DELETION_TIME   62000   //Reset the routing table if entry's time is older than 62000ms
 #define ARQ_TIME        2000    //Automatic Repeat Request for every 2000ms
 
+#define NUM_NODES       8
 // #define MESH_MASTER_MODE
 class Master;
 struct Packet;
@@ -139,7 +140,7 @@ int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID,
 }
 
 void printRoutingTable(){
-  for(int idx = 0; idx < 3; idx++){ // change back to 8
+  for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte nodeID = routingTable[idx * 19];
     const byte hopCount = routingTable[(idx * 19) + 1];
     const byte hopID = routingTable[(idx*19) + 2];
@@ -158,7 +159,7 @@ void printRoutingTable(){
     Serial.println(hopCount);
     
     Serial.print("hopID: 0x");
-    Serial.println(hopID,HEX);
+    Serial.println(hopID, HEX);
     
     Serial.print("rssi: ");
     Serial.println(Rssi);
@@ -200,7 +201,7 @@ void deleteOldEntries() {
   int difference = 0;
   int newIndex = 0;
   
-  for(int ii = 0; ii < 8; ii++) {
+  for(int ii = 0; ii < NUM_NODES; ii++) {
     timeIndex = (ii * 19) + 11;
     
     lastTime = *(long int*)(&routingTable[timeIndex]);
@@ -217,7 +218,7 @@ void deleteOldEntries() {
 }
 
 bool checkIfEmpty() {
-  for(int idx = 0; idx < 8; idx++) {
+  for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte entry = routingTable[idx * 19];
     if(entry != 0x00) {
       return false;
@@ -228,7 +229,7 @@ bool checkIfEmpty() {
 
 bool searchMaster() {
   //Checks if a nodeID matches the Master ID 0xAA.
-  for(int idx = 0; idx < 8; idx++) {
+  for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte entry = routingTable[idx * 19];
     if(entry == 0xAA) {
       return true;
@@ -241,8 +242,8 @@ int findMinHopCount() {
   int minHopCount = 255;
   int currentHopCount = 0;
   
-  for(int i = 0; i < 8; i++) {
-    byte hopCount = routingTable[(i*19)+1];
+  for(int i = 0; i < NUM_NODES; i++) {
+    byte hopCount = routingTable[(i * 19) + 1];
     currentHopCount = (int)hopCount;
     if((currentHopCount != 0) && (currentHopCount < minHopCount)) {
       minHopCount = currentHopCount;
@@ -339,7 +340,6 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
   header[6] = ttl - 1;    // ttl
 
   delay(random(20));
-  Serial.println("Send frame");
   if(mode == 0){               // Node Mode
     switch(header[1]){            // check type
       case RSBcastS:              // Type B: RS BCAST
@@ -350,23 +350,6 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.write(localHopCount);    // RS payload
         LoRa.write(localNextHopID);   // RS payload
         LoRa.endPacket(true);
-
-        // header[7] = 0x18;
-        // header[1] = DirectPl;
-        // LoRa.beginPacket();
-        // LoRa.write(header, 8);
-// #ifdef MESH_MASTER_MODE
-//         LoRa.write((const uint8_t*)&m, sizeof(m));
-// #else
-//         LoRa.write((const uint8_t*)&packet, sizeof(packet));
-//         Serial.println(packet.second);
-//         Serial.println(packet.minute);
-//         Serial.print("lng=");
-//         Serial.println(packet.lng);
-//         Serial.print("lat=");
-//         Serial.println(packet.lat);
-// #endif // MESH_MASTER_MODE
-//         LoRa.endPacket(true);
         break;
       case DirectPl:              // Type C: Direct PL
       case RRequest:              // Type D: RRequest
@@ -493,11 +476,10 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       const float snr = LoRa.packetSnr();
       const unsigned long time = millis();
       result = insertRoutingTable(sender, 0x01, 0xAA, rssi, snr, time);
-      if(result != 1){
+      if(result != 1) {
         return result;
       }
-      result = setRoutingStatus();
-      return result;          // 1 or -1
+      return setRoutingStatus(); // 1 or -1
     }
     
     if(type == RSBcastS) {                // Type B: Neighbor BCAST
@@ -511,8 +493,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       if(result != 1) {
         return result;        // invalid nodeID
       }
-      result = setRoutingStatus();
-      return result;          // 1 or -1
+      return setRoutingStatus(); // 1 or -1
     }
     
     if(type == RRequest) {         // Type D: Route Request
@@ -543,7 +524,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   }
   
   // Checking the ackMode that was passed from waitForAck()
-  // The address space in integers between 17 and 170. 
+  // The address space in integers between 17 and 170.
   // Node 1 - 0x11 - 17
   // Node 2 - 0x22 - 34
   // Master Node - 0xAA - 170
@@ -557,7 +538,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   return -4;                  // frHandler ERR
 }
 
-int bcastRoutingStatus(int mode) {
+int bcastRoutingStatus(const int mode) {
   // Send a broadcast to the network
   int result = 0;
   if(mode == 0) {
@@ -670,7 +651,7 @@ int findMaxRssi(const int minHopCount){
   int maxRssi = -10000000;
   byte bestRoute = 0x00;
 
-  for(int ii = 0; ii < 8; ii++) {
+  for(int ii = 0; ii < NUM_NODES; ii++) {
     byte hopCount = routingTable[(ii * 19) + 1];
     byte nextHopID = routingTable[(ii * 19) + 2];
 

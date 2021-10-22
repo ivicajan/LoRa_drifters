@@ -1,5 +1,5 @@
-#ifndef LORADRIFTERMESH.H
-#define LORADRIFTERMESH.H
+#ifndef LORADRIFTERMESH_H
+#define LORADRIFTERMESH_H
 
 /*
 All Nodes are filling their Routing Tables and Routing Statuses dynamically.
@@ -45,6 +45,14 @@ byte localAddress = 0xAA;
 byte localNextHopID = 0xAA;
 byte localHopCount = 0x00;
 
+routing table structure - 19 bytes
+  nodeId         1 byte
+  hopCount       1 byte
+  hopId          1 byte
+  Rssi           4 bytes
+  snr            4 bytes
+  current time   8 bytes
+
 */
 
 // Timing Parameters
@@ -53,24 +61,21 @@ byte localHopCount = 0x00;
 #define DELETION_TIME   62000   //Reset the routing table if entry's time is older than 62000ms
 #define ARQ_TIME        2000    //Automatic Repeat Request for every 2000ms
 
-#define NUM_NODES       8
-// #define MESH_MASTER_MODE
+#define NUM_NODES                8
+#define ROUTING_TABLE_ENTRY_SIZE 19
+#define MESH_MASTER_MODE
 class Master;
+class Servant;
 struct Packet;
 #ifdef MESH_MASTER_MODE
 extern Master m;
+extern Servant s[nServantsMax]; // Servants data array
 #else
 extern Packet packet;
 Master m;
 #endif //MESH_MASTER_MODE
 
-// external functions
-int parsePayload();
-int setRoutingStatus();
-
-int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl);
-
-extern byte routingTable[153];
+extern byte routingTable[0x99];
 extern byte payload[24];
 extern byte localHopCount;
 extern byte localNextHopID;
@@ -96,6 +101,60 @@ typedef enum {
   RRequest = 0x44,
   ACK      = 0x45,
 } MessageType;
+
+typedef enum {
+  Invalid_Node_ID   = -9,
+  Master_Mode_Err   = -6,
+  Node_Mode_Err     = -5,
+  Frame_Handler_Err = -4,
+  ACK_Mode_Err      = -3,
+  Payload_Err       = -2,
+  Invalid           = -1,
+} ErrorType;
+
+typedef enum {
+  Failure = 0,
+  Success = 1,
+} ResultType;
+
+int parsePayload() {
+  // Parses the data
+  if(LoRa.available() == sizeof(Packet)) {
+    uint8_t buffer[sizeof(Packet)];
+    for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
+      buffer[ii] = LoRa.read();
+    }
+    Packet * packet;
+    memset(&packet, 0, sizeof(packet));
+    packet = (Packet *)buffer;
+
+#ifdef MESH_MASTER_MODE
+// Get ID and then send to class for decoding
+    String name = String(packet->name);
+    Serial.println("Packet name:");
+    Serial.println(name);
+    if(!strcmp(name.substring(0, 1).c_str(), "D")) {
+      Serial.println("Drifter signal found!");
+      // csvOutStr += recv; // Save all packets recevied (debugging purposes)
+      int id = name.substring(1, 3).toInt();
+      s[id].ID = id;
+      s[id].decode(packet);
+      s[id].rssi = LoRa.packetRssi();
+      s[id].updateDistBear(m.lng, m.lat);
+      s[id].active = true;
+      Serial.println("RX from LoRa - decoding completed");
+    }
+    return 2;         // Success
+#else
+    return Success;
+#endif // MESH_MASTER_MODE
+  }
+  return Payload_Err;       // Payload ERR
+}
+
+// To help compiler
+int setRoutingStatus();
+int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl);
 
 bool validateID(const byte nodeID) {
   switch(nodeID) {
@@ -127,26 +186,26 @@ int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID,
   if(validNode && validHop) {
     const int idx = idToIndex(nodeID);
 
-    memcpy(&routingTable[idx * 19], &nodeID, sizeof(nodeID));
-    memcpy(&routingTable[(idx * 19) + 1], &hopCount, sizeof(hopCount));
-    memcpy(&routingTable[(idx * 19) + 2], &hopID, sizeof(hopID));
-    memcpy(&routingTable[(idx * 19) + 3], &Rssi, sizeof(Rssi));
-    memcpy(&routingTable[(idx * 19) + 7], &snr, sizeof(snr));
-    memcpy(&routingTable[(idx * 19) + 11], &currentTime, sizeof(currentTime));
+    memcpy(&routingTable[idx * ROUTING_TABLE_ENTRY_SIZE], &nodeID, sizeof(nodeID));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1], &hopCount, sizeof(hopCount));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 2], &hopID, sizeof(hopID));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3], &Rssi, sizeof(Rssi));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7], &snr, sizeof(snr));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
 
-    return 1;       // Success
+    return Success;         // Success
   }
-  return -9;          // E -9: invalid nodeID
+  return Invalid_Node_ID;   // E -9: invalid nodeID
 }
 
-void printRoutingTable(){
+void printRoutingTable() {
   for(int idx = 0; idx < NUM_NODES; idx++) {
-    const byte nodeID = routingTable[idx * 19];
-    const byte hopCount = routingTable[(idx * 19) + 1];
-    const byte hopID = routingTable[(idx*19) + 2];
-    const int Rssi = *(int*)(&routingTable[(idx * 19) + 3]);
-    const float snr = *(float*)(&routingTable[(idx * 19) + 7]);
-    const unsigned long currentTime = *(unsigned long*)(&routingTable[(idx * 19) + 11]);
+    const byte nodeID = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
+    const byte hopCount = routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1];
+    const byte hopID = routingTable[(idx*ROUTING_TABLE_ENTRY_SIZE) + 2];
+    const int Rssi = *(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3]);
+    const float snr = *(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7]);
+    const unsigned long currentTime = *(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11]);
 
     Serial.print("Routing Table Entry ");
     Serial.print(idx);
@@ -202,7 +261,7 @@ void deleteOldEntries() {
   int newIndex = 0;
   
   for(int ii = 0; ii < NUM_NODES; ii++) {
-    timeIndex = (ii * 19) + 11;
+    timeIndex = (ii * ROUTING_TABLE_ENTRY_SIZE) + 11;
     
     lastTime = *(long int*)(&routingTable[timeIndex]);
     difference = currentTime - lastTime;
@@ -210,7 +269,7 @@ void deleteOldEntries() {
     // Sets all 19 fields of an entry to 0x00
     if(difference > DELETION_TIME) {
       for(int jj = 0; jj < 18; jj++) {
-        newIndex = (ii * 19) + jj;
+        newIndex = (ii * ROUTING_TABLE_ENTRY_SIZE) + jj;
         routingTable[newIndex] = 0x00;
       }
     }
@@ -219,7 +278,7 @@ void deleteOldEntries() {
 
 bool checkIfEmpty() {
   for(int idx = 0; idx < NUM_NODES; idx++) {
-    const byte entry = routingTable[idx * 19];
+    const byte entry = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
     if(entry != 0x00) {
       return false;
     }
@@ -230,7 +289,7 @@ bool checkIfEmpty() {
 bool searchMaster() {
   //Checks if a nodeID matches the Master ID 0xAA.
   for(int idx = 0; idx < NUM_NODES; idx++) {
-    const byte entry = routingTable[idx * 19];
+    const byte entry = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
     if(entry == 0xAA) {
       return true;
     }
@@ -242,8 +301,8 @@ int findMinHopCount() {
   int minHopCount = 255;
   int currentHopCount = 0;
   
-  for(int i = 0; i < NUM_NODES; i++) {
-    byte hopCount = routingTable[(i * 19) + 1];
+  for(int idx = 0; idx < NUM_NODES; idx++) {
+    byte hopCount = routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1];
     currentHopCount = (int)hopCount;
     if((currentHopCount != 0) && (currentHopCount < minHopCount)) {
       minHopCount = currentHopCount;
@@ -340,10 +399,9 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
   header[6] = ttl - 1;    // ttl
 
   delay(random(20));
-  if(mode == 0){               // Node Mode
+  if(mode == 0) {               // Node Mode
     switch(header[1]){            // check type
       case RSBcastS:              // Type B: RS BCAST
-        // Serial.println("RSBcastS in header[1]");
         header[7] = 0x02;       // sizePayload
         LoRa.beginPacket();
         LoRa.write(header, 8);
@@ -396,8 +454,8 @@ void sendAckBack(const int mode, const byte source) {
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }
 
-int listener(const int frameSize, const int mode){
-  if(frameSize == 0){
+int listener(const int frameSize, const int mode) {
+  if(frameSize == 0) {
     return 0;             // nothing to receive
   }
   // Parse Header
@@ -411,7 +469,7 @@ int listener(const int frameSize, const int mode){
   const byte sizePayload = LoRa.read();
 
   const bool validHeader = checkFrameHeader(mode, sizeHeader,type, router, source, recipient, sender, ttl, sizePayload);
-  if(validHeader){
+  if(validHeader) {
     return frameHandler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
   } 
   return 0;
@@ -424,7 +482,7 @@ bool waitForAck(const byte router) {
   const int interval = ARQ_TIME * localHopCount;
   const int ackMode = (int)router;
 
-  while(maxloops < interval && result!=1) {
+  while(maxloops < interval && result != 1) {
     result = listener(LoRa.parsePacket(), ackMode);
     delay(1);
     maxloops++;
@@ -447,7 +505,7 @@ int ackHandshake(const int mode, const byte type, const byte router, const byte 
     Serial.println("Did not receive ACK from router.");
     return 0;
   } else {
-    return 1;
+    return Success;
   }
 }
 
@@ -508,7 +566,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
         return result;          // No ACK
       }
     }
-    return -5;                // Node Mode ERR
+    return Node_Mode_Err;                // Node Mode ERR
   } 
   
   if(mode == 1) {                // Master Mode
@@ -520,7 +578,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       }
       return result;            // Parse ERR
     } 
-    return -6;                // Master Mode ERR
+    return Master_Mode_Err;                // Master Mode ERR
   }
   
   // Checking the ackMode that was passed from waitForAck()
@@ -531,11 +589,11 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   
   if(mode > 16 && mode < 171) {          // ACK Mode
     if(type == ACK) {
-      return 1;               // Success
+      return Success;               // Success
     } 
-    return -3;                // ACK Mode ERR
+    return ACK_Mode_Err;                // ACK Mode ERR
   }
-  return -4;                  // frHandler ERR
+  return Frame_Handler_Err;                  // frHandler ERR
 }
 
 int bcastRoutingStatus(const int mode) {
@@ -564,7 +622,7 @@ int bcastRoutingStatus(const int mode) {
       0x0F              // ttl
     );
   }
-  return 1;
+  return Success;
 }
 
 #ifdef MESH_MASTER_MODE
@@ -590,38 +648,38 @@ int getNodeRxCounter(const byte nodeId){
 
 void incNodeRxCounter(const int nodeId) {
   switch(nodeId) {
-    case 17:
+    case 0x11:
       node1Rx++;
       break;
-    case 34:
+    case 0x22:
       node2Rx++;
       break;
-    case 51:
+    case 0x33:
       node3Rx++;
       break;
-    case 68:
+    case 0x44:
       node4Rx++;
       break;
-    case 85:
+    case 0x55:
       node5Rx++;
       break;
-    case 102:
+    case 0x66:
       node6Rx++;
       break;
-    case 119:
+    case 0x77:
       node7Rx++;
       break;
   }
 }
 
 void printNodeInfo(){
-  int nodeId = *(int *) (&payload[0]);
-  int hopCount = *(int *) (&payload[4]);
-  int nextHop = *(int *) (&payload[8]);
-  int linkRssi = *(int *) (&payload[12]);
-  int attemptedPayloadTx = *(int *) (&payload[16]);
+  const int nodeId = *(int *) (&payload[0]);
+  const int hopCount = *(int *) (&payload[4]);
+  const int nextHop = *(int *) (&payload[8]);
+  const int linkRssi = *(int *) (&payload[12]);
+  const int attemptedPayloadTx = *(int *) (&payload[16]);
   incNodeRxCounter(nodeId);
-  int nodeRx = getNodeRxCounter(nodeId);
+  const int nodeRx = getNodeRxCounter(nodeId);
 
   Serial.print("    Received payload from Node ID 0x");
   Serial.print(nodeId, HEX);
@@ -639,28 +697,28 @@ void printNodeInfo(){
   Serial.print("        Attempted Payload Transmissions:                   ");
   Serial.println(attemptedPayloadTx);
 
-  Serial.print("        Total Payloads Received from this Node:            "); 
+  Serial.print("        Total Payloads Received from this Node:            ");
   Serial.println(nodeRx);
 }
 
 #endif //MESH_MASTER_MODE
 
-int findMaxRssi(const int minHopCount){
+int findMaxRssi(const int minHopCount) {
   //To make sure the nextHop of that entry is not local
   int currentRssi = 0;
   int maxRssi = -10000000;
   byte bestRoute = 0x00;
 
   for(int ii = 0; ii < NUM_NODES; ii++) {
-    byte hopCount = routingTable[(ii * 19) + 1];
-    byte nextHopID = routingTable[(ii * 19) + 2];
+    byte hopCount = routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 1];
+    byte nextHopID = routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 2];
 
     // maintain the currentRssi as maxRssi.
     if((hopCount == minHopCount) && (nextHopID != localAddress)) {
-      currentRssi = *(int *)(&routingTable[(ii * 19) + 3]);
+      currentRssi = *(int *)(&routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 3]);
       if (currentRssi > maxRssi) {
         maxRssi = currentRssi;
-        bestRoute = routingTable[ii * 19];
+        bestRoute = routingTable[ii * ROUTING_TABLE_ENTRY_SIZE];
       }
     }
   }
@@ -670,7 +728,7 @@ int findMaxRssi(const int minHopCount){
   return (int)bestRoute;
 }
 
-int setRoutingStatus(){
+int setRoutingStatus() {
   // Update localHopCount and localNextHop
   deleteOldEntries();
   if(!checkIfEmpty()) {
@@ -688,22 +746,21 @@ int setRoutingStatus(){
 #ifndef MESH_MASTER_MODE
         localLinkRssi =  *(int *) (&routingTable[3]);
 #endif // MESH_MASTER_MODE
-        return 1;
+        return Success;
       } else {
-        // invalid
-        return -1;
+        return Invalid;
       }
     } else {
       // master is inside the routing table
       localNextHopID = 0xAA;
       localHopCount = 0x01;
-      return 1;
+      return Success;
     } 
   } else {
     // empty table
     localNextHopID = 0x00;
     localHopCount = 0x00;
-    return -1;
+    return Invalid;
   }
 }
 
@@ -718,4 +775,4 @@ int daemon(const unsigned int mode) {
                                   // returns 1: Valid processing
                                   // returns -8 to -1: Processing Errors
 
-#endif // LORADRIFTERMESH.H
+#endif // LORADRIFTERMESH_H

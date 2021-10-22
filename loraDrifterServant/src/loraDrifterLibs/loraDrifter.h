@@ -1,5 +1,5 @@
-#ifndef LORADRIFTER.H
-#define LORADRIFTER.H
+#ifndef LORADRIFTER_H
+#define LORADRIFTER_H
 
 // A. WiFi & Web Server
 #include <WiFi.h>
@@ -77,6 +77,13 @@ class Master {
     uint32_t age = 0;
     ~Master() = default;
 };
+
+#ifdef MASTER_MODE
+#include "../../loraDrifterMaster.h"
+#endif // MASTER_MODE
+#ifdef MESH_MASTER_MODE
+#include "../../loraDrifterMaster.h"
+#endif // MESH_MASTER_MODE
 
 #ifdef USING_MESH
 #include "loraDrifterMesh.h"
@@ -180,4 +187,4 @@ String IpAddress2String(const IPAddress& ipAddress) {
     String(ipAddress[3]);
 }
 
-#endif //LORADRIFTER.H
+#endif //LORADRIFTER_H

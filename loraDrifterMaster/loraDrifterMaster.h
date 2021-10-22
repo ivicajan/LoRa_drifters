@@ -1,14 +1,10 @@
-#ifndef LORADRIFTERMASTER.H
-#define LORADRIFTERMASTER.H
+#ifndef LORADRIFTERMASTER_H
+#define LORADRIFTERMASTER_H
 
 #define nServantsMax                12       // Maximum number of servant drifters (just for setting array size)
 #define nSamplesFileWrite           300      // Number of samples to store in memory before file write
 
 // G. Classes for Master and Servant Data
-
-
-#include "src/loraDrifterLibs/loraDrifter.h"
-
 class Servant {
   public:
     Servant() = default;
@@ -148,4 +144,4 @@ const char index_html[] PROGMEM = R"rawliteral(
 </html>
 )rawliteral";
 
-#endif //LORADRIFTERMASTER.H
+#endif //LORADRIFTERMASTER_H

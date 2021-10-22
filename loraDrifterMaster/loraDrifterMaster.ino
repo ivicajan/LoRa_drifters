@@ -1,10 +1,11 @@
+#define MASTER_MODE
 #define USING_MESH
 
 #ifdef USING_MESH
 #define MESH_MASTER_MODE
 #endif // USING_MESH
 
-#include "loraDrifterMaster.h"
+#include "src/loraDrifterLibs/loraDrifter.h"
 
 // F. Functions
 void startWebServer(const bool webServerOn);
@@ -29,13 +30,13 @@ int gpsLastSecond = -1;
 int webServerPin = BUTTON_PIN;
 String hour, minute, second, year, month, day, tTime, tDate;
 
-byte routingTable[153] = "";
+byte routingTable[0x99] = "";
 byte payload[24] = "";
 byte localAddress = 0xAA; // CHANGE THIS
 byte localNextHopID = 0xAA;
 byte localHopCount = 0x00;
 
-// Diagnostics 
+// Diagnostics
 int node1Rx = 0;
 int node2Rx = 0;
 int node3Rx = 0;
@@ -45,12 +46,12 @@ int node6Rx = 0;
 int node7Rx = 0;
 
 String processor(const String& var) {
-  if (var == "SERVANTS") {  return servantsData;  }
-  if (var == "MASTER") {    return masterData;  }
+  if(var == "SERVANTS") {  return servantsData;  }
+  if(var == "MASTER") {    return masterData;  }
   return String();
 }
 
-void onReceive(int packetsize) {
+void onReceive(const int packetsize) {
   // received a packet
   Serial.println("Received packet:");
   uint8_t buffer[sizeof(Packet)];
@@ -80,7 +81,7 @@ void onReceive(int packetsize) {
 void setup(){
   initBoard();
   delay(500);
-  
+
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
 
   if(!LoRa.begin(LORA_FREQUENCY)) {
@@ -182,9 +183,9 @@ void generateMaster(Stream &Serial1, TinyGPSPlus &gps) {
   }
 }
 
-void loop(){
+void loop() {
 #ifdef USING_MESH
-  int result = daemon(1); // MESH_MASTER_MODE
+  const int result = daemon(1); // MESH_MASTER_MODE
   printNodeInfo();
 #endif // USING_MESH
   generateMaster(Serial1, gps);
@@ -233,34 +234,4 @@ void writeData2Flash() {
   }
   file.close();
   delay(50);
-}
-
-int parsePayload() {
-  // Parses the data
-  if(LoRa.available() == sizeof(Packet)) {
-    uint8_t buffer[sizeof(Packet)];
-    for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
-      buffer[ii] = LoRa.read();
-    }
-    Packet * packet;
-    memset(&packet, 0, sizeof(packet));
-    packet = (Packet *)buffer;
-    // Get ID and then send to class for decoding
-    String name = String(packet->name);
-    Serial.println("Packet name:");
-    Serial.println(name);
-    if(!strcmp(name.substring(0, 1).c_str(), "D")) {
-      Serial.println("Drifer signal found!");
-      // csvOutStr += recv; // Save all packets recevied (debugging purposes)
-      int id = name.substring(1, 3).toInt();
-      s[id].ID = id;
-      s[id].decode(packet);
-      s[id].rssi = LoRa.packetRssi();
-      s[id].updateDistBear(m.lng, m.lat);
-      s[id].active = true;
-      Serial.println("RX from LoRa - decoding completed");
-    }
-    return 2; // return 2?
-  }
-  return -2;                // Payload ERR
 }

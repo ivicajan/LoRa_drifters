@@ -281,21 +281,6 @@ void writeData2Flash() {
   delay(50);
 }
 
-int parsePayload(){
-  // Parses the data
-  if(LoRa.available() == sizeof(Packet)) {
-    uint8_t buffer[sizeof(Packet)];
-    for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
-      buffer[ii] = LoRa.read();
-    }
-    Packet * packet;
-    memset(&packet, 0, sizeof(packet));
-    packet = (Packet *)buffer;
-    return 1;             // Success
-  }
-  return -2;              // Payload ERR
-}
-
 void generatePacket(Stream &Serial1, TinyGPSPlus &gps) {
   //String dName = "D01";
   String dName = drifterName;

@@ -1,7 +1,6 @@
 #ifndef LORADRIFTERMASTER_H
 #define LORADRIFTERMASTER_H
 
-#define nServantsMax                12       // Maximum number of servant drifters (just for setting array size)
 #define nSamplesFileWrite           300      // Number of samples to store in memory before file write
 
 // G. Classes for Master and Servant Data

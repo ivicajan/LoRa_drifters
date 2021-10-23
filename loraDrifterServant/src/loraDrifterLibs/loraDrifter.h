@@ -45,6 +45,7 @@ AXP20X_Class PMU;
 #define LED_OFF                     HIGH
 
 #define DEBUG_MODE
+#define USING_MESH
 
 // 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 = 38 bytes
 #pragma pack(1) // Fixes padding issues

@@ -1,5 +1,3 @@
-#define USING_MESH
-
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // F. Functions
@@ -25,6 +23,8 @@ int gpsLastSecond = -1;
 String tTime = "";
 
 Packet packet;
+
+#ifdef USING_MESH
 byte routingTable[153] = "";
 byte payload[24] = "";
 int servantMode = 0;
@@ -32,6 +32,7 @@ int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
 byte localAddress = 0x44;
+#endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
   <!DOCTYPE HTML>
@@ -105,7 +106,7 @@ void setup(){
   delay(500);
 
   pinMode(webServerPin, INPUT);
-  
+
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
 
   if(!LoRa.begin(LORA_FREQUENCY)) {
@@ -151,9 +152,10 @@ void loop(){
     }
   }
   if(!webServerOn) {
+#ifdef USING_MESH
     int result = daemon(servantMode);
     if(loop_runEvery(PL_TX_TIME)) {
-      generatePacket(Serial1, gps);
+      generatePacket();
       result = routePayload(
         servantMode,        // Node Mode
         0xAA,               // recipient: Master
@@ -165,6 +167,9 @@ void loop(){
         Serial.println(result);
       }
     }
+#endif // USING_MESH
+    generatePacket();
+    delay(10);
     // B. Write data to onboard flash if nSamples is large enough
     if(nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
       Serial.println("Dump data into the memory");
@@ -281,9 +286,8 @@ void writeData2Flash() {
   delay(50);
 }
 
-void generatePacket(Stream &Serial1, TinyGPSPlus &gps) {
-  //String dName = "D01";
-  String dName = drifterName;
+void generatePacket() {
+  const String dName = drifterName;
   unsigned long start = millis();
   do {
     while(Serial1.available() > 0) {
@@ -318,12 +322,25 @@ void generatePacket(Stream &Serial1, TinyGPSPlus &gps) {
     gpsLastSecond = gps.time.second();
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       Serial.println("GPS still valid");
-      // csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
       nSamples += 1;
       // B. Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
         Serial.println("Sending packet via LoRa");
         // TODO: this does not do anything
+        const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
+        tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
+        const String tLocation = String(packet.lng, 8) + "," + String(packet.lat, 8) + "," + String(packet.age);
+        csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
+#ifdef DEBUG_MODE
+        Serial.print("csvOutStr: ");
+        Serial.println(csvOutStr);
+#endif // DEBUG_MODE
+#ifndef USING_MESH
+        LoRa.beginPacket();
+        LoRa.write((const uint8_t*)&packet, sizeof(packet));
+        LoRa.endPacket();
+        delay(50); // Don't send more than 1 packet
+#endif // USING_MESH
       }
     } else {
       Serial.println("NO GPS FIX, NOT SENDING OR WRITING");

@@ -63,12 +63,15 @@ routing table structure - 19 bytes
 
 #define NUM_NODES                8
 #define ROUTING_TABLE_ENTRY_SIZE 19
-#define MESH_MASTER_MODE
+
+// #define MESH_MASTER_MODE
 class Master;
 class Servant;
 struct Packet;
+
 #ifdef MESH_MASTER_MODE
 extern Master m;
+#define nServantsMax             12       // Maximum number of servant drifters (just for setting array size)
 extern Servant s[nServantsMax]; // Servants data array
 #else
 extern Packet packet;

@@ -69,9 +69,22 @@ const char index_html[] PROGMEM = R"rawliteral(
           <td>Last File Write GPS Time</td>
           <td>Erase Data (NO WARNING)</td>
         </tr>
-      %SERVANT%
+        %SERVANT%
       </table>
       <br><br>
+      <h4>Routing table</h4>
+      <table>
+        <tr>
+          <td>nodeID</td>
+          <td>hopCount</td>
+          <td>hopID</td>
+          <td>Rssi</td>
+          <td>snr</td>
+          <td>currentTime</td>
+        </tr>
+        %ROUTINGTABLE%
+      </table>
+      br><br>
       <h4>Configuration</h4>
       <form action="/configure" method="get">
         <table>
@@ -183,13 +196,30 @@ void loop(){
 
 String processor(const String& var) {
   if(var == "SERVANT") {
-     String servantData = "";
-     servantData += "<td>" + csvFileName + "</td>";
-     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
-     servantData += "<td>" + lastFileWrite + "</td>";
-     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
-     servantData += "</tr>";
-     return servantData;
+    String servantData = "";
+    servantData += "<td>" + csvFileName + "</td>";
+    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
+    servantData += "<td>" + lastFileWrite + "</td>";
+    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
+    servantData += "</tr>";
+    return servantData;
+  }
+  if(var == "ROUTINGTABLE") {
+    String routingData = "";
+    for(int idx = 0; idx < NUM_NODES; idx++) {
+      routingData += "<tr>";
+      routingData += "<td>" + String(routingTable[idx * ROUTING_TABLE_ENTRY_SIZE]) + "</td>";
+      routingData += "<td>" + String(routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1]) + "</td>";
+      routingData += "<td>" + String(routingTable[(idx*ROUTING_TABLE_ENTRY_SIZE) + 2]) + "</td>";
+      routingData += "<td>" + String(*(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3])) + "</td>";
+      routingData += "<td>" + String(*(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7])) + "</td>";
+      routingData += "<td>" + String(*(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11])) + "</td>";
+      if(idx != NUM_NODES - 1) {
+        routingData += "</tr>";
+      }
+    }
+    routingData += "</tr>";
+    return routingData;
   }
   if(var == "DRIFTERID") {
     return drifterName;

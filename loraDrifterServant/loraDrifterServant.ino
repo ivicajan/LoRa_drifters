@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x44;
+byte localAddress = 0x33;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -84,7 +84,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         </tr>
         %ROUTINGTABLE%
       </table>
-      br><br>
+      <br><br>
       <h4>Configuration</h4>
       <form action="/configure" method="get">
         <table>

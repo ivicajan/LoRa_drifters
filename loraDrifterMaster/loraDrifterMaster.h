@@ -48,18 +48,18 @@ void Servant::decode(Packet * packet) {
     age = packet->age;
     nSamples = packet->nSamples;
 #ifdef DEBUG_MODE
-    // Serial.println(drifterTimeSlotSec);
-    // Serial.println(lastUpdateMasterTime);
-    // Serial.println(year);
-    // Serial.println(month);
-    // Serial.println(day);
-    // Serial.println(hour);
-    // Serial.println(minute);
-    // Serial.println(second);
-    // Serial.println(lng);
-    // Serial.println(lat);
-    // Serial.println(age);
-    // Serial.println(nSamples);
+    Serial.println(drifterTimeSlotSec);
+    Serial.println(lastUpdateMasterTime);
+    Serial.println(year);
+    Serial.println(month);
+    Serial.println(day);
+    Serial.println(hour);
+    Serial.println(minute);
+    Serial.println(second);
+    Serial.println(lng);
+    Serial.println(lat);
+    Serial.println(age);
+    Serial.println(nSamples);
 #endif //DEBUG_MODE
 }
 
@@ -112,7 +112,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     <h2>LoRa Drifters</h2>
     <h4>Master Node</h4>
     <table>
-      <tr><td>GPS Time</td>
+      <tr>
+        <td>GPS Time</td>
         <td>Longitude</td>
         <td>Latitude</td>
         <td>GPS Age [milliSec]</td>
@@ -139,6 +140,19 @@ const char index_html[] PROGMEM = R"rawliteral(
       </tr>
       %SERVANTS%
     </table>
+    <h4>Routing table</h4>
+    <table>
+      <tr>
+        <td>nodeID</td>
+        <td>hopCount</td>
+        <td>hopID</td>
+        <td>Rssi</td>
+        <td>snr</td>
+        <td>currentTime</td>
+      </tr>
+      %ROUTINGTABLE%
+    </table>
+    <br><br>
   </body>
 </html>
 )rawliteral";

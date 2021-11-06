@@ -149,7 +149,7 @@ String IpAddress2String(const IPAddress& ipAddress) {
 // 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 = 38 bytes
 #pragma pack(1) // Fixes padding issues
 struct Packet {
-  char name[3];             // D01
+  char name[4];             // D01
   int drifterTimeSlotSec;   // 15
   uint16_t year;
   uint8_t month;

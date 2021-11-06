@@ -11,7 +11,7 @@ SPIClass SDSPI(HSPI);
 // =======================================================================================
 TinyGPSPlus gps;
 String drifterName = "D08";   // ID send with packet
-int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
+int drifterTimeSlotSec = 15; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -256,7 +256,10 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
   } while(millis() - start < 500);
   // C. If this is a new GPS record then save it
   if(gps.time.second() != gpsLastSecond) {
-    strcpy(packet.name, drifterName.c_str());
+    strncpy(packet.name, drifterName.c_str(), 3);
+    Serial.println(sizeof(packet.name));
+    Serial.println(sizeof(drifterName));
+    // packet.name = drifterName;
     packet.drifterTimeSlotSec = drifterTimeSlotSec;
     // TODO: Need to add 8 hours onto gps time
     packet.hour = gps.time.hour();
@@ -270,7 +273,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     packet.nSamples = nSamples;
     packet.age = gps.location.age();
   
-    #ifdef DEBUG_MODE
+#ifdef DEBUG_MODE
     Serial.print("packet.name: ");
     Serial.println(packet.name);
     Serial.print("packet.drifterTimeSlotSec: ");
@@ -295,7 +298,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     Serial.println(packet.age);
     Serial.print("packet.nSamples: ");
     Serial.println(packet.nSamples);
-    #endif
+#endif
 
     gpsLastSecond = gps.time.second();
     

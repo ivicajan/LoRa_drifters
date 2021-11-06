@@ -111,8 +111,8 @@ void loop() {
       servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
       servantsData += "<td>" + String((millis() - s[ii].lastUpdateMasterTime) / 1000) + "</td>";
       servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
-      servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
-      servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
+      servantsData += "<td>" + String(s[ii].lng, 8) + "</td>";
+      servantsData += "<td>" + String(s[ii].lat, 8) + "</td>";
       servantsData += "<td>" + String(s[ii].dist) + "</td>";
       servantsData += "<td>" + String(s[ii].bear) + "</td>";
       servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
@@ -146,14 +146,32 @@ void onReceive(int packetsize) {
   const String name = String(packet->name);
   if(!strcmp(name.substring(0, 1).c_str(), "D")) {
     Serial.println("Drifter signal found!");
-    // csvOutStr += recv; // Save all packets recevied (debugging purposes)
     const int id = name.substring(1, 3).toInt();
+    Serial.println(id);
     s[id].ID = id;
     s[id].decode(packet);
     s[id].rssi = LoRa.packetRssi();
+    Serial.println(s[id].rssi);
     s[id].updateDistBear(m.lng, m.lat);
     s[id].active = true;
+
     Serial.println("RX from LoRa - decoding completed");
+    String recv = name + ",";
+    Serial.println(name);
+    // recv += String(s[id].drifterTimeSlotSec) + ",";
+    // Serial.println(s[id].lastUpdateMasterTime);
+    // recv += String((millis() - s[id].lastUpdateMasterTime) / 1000) + ",";
+    // Serial.println(s[id].hour);
+    recv += String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day) + ",";
+    recv += String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second) + ",";
+    recv += String(s[id].lng, 8) + ",";
+    recv += String(s[id].lat, 8) + ",";
+    recv += String(s[id].age) + "\n";
+    // recv += String(s[id].dist) + ",";
+    // recv += String(s[id].bear) + ",";
+    // recv += String(s[id].nSamples) + ",";
+    // recv += String(s[id].rssi);
+    csvOutStr += recv; // Save all packets recevied (debugging purposes)
   }
   delay(50);
 }
@@ -209,7 +227,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     m.second = gps.time.second();
     m.age = gps.location.age();
 
-    #ifdef DEBUG_MODE
+#ifdef DEBUG_MODE
     Serial.print("m.lng: ");
     Serial.println(m.lng);
     Serial.print("m.lat: ");
@@ -228,11 +246,10 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     Serial.println(m.second);
     Serial.print("m.age: ");
     Serial.println(m.age);
-    #endif
-
+#endif
     const String tDate = String(m.year) + "-" + String(m.month) + "-" + String(m.day);
     const String tTime = String(m.hour) + ":" + String(m.minute) + ":" + String(m.second);
-    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
+    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 8) + "</td><td>" + String(m.lat, 8) + "</td><td>" + String(m.age) + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
     masterData += "<td>" + lastFileWrite + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
@@ -240,10 +257,6 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     // Update String to be written to file
     if((m.lng != 0.0) && (m.age < 1000)) {
       csvOutStr += tDate + "," + tTime + "," + String(m.lng, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
-      #ifdef DEBUG_MODE
-      Serial.print("csvOutStr: ");
-      Serial.println(csvOutStr);
-      #endif
       nSamples += 1;
     } else {
       Serial.println(" NO GPS FIX, not WRITING LOCAL DATA !");

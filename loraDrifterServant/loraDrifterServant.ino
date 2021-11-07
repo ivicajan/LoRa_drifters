@@ -174,7 +174,8 @@ void loop() {
     delay(10);
     
     // B. Write data to onboard flash if nSamples is large enough
-    // Serial.println("nSamples:" + String(nSamples));
+    Serial.print("nSamples: ");
+    Serial.println(String(nSamples));
     if(nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
       Serial.println("Dump data into the memory");
       writeData2Flash();
@@ -241,8 +242,7 @@ String prepare_csv(Packet * packet) {
   const String tDate = year + "-" + month + "-" + day;
   tTime = hour + ":" + minute + ":" + second;
   const String tLocation = String(gps.location.lng(), 8) + "," + String(gps.location.lat(), 8) + "," + String(gps.location.age());
-  csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
-  return String(drifterName) + "," + String(drifterTimeSlotSec) + "," + tDate + "," + tTime + "," + tLocation + "," + String(nSamples) + "\n";
+  return tDate + "," + tTime + "," + tLocation + "\n";
 }
 
 void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
@@ -257,8 +257,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
   // C. If this is a new GPS record then save it
   if(gps.time.second() != gpsLastSecond) {
     strncpy(packet.name, drifterName.c_str(), 3);
-    Serial.println(sizeof(packet.name));
-    Serial.println(sizeof(drifterName));
+    packet.name[4] = '\0';
     // packet.name = drifterName;
     packet.drifterTimeSlotSec = drifterTimeSlotSec;
     // TODO: Need to add 8 hours onto gps time
@@ -275,7 +274,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
   
 #ifdef DEBUG_MODE
     Serial.print("packet.name: ");
-    Serial.println(packet.name);
+    Serial.println(String(packet.name));
     Serial.print("packet.drifterTimeSlotSec: ");
     Serial.println(packet.drifterTimeSlotSec);
     Serial.print("packet.lng: ");
@@ -305,13 +304,13 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       nSamples += 1;
       // B. Send GPS data on LoRa if it is this units timeslot
+      csvOutStr += prepare_csv(&packet); // Save any packets that are sent (debugging purposes)
       if(gps.time.second() == drifterTimeSlotSec) {
         Serial.println("Sending packet via LoRa");
-        csvOutStr += prepare_csv(&packet); // Save any packets that are sent (debugging purposes)
-        #ifdef DEBUG_MODE
-        Serial.print("csvOutStr: ");
-        Serial.println(csvOutStr);
-        #endif
+// #ifdef DEBUG_MODE
+//         Serial.print("csvOutStr: ");
+//         Serial.println(csvOutStr);
+// #endif
         LoRa.beginPacket();
         LoRa.write((const uint8_t*)&packet, sizeof(packet));
         LoRa.endPacket();

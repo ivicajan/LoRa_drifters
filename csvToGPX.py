@@ -30,7 +30,7 @@ def write_to_xml(data, inputfile):
     date = data[0][0]
     # for char in date:
     date = date.replace('/', '_')
-    output_name = file + date + '.xml'
+    output_name = file + date + '.gpx'
     print(output_name)
     with open(output_name, 'w') as f:
         f.write(final)

@@ -1,7 +1,7 @@
 #ifndef LORADRIFTER.H
 #define LORADRIFTER.H
 
-#define DEBUG_MODE
+// #define DEBUG_MODE
 
 // A. WiFi & Web Server
 #include <WiFi.h>
@@ -27,7 +27,7 @@ AXP20X_Class PMU;
 #define GPS_RX_PIN                  34
 #define GPS_TX_PIN                  12
 #define BUTTON_PIN                  38
-#define BUTTON_PIN_MASK GPIO_SEL_38
+#define BUTTON_PIN_MASK             GPIO_SEL_38
 #define I2C_SDA                     21
 #define I2C_SCL                     22
 #define PMU_IRQ                     35
@@ -42,7 +42,7 @@ AXP20X_Class PMU;
 #define RADIO_BUSY_PIN              32
 
 #define GPS_BAND_RATE               9600
-#define LoRa_frequency              915E6
+#define LORA_FREQUENCY              915E6
 #define UNUSE_PIN                   (0)
 #define BOARD_LED                   4
 #define LED_ON                      LOW
@@ -119,20 +119,26 @@ void initBoard() {
     initPMU();
     delay(50);
     
-    #ifdef BOARD_LED
+#ifdef BOARD_LED
       /*
       * T-BeamV1.0, V1.1 LED defaults to low level as turn on,
       * so it needs to be forced to pull up
       * * * * */
-      #if LED_ON == LOW
-          gpio_hold_dis(GPIO_NUM_4);
-      #endif
-      pinMode(BOARD_LED, OUTPUT);
-      digitalWrite(BOARD_LED, LED_ON);
-    #endif
+#if LED_ON == LOW
+    gpio_hold_dis(GPIO_NUM_4);
+#endif
+    pinMode(BOARD_LED, OUTPUT);
+    digitalWrite(BOARD_LED, LED_ON);
+#endif
     delay(50);
  
     Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    /* Uncomment code below to reset GPS receiver */
+    byte reset_message[]={0xB5, 0x62, 0x06, 0x09, 0x0D, 0x00, 0xFF, 0xFF, 
+                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 
+                          0x00, 0x00, 0x04, 0x1C, 0x9B
+                         };
+    Serial1.write(reset_message, sizeof(reset_message));
     delay(50);
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
     delay(50);
@@ -146,7 +152,7 @@ String IpAddress2String(const IPAddress& ipAddress) {
     String(ipAddress[3]);
 }
 
-// 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 = 38 bytes
+// 4 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 = 39 bytes
 #pragma pack(1) // Fixes padding issues
 struct Packet {
   char name[4];             // D01

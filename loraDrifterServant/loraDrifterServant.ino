@@ -117,7 +117,19 @@ void setup() {
 
   //Setup LoRa
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
-  if(!LoRa.begin(LoRa_frequency)) {
+
+  /* LoRa paramters - https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
+
+  // LoRa.setTxPower(LORA_TX_POWER); // defaults to 17 dB
+  // LoRa.setFrequency(LORA_FREQUENCY);
+  // LoRa.setSpreadingFactor(LORA_SPREADING_FACTOR); // defaults to 7 - between 6 <-> 12
+  // LoRa.setSignalBandwidth(LORA_SIGNAL_BANDWIDTH); // defaults to 125E3
+  // LoRa.setCodingRate4(LORA_CODING_RATE); // defaults to 5 - between 5 <-> 8
+  // LoRa.setPreambleLength(LORA_PREAMBLE_LENGTH); // defaults to 8 - between 6 <-> 65535
+  // LoRa.setSyncWord(LORA_SYNC_WORD); // defaults to 0x12
+  // LoRa.setGain(LORA_GAIN); // defaults to 0 - between 0 <-> 6
+
+  if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("Starting LoRa failed!");
     while (1);
   }
@@ -170,7 +182,7 @@ void loop() {
 
   if(!webServerOn) {
     // A. Receive and Decode GPS data and send via LoRa if in time slot 
-    SerialGPSDecode(Serial1, gps);
+    SerialGPSDecode();
     delay(10);
     
     // B. Write data to onboard flash if nSamples is large enough
@@ -245,7 +257,7 @@ String prepare_csv(Packet * packet) {
   return tDate + "," + tTime + "," + tLocation + "\n";
 }
 
-void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
+void SerialGPSDecode() {
   Packet packet;
   // Read GPS and run decoder
   unsigned long start = millis();
@@ -274,7 +286,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
   
 #ifdef DEBUG_MODE
     Serial.print("packet.name: ");
-    Serial.println(String(packet.name));
+    Serial.println(packet.name);
     Serial.print("packet.drifterTimeSlotSec: ");
     Serial.println(packet.drifterTimeSlotSec);
     Serial.print("packet.lng: ");
@@ -298,19 +310,14 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     Serial.print("packet.nSamples: ");
     Serial.println(packet.nSamples);
 #endif
-
     gpsLastSecond = gps.time.second();
-    
+
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       nSamples += 1;
       // B. Send GPS data on LoRa if it is this units timeslot
       csvOutStr += prepare_csv(&packet); // Save any packets that are sent (debugging purposes)
       if(gps.time.second() == drifterTimeSlotSec) {
         Serial.println("Sending packet via LoRa");
-// #ifdef DEBUG_MODE
-//         Serial.print("csvOutStr: ");
-//         Serial.println(csvOutStr);
-// #endif
         LoRa.beginPacket();
         LoRa.write((const uint8_t*)&packet, sizeof(packet));
         LoRa.endPacket();

@@ -34,18 +34,15 @@ void setup() {
   // digitalWrite(ledPin, ledState);     // will change state when a LoRa packet is received
   // pinMode(BUTTON_PIN, INPUT);
 
-  // C. Local GPS
-  // moved inside initBoard();
-
   // D. LoRa Setup
-  // moved inside initBoard();
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
-  if(!LoRa.begin(LoRa_frequency)) {
+  if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("Starting LoRa failed!");
-    while (1);
+    while(1);
   }
   // register the receive callback
   LoRa.onReceive(onReceive);
+
   // put the radio into receive mode
   LoRa.receive();
   delay(50);
@@ -76,7 +73,7 @@ void setup() {
       Serial.println("File reinit failed");
     }
     file.close();
-    lastFileWrite="";
+    lastFileWrite = "";
     request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
   });
   server.begin();
@@ -85,7 +82,7 @@ void setup() {
   // G. SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
-    while (1);
+    while(1);
   }
   delay(50);
   Serial.println("init setup ok");
@@ -97,9 +94,8 @@ void setup() {
 // =======================================================================================
 void loop() {
   // A. LoRa is on interrupt / callback
-
   // B. Read and decode Master GPS
-  SerialGPSDecode(Serial1, gps);
+  SerialGPSDecode();
   delay(10);
   
   // C. Make Servants Data HTML
@@ -122,7 +118,7 @@ void loop() {
   }
 
   // D. Write data to onboard flash
-  if (nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
+  if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
     writeData2Flash();
   }
   // Save to SD Card file ???
@@ -132,7 +128,8 @@ void loop() {
 // D. Functions
 // =======================================================================================
 
-void onReceive(int packetsize) {
+void onReceive(const int packetsize) {
+  if(packetsize == 0) return;
   // received a packet
   Serial.println("Received packet:");
   uint8_t buffer[sizeof(Packet)];
@@ -206,12 +203,12 @@ void writeData2Flash() {
 //   Encodes the data via TinyGPS
 //   Updates the Master data class object
 
-void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
+void SerialGPSDecode() {
   // Read GPS and run decoder
   unsigned long start = millis();
   do {
-    while(mySerial.available() > 0) {
-      myGPS.encode(mySerial.read());
+    while(Serial1.available() > 0) {
+      gps.encode(Serial1.read());
     }
   } while(millis() - start < 500);
 
@@ -257,7 +254,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
     // Update String to be written to file
     if((m.lng != 0.0) && (m.age < 1000)) {
       csvOutStr += tDate + "," + tTime + "," + String(m.lng, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
-      nSamples += 1;
+      nSamples++;
     } else {
       Serial.println(" NO GPS FIX, not WRITING LOCAL DATA !");
     }
@@ -269,7 +266,7 @@ void SerialGPSDecode(Stream &mySerial, TinyGPSPlus &myGPS) {
 // D3. Used to update sections of the webpages
 // Replaces placeholder with button section in your web page
 String processor(const String& var) {
-  if (var == "SERVANTS") {  return servantsData;  }
-  if (var == "MASTER") {    return masterData;  }
+  if(var == "SERVANTS") {  return servantsData;  }
+  if(var == "MASTER") {    return masterData;  }
   return String();
 }

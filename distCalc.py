@@ -21,25 +21,33 @@ def getDistance(lat1, lon1, lat2, lon2):
     return delta * 6372795
 
 def main():
-    lat1 = -31.99753967 # start
-    lon1 = 115.8287335
-    lat2 = -32.00024733 # end
-    lon2 = 115.8275255
+    d01_lat1 = -31.99754833 # start
+    d01_lon1 = 115.8287333
+    d01_lat2 = -31.99984083 # end
+    d01_lon2 = 115.8286672
 
-    dist = getDistance(lat1, lon1, lat2, lon2)
-    print('Total distance')
-    print(dist, 'm\n')
+    d02_lat1 = -31.99753967 # start
+    d02_lon1 = 115.8287335
+    d02_lat2 = -32.00024733 # end
+    d02_lon2 = 115.8275255
 
     start_time = datetime(2021,11, 8, 1, 56, 0)           # "1:56:00" +8 -> 9:56 AM
     end_time = datetime(2021,11, 8, 2, 48, 0)             # "2:48:00" +8 -> 10:48 AM
 
     time_delta_s = (end_time - start_time).total_seconds()
-    print('Total time')
+    print('Total drift time')
     print(time_delta_s, 's\n')
 
-    velocity = dist/time_delta_s
+    d01_dist = getDistance(d01_lat1, d01_lon1, d01_lat2, d01_lon2)
+    d02_dist = getDistance(d02_lat1, d02_lon1, d02_lat2, d02_lon2)
+    print('Total distance')
+    print('D01: ', d01_dist, 'm')
+    print('D02: ', d02_dist, 'm')
+    d01_velocity = d01_dist/time_delta_s
+    d02_velocity = d02_dist/time_delta_s
     print('Velocity')
-    print(velocity, 'm/s\n')
+    print('D01: ', d01_velocity, 'm/s')
+    print('D02: ', d02_velocity, 'm/s')
 
 if __name__=='__main__':
     main()

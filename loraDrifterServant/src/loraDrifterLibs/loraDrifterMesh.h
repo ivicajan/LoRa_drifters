@@ -59,7 +59,7 @@ routing table structure - 19 bytes
 #define RS_BCAST_TIME   4000    //Time intervals, broadcast for every 4000ms
 #define PL_TX_TIME      6000   //Receive pay load for every ms              // 6000
 #define DELETION_TIME   100000   //Reset the routing table if entry's time is older than 100000ms
-#define ARQ_TIME        1000    //Automatic Repeat Request for every 1000ms
+#define ARQ_TIME        2000    //Automatic Repeat Request for every 1000ms
 
 #define NUM_NODES                 9
 #define ROUTING_TABLE_ENTRY_SIZE 19
@@ -134,8 +134,6 @@ int parsePayload() {
 #ifdef MESH_MASTER_MODE
 // Get ID and then send to class for decoding
     String name = String(packet->name);
-    Serial.println("Packet name:");
-    Serial.println(name);
     if(!strcmp(name.substring(0, 1).c_str(), "D")) {
       Serial.println("Drifter signal found!");
       // csvOutStr += recv; // Save all packets recevied (debugging purposes)

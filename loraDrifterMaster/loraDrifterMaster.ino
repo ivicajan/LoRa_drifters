@@ -187,10 +187,6 @@ void generateMaster() {
     // Update String to be written to file
     if((m.lng != 0.0) && (m.age < 1000)) {
       csvOutStr += tDate + "," + tTime + "," + String(m.lng, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
-#ifdef DEBUG_MODE
-      Serial.print("csvOutStr: ");
-      Serial.println(csvOutStr);
-#endif
       nSamples += 1;
     } else {
       Serial.println(" NO GPS FIX, not WRITING LOCAL DATA !");

@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x33;
+byte localAddress = 0x55;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -191,6 +191,9 @@ void loop(){
   } else {
     Serial.println("Web server is ON, not GPS data or saving during the time");
     delay(40);
+    digitalWrite(BOARD_LED, LED_OFF);
+    delay(40);
+    digitalWrite(BOARD_LED, LED_ON);
   }
 }
 

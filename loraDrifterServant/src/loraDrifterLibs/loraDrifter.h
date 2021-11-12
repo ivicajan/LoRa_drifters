@@ -40,7 +40,7 @@ AXP20X_Class PMU;
 #define GPS_BAND_RATE               9600
 #define LORA_FREQUENCY              915E6
 #define UNUSE_PIN                   (0)
-//#define BOARD_LED                   4
+#define BOARD_LED                   4
 #define LED_ON                      LOW
 #define LED_OFF                     HIGH
 
@@ -159,18 +159,17 @@ void initBoard() {
     Serial.println("initBoard");
     initPMU();
     delay(50);
-    
-    #ifdef BOARD_LED
+#ifdef BOARD_LED
       /*
       * T-BeamV1.0, V1.1 LED defaults to low level as turn on,
       * so it needs to be forced to pull up
       * * * * */
-      #if LED_ON == LOW
-          gpio_hold_dis(GPIO_NUM_4);
-      #endif
-      pinMode(BOARD_LED, OUTPUT);
-      digitalWrite(BOARD_LED, LED_ON);
-    #endif
+#if LED_ON == LOW
+    gpio_hold_dis(GPIO_NUM_4);
+#endif
+    pinMode(BOARD_LED, OUTPUT);
+    digitalWrite(BOARD_LED, LED_ON);
+#endif
     delay(50);
  
     Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);

@@ -6,8 +6,8 @@ String IpAddress2String(const IPAddress& ipAddress);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D04";   // ID send with packet
-int drifterTimeSlotSec = 12; // seconds after start of each GPS minute
+String drifterName = "D06";   // ID send with packet
+int drifterTimeSlotSec = 16; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x44;
+byte localAddress = 0x66;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -82,7 +82,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           <td>snr</td>
           <td>currentTime</td>
         </tr>
-        %ROUTINGTABLE%
+        
       </table>
       <br><br>
       <h4>Configuration</h4>
@@ -191,8 +191,9 @@ void loop(){
         Serial.println(result);
       }
     }
-#endif // USING_MESH
+#else
     generatePacket();
+#endif // USING_MESH
     delay(10);
     // B. Write data to onboard flash if nSamples is large enough
     if(nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
@@ -270,8 +271,9 @@ void startWebServer(const bool webServerOn) {
           drifterTimeSlotSec = String(p->value()).toInt();
         }
       }
-      csvFileName="/svt" + String(drifterName) + ".csv";
-      
+      Serial.print("Before csvFileName");
+      csvFileName = "/svt" + String(drifterName) + ".csv";
+      Serial.print("Before config file open");
       file = SPIFFS.open("/config.txt", FILE_WRITE);
       if(!file) {
         Serial.println("Could not open config.txt for writing");
@@ -353,16 +355,16 @@ void generatePacket() {
     packet.lat = gps.location.lat();
     packet.nSamples = nSamples;
     packet.age = gps.location.age();
-#ifdef DEBUG_MODE
-    Serial.println(packet.hour);
-    Serial.println(packet.minute);
-    Serial.println(packet.second);
-    Serial.println(packet.year);
-    Serial.println(packet.month);
-    Serial.println(packet.day);
-    Serial.println(packet.lng);
-    Serial.println(packet.lat);
-#endif //DEBUG_MODE
+//#ifdef DEBUG_MODE
+//    Serial.println(packet.hour);
+//    Serial.println(packet.minute);
+//    Serial.println(packet.second);
+//    Serial.println(packet.year);
+//    Serial.println(packet.month);
+//    Serial.println(packet.day);
+//    Serial.println(packet.lng);
+//    Serial.println(packet.lat);
+//#endif //DEBUG_MODE
     gpsLastSecond = gps.time.second();
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       Serial.println("GPS still valid");

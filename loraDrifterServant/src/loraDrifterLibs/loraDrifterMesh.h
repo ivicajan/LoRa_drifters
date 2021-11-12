@@ -188,29 +188,30 @@ void printRoutingTable() {
     const int Rssi = *(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3]);
     const float snr = *(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7]);
     const unsigned long currentTime = *(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11]);
-
-    Serial.print("Routing Table Entry ");
-    Serial.print(idx);
-    Serial.println(": ");
-    
-    Serial.print("nodeID: 0x");
-    Serial.println(nodeID, HEX);
-    
-    Serial.print("hopCount: ");
-    Serial.println(hopCount);
-    
-    Serial.print("hopID: 0x");
-    Serial.println(hopID, HEX);
-    
-    Serial.print("rssi: ");
-    Serial.println(Rssi);
-    
-    Serial.print("snr: ");
-    Serial.println(snr);
-    
-    Serial.print("time: ");
-    Serial.println(currentTime);
-    Serial.println(" ");
+    if(Rssi != 0) {
+      Serial.print("Routing Table Entry ");
+      Serial.print(idx);
+      Serial.println(": ");
+      
+      Serial.print("nodeID: 0x");
+      Serial.println(nodeID, HEX);
+      
+      Serial.print("hopCount: ");
+      Serial.println(hopCount);
+      
+      Serial.print("hopID: 0x");
+      Serial.println(hopID, HEX);
+      
+      Serial.print("rssi: ");
+      Serial.println(Rssi);
+      
+      Serial.print("snr: ");
+      Serial.println(snr);
+      
+      Serial.print("time: ");
+      Serial.println(currentTime);
+      Serial.println(" ");
+    }
   }
 }
 

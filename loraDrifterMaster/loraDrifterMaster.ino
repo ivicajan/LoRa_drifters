@@ -32,7 +32,7 @@ String hour, minute, second, year, month, day, tTime, tDate;
 
 byte routingTable[0x99] = "";
 byte payload[24] = "";
-byte localAddress = 0xAA; // CHANGE THIS
+byte localAddress = 0xAA;
 byte localNextHopID = 0xAA;
 byte localHopCount = 0x00;
 

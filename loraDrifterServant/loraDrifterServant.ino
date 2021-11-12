@@ -6,8 +6,8 @@ String IpAddress2String(const IPAddress& ipAddress);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D03";   // ID send with packet
-int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
+String drifterName = "D04";   // ID send with packet
+int drifterTimeSlotSec = 12; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x33;
+byte localAddress = 0x44;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -367,18 +367,13 @@ void generatePacket() {
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       Serial.println("GPS still valid");
       nSamples += 1;
+      const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
+      tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
+      const String tLocation = String(packet.lng, 8) + "," + String(packet.lat, 8) + "," + String(packet.age);
+      csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
       // B. Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
         Serial.println("Sending packet via LoRa");
-        // TODO: this does not do anything
-        const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
-        tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
-        const String tLocation = String(packet.lng, 8) + "," + String(packet.lat, 8) + "," + String(packet.age);
-        csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
-#ifdef DEBUG_MODE
-        Serial.print("csvOutStr: ");
-        Serial.println(csvOutStr);
-#endif // DEBUG_MODE
 #ifndef USING_MESH
         LoRa.beginPacket();
         LoRa.write((const uint8_t*)&packet, sizeof(packet));

@@ -56,12 +56,12 @@ routing table structure - 19 bytes
 */
 
 // Timing Parameters
-#define RS_BCAST_TIME   6000    //Time intervals, broadcast for every 6000ms
-#define PL_TX_TIME      10000   //Receive pay load for every ms              // 12000
-#define DELETION_TIME   62000   //Reset the routing table if entry's time is older than 62000ms
-#define ARQ_TIME        2000    //Automatic Repeat Request for every 2000ms
+#define RS_BCAST_TIME   4000    //Time intervals, broadcast for every 4000ms
+#define PL_TX_TIME      6000   //Receive pay load for every ms              // 6000
+#define DELETION_TIME   100000   //Reset the routing table if entry's time is older than 100000ms
+#define ARQ_TIME        1000    //Automatic Repeat Request for every 1000ms
 
-#define NUM_NODES                8
+#define NUM_NODES                 9
 #define ROUTING_TABLE_ENTRY_SIZE 19
 
 // #define MESH_MASTER_MODE
@@ -71,7 +71,7 @@ struct Packet;
 
 #ifdef MESH_MASTER_MODE
 extern Master m;
-#define nServantsMax             12       // Maximum number of servant drifters (just for setting array size)
+#define nServantsMax             9       // Maximum number of servant drifters (just for setting array size)
 extern Servant s[nServantsMax]; // Servants data array
 #else
 extern Packet packet;
@@ -182,25 +182,6 @@ int idToIndex(const byte nodeID) {
   return (nodeID == 0) ? 0 : nodeID / 0x10;
 }
 
-int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID, const int Rssi, const float snr, const unsigned long currentTime) {
-  const bool validNode = validateID(nodeID);
-  const bool validHop = validateID(hopID);
-
-  if(validNode && validHop) {
-    const int idx = idToIndex(nodeID);
-
-    memcpy(&routingTable[idx * ROUTING_TABLE_ENTRY_SIZE], &nodeID, sizeof(nodeID));
-    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1], &hopCount, sizeof(hopCount));
-    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 2], &hopID, sizeof(hopID));
-    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3], &Rssi, sizeof(Rssi));
-    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7], &snr, sizeof(snr));
-    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
-
-    return Success;         // Success
-  }
-  return Invalid_Node_ID;   // E -9: invalid nodeID
-}
-
 void printRoutingTable() {
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte nodeID = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
@@ -233,6 +214,28 @@ void printRoutingTable() {
     Serial.println(currentTime);
     Serial.println(" ");
   }
+}
+
+int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID, const int Rssi, const float snr, const unsigned long currentTime) {
+  const bool validNode = validateID(nodeID);
+  const bool validHop = validateID(hopID);
+
+  if(validNode && validHop) {
+    const int idx = idToIndex(nodeID);
+
+    memcpy(&routingTable[idx * ROUTING_TABLE_ENTRY_SIZE], &nodeID, sizeof(nodeID));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1], &hopCount, sizeof(hopCount));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 2], &hopID, sizeof(hopID));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3], &Rssi, sizeof(Rssi));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7], &snr, sizeof(snr));
+    memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
+    Serial.print("Inserting ");
+    Serial.print(nodeID);
+    Serial.println(" into routing table");
+    printRoutingTable();
+    return Success;         // Success
+  }
+  return Invalid_Node_ID;   // E -9: invalid nodeID
 }
 
 boolean runEvery(const unsigned long interval) {
@@ -319,50 +322,50 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
                       const byte sender, const byte ttl, const byte sizePayload) {
   // Check if header values are valid
   if(sizeHeader!= 0x08) {
-    // Serial.println("checkFrameHeader: invalid sizeHeader");
+    Serial.println("checkFrameHeader: invalid sizeHeader");
     return false;
   }
   if(type < RSBcastM || type > ACK) {
-    // Serial.println("checkFrameHeader: invalid type");
+    Serial.println("checkFrameHeader: invalid type");
     return false; 
   }
   if(!validateID(router)) {
-    // Serial.println("checkFrameHeader: invalid router");
+    Serial.println("checkFrameHeader: invalid router");
     return false;
   }
   if(!validateID(source)) {
-    // Serial.println("checkFrameHeader: invalid source");
+    Serial.println("checkFrameHeader: invalid source");
     return false;
   }
   if(!validateID(recipient)) {
-    // Serial.println("checkFrameHeader: invalid recipient");
+    Serial.println("checkFrameHeader: invalid recipient");
     return false;
   }
   if(!validateID(sender)) {
-    // Serial.println("checkFrameHeader: invalid sender");
+    Serial.println("checkFrameHeader: invalid sender");
     return false;
   }
   if(ttl > 0x0F || ttl == 0x00) {
-    // Serial.println("checkFrameHeader: invalid ttl");
+    Serial.println("checkFrameHeader: invalid ttl");
     return false;
   }
   if(sizePayload != 0x02 && sizePayload != 0x18 && sizePayload != 0x00) {
-    // Serial.println("checkFrameHeader: invalid sizePayload");
+    Serial.println("checkFrameHeader: invalid sizePayload");
     return false; 
   }
 
   // type and router ID
   if(mode == 0) {              // Node Mode
     if(type == 0x43 || type == 0x45) {   // Type D OR Type E
-      // Serial.println("checkFrameHeader: invalid type for Node Mode");
+      Serial.println("checkFrameHeader: invalid type for Node Mode");
       return false;
     }
     if(type == 0x41 && sender != 0xAA) {
-       // Serial.println("checkFrameHeader: Invalid Type && sender ID
+       Serial.println("checkFrameHeader: Invalid Type && sender ID");
        return false;
      }
     if(router != localAddress && router != 0xFF) {
-        // Serial.println("checkFrameHeader: Not addressed to local
+        Serial.println("checkFrameHeader: Not addressed to local");
         return false;
     }
     return true;
@@ -393,19 +396,19 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
 void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl) {
   // Send a complete header with a random delay
   byte header[8] = "";
-  header[0] = 0x08;       // sizeHeader
-  header[1] = type;     // type
-  header[2] = router;     // router
-  header[3] = localAddress;   // source
+  header[0] = 0x08;         // sizeHeader
+  header[1] = type;         // type
+  header[2] = router;       // router
+  header[3] = localAddress; // source
   header[4] = recipient;    // recipient
-  header[5] = sender;     // sender
-  header[6] = ttl - 1;    // ttl
+  header[5] = sender;       // sender
+  header[6] = ttl - 1;      // ttl
 
   delay(random(20));
-  if(mode == 0) {               // Node Mode
+  if(mode == 0) {                 // Node Mode
     switch(header[1]){            // check type
       case RSBcastS:              // Type B: RS BCAST
-        header[7] = 0x02;       // sizePayload
+        header[7] = 0x02;         // sizePayload
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.write(localHopCount);    // RS payload
@@ -434,7 +437,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         Serial.println("Not valid for this mode");
         break;
       }
-  } else if (mode == 1) {       // Master Mode
+  } else if(mode == 1) {        // Master Mode
     switch(header[1]){          // check type
       case RSBcastM:            // Type A: RS BCAST
       case ACK:                 // Type E: ACK
@@ -522,7 +525,6 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
       Serial.println("RRequest in routepayload");
   }
   const byte router = localNextHopID;
-  Serial.println("ackhandshake");
   const int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
   return (result == 1) ? result : -8; // Ack received or No ACK received
 }
@@ -769,8 +771,7 @@ int setRoutingStatus() {
 
 int daemon(const unsigned int mode) {
   if(runEvery(RS_BCAST_TIME)) {
-    Serial.println("RS_BCAST_TIME");
-    // printRoutingTable();
+    Serial.println("Broadcasting");
     return bcastRoutingStatus(mode);   // returns 1 or -1
   }
   return listener(LoRa.parsePacket(), mode);

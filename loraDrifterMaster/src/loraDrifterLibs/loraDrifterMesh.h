@@ -61,7 +61,7 @@ routing table structure - 19 bytes
 #define DELETION_TIME   100000   //Reset the routing table if entry's time is older than 100000ms
 #define ARQ_TIME        2000    //Automatic Repeat Request for every 1000ms
 
-#define NUM_NODES                 9
+#define NUM_NODES                 8
 #define ROUTING_TABLE_ENTRY_SIZE 19
 
 // #define MESH_MASTER_MODE
@@ -71,7 +71,7 @@ struct Packet;
 
 #ifdef MESH_MASTER_MODE
 extern Master m;
-#define nServantsMax             9       // Maximum number of servant drifters (just for setting array size)
+#define nServantsMax             8       // Maximum number of servant drifters (just for setting array size)
 extern Servant s[nServantsMax]; // Servants data array
 #else
 extern Packet packet;

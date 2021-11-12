@@ -82,7 +82,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           <td>snr</td>
           <td>currentTime</td>
         </tr>
-        
+        <td>currentTime</td>
       </table>
       <br><br>
       <h4>Configuration</h4>

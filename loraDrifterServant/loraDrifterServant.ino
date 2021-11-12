@@ -6,7 +6,7 @@ String IpAddress2String(const IPAddress& ipAddress);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D04";   // ID send with packet
+String drifterName = "D03";   // ID send with packet
 int drifterTimeSlotSec = 5; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x55;
+byte localAddress = 0x33;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -121,6 +121,17 @@ void setup(){
   pinMode(webServerPin, INPUT);
 
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
+  /* LoRa paramters - https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
+
+  // LoRa.setFrequency(LORA_FREQUENCY);
+  LoRa.setTxPower(LORA_TX_POWER);
+  LoRa.setSpreadingFactor(LORA_SPREADING_FACTOR);
+  LoRa.setSignalBandwidth(LORA_SIGNAL_BANDWIDTH);
+  LoRa.setCodingRate4(LORA_CODING_RATE);
+  // LoRa.setPreambleLength(LORA_PREAMBLE_LENGTH);
+  // LoRa.setSyncWord(LORA_SYNC_WORD);
+  // LoRa.setGain(LORA_GAIN);
+
 
   if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("LoRa init failed. Check your connections.");

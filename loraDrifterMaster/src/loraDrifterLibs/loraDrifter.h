@@ -37,8 +37,17 @@ AXP20X_Class PMU;
 #define RADIO_DI0_PIN               26
 #define RADIO_RST_PIN               23
 
-#define GPS_BAND_RATE               9600
+// LoRa definitions
 #define LORA_FREQUENCY              915E6
+#define LORA_TX_POWER               20     // defaults to 17 dB - between 2 <-> 20
+#define LORA_SPREADING_FACTOR       8      // defaults to 7 - between 6 <-> 12
+#define LORA_SIGNAL_BANDWIDTH       250E3  // defaults to 125E3
+#define LORA_CODING_RATE            6      // defaults to 5 - between 5 <-> 8
+#define LORA_PREAMBLE_LENGTH               // defaults to 8 - between 6 <-> 65535
+#define LORA_SYNC_WORD                     // defaults to 0x12
+#define LORA_GAIN                          // defaults to 0 - between 0 <-> 6
+
+#define GPS_BAND_RATE               9600
 #define UNUSE_PIN                   (0)
 #define BOARD_LED                   4
 #define LED_ON                      LOW

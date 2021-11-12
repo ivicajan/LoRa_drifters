@@ -156,7 +156,7 @@ void setup(){
   Serial.println("Initialization complete.");
 }
 
-void generateMaster(Stream &Serial1, TinyGPSPlus &gps) {
+void generateMaster() {
   // Read GPS and run decoder
   unsigned long start = millis();
   do {
@@ -179,7 +179,7 @@ void generateMaster(Stream &Serial1, TinyGPSPlus &gps) {
 
     const String tDate = String(m.year) + "-" + String(m.month) + "-" + String(m.day);
     const String tTime = String(m.hour) + ":" + String(m.minute) + ":" + String(m.second);
-    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
+    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 8) + "</td><td>" + String(m.lat, 8) + "</td><td>" + String(m.age) + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
     masterData += "<td>" + lastFileWrite + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
@@ -203,9 +203,8 @@ void generateMaster(Stream &Serial1, TinyGPSPlus &gps) {
 void loop() {
 #ifdef USING_MESH
   const int result = daemon(1); // MESH_MASTER_MODE
-  printNodeInfo();
 #endif // USING_MESH
-  generateMaster(Serial1, gps);
+  generateMaster();
 
   servantsData = "";
   for(int ii = 0; ii < nServantsMax; ii++) {
@@ -215,8 +214,8 @@ void loop() {
       servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
       servantsData += "<td>" + String((millis() - s[ii].lastUpdateMasterTime) / 1000) + "</td>";
       servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
-      servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
-      servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
+      servantsData += "<td>" + String(s[ii].lng, 8) + "</td>";
+      servantsData += "<td>" + String(s[ii].lat, 8) + "</td>";
       servantsData += "<td>" + String(s[ii].dist) + "</td>";
       servantsData += "<td>" + String(s[ii].bear) + "</td>";
       servantsData += "<td>" + String(s[ii].nSamples) + "</td>";

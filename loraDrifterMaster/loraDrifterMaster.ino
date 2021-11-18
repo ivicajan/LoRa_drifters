@@ -47,23 +47,6 @@ int node7Rx = 0;
 
 String processor(const String& var) {
   if(var == "SERVANTS") {  return servantsData;  }
-  if(var == "ROUTINGTABLE") {
-    String routingData = "";
-    for(int idx = 0; idx < NUM_NODES; idx++) {
-      routingData += "<tr>";
-      routingData += "<td>" + String(routingTable[idx * ROUTING_TABLE_ENTRY_SIZE]) + "</td>";
-      routingData += "<td>" + String(routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1]) + "</td>";
-      routingData += "<td>" + String(routingTable[(idx*ROUTING_TABLE_ENTRY_SIZE) + 2]) + "</td>";
-      routingData += "<td>" + String(*(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3])) + "</td>";
-      routingData += "<td>" + String(*(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7])) + "</td>";
-      routingData += "<td>" + String(*(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11])) + "</td>";
-      if(idx != NUM_NODES - 1) {
-        routingData += "</tr>";
-      }
-    }
-    routingData += "</tr>";
-    return routingData;
-  }
   if(var == "MASTER") {    return masterData;  }
   return String();
 }

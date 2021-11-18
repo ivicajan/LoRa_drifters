@@ -6,8 +6,8 @@ String IpAddress2String(const IPAddress& ipAddress);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D06";   // ID send with packet
-int drifterTimeSlotSec = 16; // seconds after start of each GPS minute
+String drifterName = "D04";   // ID send with packet
+int drifterTimeSlotSec = 18; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x66;
+byte localAddress = 0x44;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(

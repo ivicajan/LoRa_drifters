@@ -140,18 +140,6 @@ const char index_html[] PROGMEM = R"rawliteral(
       </tr>
       %SERVANTS%
     </table>
-    <h4>Routing table</h4>
-    <table>
-      <tr>
-        <td>nodeID</td>
-        <td>hopCount</td>
-        <td>hopID</td>
-        <td>Rssi</td>
-        <td>snr</td>
-        <td>currentTime</td>
-      </tr>
-      %ROUTINGTABLE%
-    </table>
     <br><br>
   </body>
 </html>

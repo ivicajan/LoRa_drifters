@@ -212,6 +212,7 @@ void loop(){
     int result = daemon(servantMode);
     if(loop_runEvery(PL_TX_TIME)) {
       generatePacket();
+      // changes made to route payload may break this
       result = routePayload(
         servantMode,        // Node Mode
         0xAA,               // recipient: Master
@@ -219,9 +220,6 @@ void loop(){
         0x0F,               // ttl
         0                   // set resend counter
       );
-      if(result != 0){
-        Serial.println(result);
-      }
     }
 #else
     generatePacket();

@@ -126,17 +126,14 @@ typedef enum {
 
 // TODO: pass the Packet payload to the next hop id
 // currently, if we parse a packet as a servant, we do nothing with it and lose it
-int parsePayload() {
+int parsePayload(Packet * packet) {
   // Parses the data
   if(LoRa.available() == sizeof(Packet)) {
     uint8_t buffer[sizeof(Packet)];
     for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
       buffer[ii] = LoRa.read();
     }
-    Packet * packet;
-    memset(&packet, 0, sizeof(packet));
     packet = (Packet *)buffer;
-
 #ifdef MESH_MASTER_MODE
 // Get ID and then send to class for decoding
     String name = String(packet->name);
@@ -151,10 +148,8 @@ int parsePayload() {
       s[id].active = true;
       Serial.println("RX from LoRa - decoding completed");
     }
-    return 1;         // Success
-#else
-    return Success;
 #endif // MESH_MASTER_MODE
+    return Success;
   }
   return Payload_Err;       // Payload ERR
 }
@@ -257,6 +252,9 @@ int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID,
   const bool validHop = validateID(hopID);
 
   if(validNode && validHop) {
+    Serial.print("Added 0x");
+    Serial.print((int)nodeID, HEX);
+    Serial.println(" to routing table");
     const int idx = idToIndex(nodeID);
     memcpy(&routingTable[idx * ROUTING_TABLE_ENTRY_SIZE], &nodeID, sizeof(nodeID));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1], &hopCount, sizeof(hopCount));
@@ -446,8 +444,6 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.write(localHopCount);    // RS payload
         LoRa.write(localNextHopID);   // RS payload
         LoRa.endPacket(true);
-        Serial.print("Sending Routing packet to: ");
-        Serial.println((int)router, HEX);
         break;
       case DirectPl:              // Type C: Direct PL
       case RRequest:              // Type D: RRequest
@@ -460,7 +456,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.write((const uint8_t*)&packet, sizeof(packet));
 #endif // MESH_MASTER_MODE
         LoRa.endPacket(true);
-        Serial.print("Sending GPS packet to: ");
+        Serial.print("Sending GPS packet to: 0x");
         Serial.println((int)router, HEX);
         break;
       case ACK:                 // Type E: ACK
@@ -481,7 +477,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
-        Serial.print("Sending ack packet to: ");
+        Serial.print("Sending ack packet to: 0x");
         Serial.println((int)router, HEX);
         break;
       default:
@@ -495,7 +491,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
 
 void sendAckBack(const int mode, const byte source) {
   // To send an ACK back to the source
-  Serial.print("Sending ack to: ");
+  Serial.print("Sending ack to: 0x");
   Serial.println((int)source, HEX);
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }
@@ -551,9 +547,7 @@ int ackHandshake(const int mode, const byte type, const byte router, const byte 
     ack = waitForAck(router);
     resend++;
   }
-  
   if(!ack) {
-    Serial.println("Did not receive ACK from router.");
     return 0;
   } else {
     return Success;
@@ -567,8 +561,20 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
   // Check first if the localNextHopID is the Master ID
   type = (recipient == localNextHopID) ? DirectPl : RRequest; // Type C: Direct Master PL, Type D: Route Request
   const byte router = localNextHopID;
-  const int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
-  return (result == 1) ? result : -8; // Ack received or No ACK received
+  int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
+  Serial.print("Route payload ACK handshake result with router (0x");
+  Serial.print((int)router, HEX);
+  Serial.print("): ");
+  (result == 0) ? Serial.println("Failed.") : Serial.println("Success!");
+  if(result == 0) {
+    return -8; // Ack received or No ACK received
+  }
+  Packet * packet;
+  memset(&packet, 0, sizeof(packet));
+  result = parsePayload(packet);
+  sendFrame(mode, type, router, recipient, sender, ttl);
+
+  return result; // Payload error?
 }
 
 int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl) {
@@ -602,9 +608,8 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
     }
     
     if(type == RRequest) {         // Type D: Route Request
-      result = routePayload( mode, recipient, sender, ttl, 2);  // don't resend when no ack
-      parsePayload();
-      if(result == 1) {
+      result = routePayload(mode, recipient, sender, ttl, 2);  // don't resend when no ack
+      if(result == 1) { // found a route!
         sendAckBack(mode, source);
         return result;          // Success
       } else {
@@ -616,7 +621,9 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   
   if(mode == 1) {                // Master Mode
     if(type == DirectPl) {           // Type C: Direct PL
-      result = parsePayload();
+      Packet * packet;
+      memset(&packet, 0, sizeof(packet));
+      result = parsePayload(packet);
       if(result == 1) {
         Serial.println("Successfully parsed packet, now sending ack");
         sendAckBack(mode, source);

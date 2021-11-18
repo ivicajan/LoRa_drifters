@@ -137,7 +137,7 @@ void setup(){
   // G. SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
-    while (1);
+    while(1);
   }
   delay(50);
   Serial.println("Initialization complete.");

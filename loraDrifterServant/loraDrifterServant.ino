@@ -6,8 +6,8 @@ String IpAddress2String(const IPAddress& ipAddress);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D04";   // ID send with packet
-int drifterTimeSlotSec = 18; // seconds after start of each GPS minute
+String drifterName = "D05";   // ID send with packet
+int drifterTimeSlotSec = 16; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -31,7 +31,7 @@ int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x44;
+byte localAddress = 0x55;
 
 // Diagnostics
 int messages_sent = 0;
@@ -113,7 +113,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <td>Drifter IDs from D00 to D11</td>
           </tr>
           <tr>
-            <td><label for="lname">LoRa Sending Second:</label> </td>
+              <td><label for="lname">LoRa Sending Second:</label></td>
             <td>%LORASENDSEC%</td>
             <td><input type="text" id="lname" name="loraSendSec"></td>
             <td>Sending second is from 0 to 59 seconds</td>
@@ -146,7 +146,10 @@ const char index_html[] PROGMEM = R"rawliteral(
 void setup(){
   initBoard();
   delay(500);
-
+  if(!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS ERROR HAS OCCURED");
+    return;
+  }
   pinMode(webServerPin, INPUT);
 
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
@@ -358,9 +361,13 @@ void startWebServer(const bool webServerOn) {
 void writeData2Flash() {
   file = SPIFFS.open(csvFileName, FILE_APPEND);
   if(!file) {
-    Serial.println("There was an error opening the file for writing");
-    lastFileWrite = "FAILED OPEN";
-    ESP.restart();
+    Serial.println("There was an error opening the file for appending, creating a new one");
+    file = SPIFFS.open(csvFileName, FILE_WRITE);
+  }
+  if(!file) {
+      Serial.println("There was an error opening the file for writing");
+      lastFileWrite = "FAILED OPEN";
+      ESP.restart();
   } else {
     if(file.println(csvOutStr)) {
       Serial.println("Wrote data in file, current size: ");

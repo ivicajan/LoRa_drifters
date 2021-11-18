@@ -124,6 +124,8 @@ typedef enum {
   Success = 1,
 } ResultType;
 
+// TODO: pass the Packet payload to the next hop id
+// currently, if we parse a packet as a servant, we do nothing with it and lose it
 int parsePayload() {
   // Parses the data
   if(LoRa.available() == sizeof(Packet)) {
@@ -149,7 +151,7 @@ int parsePayload() {
       s[id].active = true;
       Serial.println("RX from LoRa - decoding completed");
     }
-    return 2;         // Success
+    return 1;         // Success
 #else
     return Success;
 #endif // MESH_MASTER_MODE
@@ -262,10 +264,6 @@ int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID,
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3], &Rssi, sizeof(Rssi));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7], &snr, sizeof(snr));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
-    Serial.print("Inserting ");
-    Serial.print(nodeID);
-    Serial.println(" into routing table");
-    printRoutingTable();
     return Success;         // Success
   }
   return Invalid_Node_ID;   // E -9: invalid nodeID
@@ -448,6 +446,8 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.write(localHopCount);    // RS payload
         LoRa.write(localNextHopID);   // RS payload
         LoRa.endPacket(true);
+        Serial.print("Sending Routing packet to: ");
+        Serial.println((int)router, HEX);
         break;
       case DirectPl:              // Type C: Direct PL
       case RRequest:              // Type D: RRequest
@@ -460,6 +460,8 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.write((const uint8_t*)&packet, sizeof(packet));
 #endif // MESH_MASTER_MODE
         LoRa.endPacket(true);
+        Serial.print("Sending GPS packet to: ");
+        Serial.println((int)router, HEX);
         break;
       case ACK:                 // Type E: ACK
         header[7] = 0x00;       // sizePayload
@@ -479,6 +481,8 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
+        Serial.print("Sending ack packet to: ");
+        Serial.println((int)router, HEX);
         break;
       default:
         Serial.println("Not valid for this mode");
@@ -491,6 +495,8 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
 
 void sendAckBack(const int mode, const byte source) {
   // To send an ACK back to the source
+  Serial.print("Sending ack to: ");
+  Serial.println((int)source, HEX);
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }
 
@@ -560,9 +566,6 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
 
   // Check first if the localNextHopID is the Master ID
   type = (recipient == localNextHopID) ? DirectPl : RRequest; // Type C: Direct Master PL, Type D: Route Request
-  if(type == RRequest) {
-      Serial.println("RRequest in routepayload");
-  }
   const byte router = localNextHopID;
   const int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
   return (result == 1) ? result : -8; // Ack received or No ACK received
@@ -599,10 +602,8 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
     }
     
     if(type == RRequest) {         // Type D: Route Request
-      Serial.println("type == RRequest");
-      parsePayload();
       result = routePayload( mode, recipient, sender, ttl, 2);  // don't resend when no ack
-
+      parsePayload();
       if(result == 1) {
         sendAckBack(mode, source);
         return result;          // Success
@@ -617,6 +618,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
     if(type == DirectPl) {           // Type C: Direct PL
       result = parsePayload();
       if(result == 1) {
+        Serial.println("Successfully parsed packet, now sending ack");
         sendAckBack(mode, source);
         return result;          // Success
       }

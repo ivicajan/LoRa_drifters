@@ -32,6 +32,8 @@ int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
 byte localAddress = 0x44;
+int messages_sent = 0;
+int messages_received = 0;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -320,7 +322,7 @@ void writeData2Flash() {
     if(file.println(csvOutStr)) {
       Serial.println("Wrote data in file, current size: ");
       Serial.println(file.size());
-      csvOutStr = ""; 
+      csvOutStr = "";
       nSamples = 0;
       lastFileWrite = tTime;
     } else {
@@ -372,7 +374,7 @@ void generatePacket() {
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
       const String tLocation = String(packet.lng, 8) + "," + String(packet.lat, 8) + "," + String(packet.age);
-      csvOutStr += tDate + "," + tTime + "," + tLocation + "\n";
+      csvOutStr += tDate + "," + tTime + "," + tLocation + String(messages_received) + String(messages_sent) + "\n";
       // B. Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
         Serial.println("Sending packet via LoRa");

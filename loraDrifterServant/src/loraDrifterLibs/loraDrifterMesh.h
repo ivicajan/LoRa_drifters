@@ -84,6 +84,9 @@ extern byte localHopCount;
 extern byte localNextHopID;
 extern byte localAddress;
 
+extern int messages_sent;
+extern int messages_received;
+
 #ifdef MESH_MASTER_MODE
 // DIAGNOSTICS
 extern int node1Rx;
@@ -179,7 +182,35 @@ int idToIndex(const byte nodeID) {
   if(nodeID == 0xAA) return 0;
   return (nodeID == 0) ? 0 : nodeID / 0x10;
 }
-
+#ifdef MESH_MASTER_MODE
+void incNodeRxCounter(const int nodeID) {
+  Serial.print("incNodeRxCounter for: ");
+  Serial.println(String(nodeID));
+  switch(nodeID) {
+    case 0x11:
+      node1Rx++;
+      break;
+    case 0x22:
+      node2Rx++;
+      break;
+    case 0x33:
+      node3Rx++;
+      break;
+    case 0x44:
+      node4Rx++;
+      break;
+    case 0x55:
+      node5Rx++;
+      break;
+    case 0x66:
+      node6Rx++;
+      break;
+    case 0x77:
+      node7Rx++;
+      break;
+  }
+}
+#endif // MESH_MASTER_MODE
 void printRoutingTable() {
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte nodeID = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
@@ -221,7 +252,6 @@ int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID,
 
   if(validNode && validHop) {
     const int idx = idToIndex(nodeID);
-
     memcpy(&routingTable[idx * ROUTING_TABLE_ENTRY_SIZE], &nodeID, sizeof(nodeID));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1], &hopCount, sizeof(hopCount));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 2], &hopID, sizeof(hopID));
@@ -394,6 +424,7 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
 
 void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl) {
   // Send a complete header with a random delay
+  messages_sent++;
   byte header[8] = "";
   header[0] = 0x08;         // sizeHeader
   header[1] = type;         // type
@@ -475,6 +506,13 @@ int listener(const int frameSize, const int mode) {
 
   const bool validHeader = checkFrameHeader(mode, sizeHeader,type, router, source, recipient, sender, ttl, sizePayload);
   if(validHeader) {
+    messages_received++;
+#ifdef MESH_MASTER_MODE
+    incNodeRxCounter(source);
+    // if(source != router) {
+    //     incNodeRxCounter(router);
+    // }
+#endif // MESH_MASTER_MODE
     return frameHandler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
   } 
   return 0;
@@ -630,8 +668,8 @@ int bcastRoutingStatus(const int mode) {
 }
 
 #ifdef MESH_MASTER_MODE
-int getNodeRxCounter(const byte nodeId){
-  switch(nodeId) {
+int getNodeRxCounter(const byte nodeID){
+  switch(nodeID) {
       case 0x11:
         return node1Rx;
       case 0x22:
@@ -650,43 +688,17 @@ int getNodeRxCounter(const byte nodeId){
   return 0;
 }
 
-void incNodeRxCounter(const int nodeId) {
-  switch(nodeId) {
-    case 0x11:
-      node1Rx++;
-      break;
-    case 0x22:
-      node2Rx++;
-      break;
-    case 0x33:
-      node3Rx++;
-      break;
-    case 0x44:
-      node4Rx++;
-      break;
-    case 0x55:
-      node5Rx++;
-      break;
-    case 0x66:
-      node6Rx++;
-      break;
-    case 0x77:
-      node7Rx++;
-      break;
-  }
-}
-
 void printNodeInfo(){
-  const int nodeId = *(int *) (&payload[0]);
+  const int nodeID = *(int *) (&payload[0]);
   const int hopCount = *(int *) (&payload[4]);
   const int nextHop = *(int *) (&payload[8]);
   const int linkRssi = *(int *) (&payload[12]);
   const int attemptedPayloadTx = *(int *) (&payload[16]);
-  incNodeRxCounter(nodeId);
-  const int nodeRx = getNodeRxCounter(nodeId);
+  incNodeRxCounter(nodeID);
+  const int nodeRx = getNodeRxCounter(nodeID);
 
   Serial.print("    Received payload from Node ID 0x");
-  Serial.print(nodeId, HEX);
+  Serial.print(nodeID, HEX);
   Serial.println(":");
 
   Serial.print("        hopCount:   ");
@@ -704,7 +716,6 @@ void printNodeInfo(){
   Serial.print("        Total Payloads Received from this Node:            ");
   Serial.println(nodeRx);
 }
-
 #endif //MESH_MASTER_MODE
 
 int findMaxRssi(const int minHopCount) {

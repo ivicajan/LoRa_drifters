@@ -19,6 +19,7 @@ Master m;                             // Master data
 Servant s[nServantsMax];              // Servants data array
 String masterData = "";               // Strings for tabular data output to web page
 String servantsData = "";
+String diagnosticData = "";
 String csvOutStr = "";                // Buffer for output file
 String lastFileWrite = "";
 AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
@@ -35,6 +36,8 @@ byte payload[24] = "";
 byte localAddress = 0xAA;
 byte localNextHopID = 0xAA;
 byte localHopCount = 0x00;
+int messages_sent = 0;
+int messages_received = 0;
 
 // Diagnostics
 int node1Rx = 0;
@@ -46,8 +49,9 @@ int node6Rx = 0;
 int node7Rx = 0;
 
 String processor(const String& var) {
-  if(var == "SERVANTS") {  return servantsData;  }
-  if(var == "MASTER") {    return masterData;  }
+  if(var == "SERVANTS") {    return servantsData;  }
+  if(var == "MASTER") {      return masterData;  }
+  if(var == "DIAGNOSTICS") { return diagnosticData; }
   return String();
 }
 
@@ -202,7 +206,18 @@ void loop() {
       servantsData += "</tr>";
     }
   }
-
+  diagnosticData = "";
+  diagnosticData += "<tr>";
+  diagnosticData += "<td>" + String(messages_sent) + "</td>";
+  diagnosticData += "<td>" + String(messages_received) + "</td>";
+  diagnosticData += "<td>" + String(node1Rx) + "</td>";
+  diagnosticData += "<td>" + String(node2Rx) + "</td>";
+  diagnosticData += "<td>" + String(node3Rx) + "</td>";
+  diagnosticData += "<td>" + String(node4Rx) + "</td>";
+  diagnosticData += "<td>" + String(node5Rx) + "</td>";
+  diagnosticData += "<td>" + String(node6Rx) + "</td>";
+  diagnosticData += "<td>" + String(node7Rx) + "</td>";
+  diagnosticData += "</tr>";
   // D. Write data to onboard flash
   if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
     writeData2Flash();

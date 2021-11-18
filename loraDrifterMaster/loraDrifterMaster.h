@@ -109,7 +109,6 @@ const char index_html[] PROGMEM = R"rawliteral(
     </style>
   </head>
   <body>
-    <h2>LoRa Drifters</h2>
     <h4>Master Node</h4>
     <table>
       <tr>
@@ -139,6 +138,22 @@ const char index_html[] PROGMEM = R"rawliteral(
         <td>RSSI</td>
       </tr>
       %SERVANTS%
+    </table>
+    <br><br>
+    <h4>Diagnostics</h4>
+    <table>
+      <tr>
+        <td>Msgs Sent</td>
+        <td>Msgs Recvd</td>
+        <td>node1Rx</td>
+        <td>node2Rx</td>
+        <td>node3Rx</td>
+        <td>node4Rx</td>
+        <td>node5Rx</td>
+        <td>node6Rx</td>
+        <td>node7Rx</td>
+      </tr>
+      %DIAGNOSTICS%
     </table>
     <br><br>
   </body>

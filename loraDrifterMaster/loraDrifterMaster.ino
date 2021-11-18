@@ -36,10 +36,10 @@ byte payload[24] = "";
 byte localAddress = 0xAA;
 byte localNextHopID = 0xAA;
 byte localHopCount = 0x00;
-int messages_sent = 0;
-int messages_received = 0;
 
 // Diagnostics
+int messages_sent = 0;
+int messages_received = 0;
 int node1Rx = 0;
 int node2Rx = 0;
 int node3Rx = 0;

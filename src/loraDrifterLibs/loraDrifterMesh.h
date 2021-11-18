@@ -87,7 +87,6 @@ extern byte localAddress;
 extern int messages_sent;
 extern int messages_received;
 
-#ifdef MESH_MASTER_MODE
 // DIAGNOSTICS
 extern int node1Rx;
 extern int node2Rx;
@@ -96,8 +95,10 @@ extern int node4Rx;
 extern int node5Rx;
 extern int node6Rx;
 extern int node7Rx;
-#else
+
+#ifndef MESH_MASTER_MODE
 extern int localLinkRssi;
+extern int masterRx;
 #endif // MESH_MASTER_MODE
 
 typedef enum {
@@ -182,10 +183,8 @@ int idToIndex(const byte nodeID) {
   if(nodeID == 0xAA) return 0;
   return (nodeID == 0) ? 0 : nodeID / 0x10;
 }
-#ifdef MESH_MASTER_MODE
+
 void incNodeRxCounter(const int nodeID) {
-  Serial.print("incNodeRxCounter for: ");
-  Serial.println(String(nodeID));
   switch(nodeID) {
     case 0x11:
       node1Rx++;
@@ -208,9 +207,14 @@ void incNodeRxCounter(const int nodeID) {
     case 0x77:
       node7Rx++;
       break;
+#ifndef MESH_MASTER_MODE
+    case 0xAA:
+      masterRx++;
+      break;
+#endif // MESH_MASTER_MODE
   }
 }
-#endif // MESH_MASTER_MODE
+
 void printRoutingTable() {
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte nodeID = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
@@ -507,12 +511,10 @@ int listener(const int frameSize, const int mode) {
   const bool validHeader = checkFrameHeader(mode, sizeHeader,type, router, source, recipient, sender, ttl, sizePayload);
   if(validHeader) {
     messages_received++;
-#ifdef MESH_MASTER_MODE
     incNodeRxCounter(source);
     // if(source != router) {
     //     incNodeRxCounter(router);
     // }
-#endif // MESH_MASTER_MODE
     return frameHandler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
   } 
   return 0;

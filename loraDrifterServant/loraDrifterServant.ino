@@ -32,8 +32,18 @@ int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
 byte localAddress = 0x44;
+
+// Diagnostics
 int messages_sent = 0;
 int messages_received = 0;
+int node1Rx = 0;
+int node2Rx = 0;
+int node3Rx = 0;
+int node4Rx = 0;
+int node5Rx = 0;
+int node6Rx = 0;
+int node7Rx = 0;
+int masterRx = 0;
 #endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -84,7 +94,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           <td>snr</td>
           <td>currentTime</td>
         </tr>
-        <td>currentTime</td>
+        %ROUTINGTABLE%
       </table>
       <br><br>
       <h4>Configuration</h4>
@@ -111,6 +121,23 @@ const char index_html[] PROGMEM = R"rawliteral(
         </table>
         <input type="submit" value="Configure">
       </form>
+      <h4>Diagnostics</h4>
+      <table>
+        <tr>
+          <td>Msgs Sent</td>
+          <td>Msgs Recvd</td>
+          <td>node1Rx</td>
+          <td>node2Rx</td>
+          <td>node3Rx</td>
+          <td>node4Rx</td>
+          <td>node5Rx</td>
+          <td>node6Rx</td>
+          <td>node7Rx</td>
+          <td>masterRx</td>
+        </tr>
+        %DIAGNOSTICS%
+      </table>
+      <br><br>
     </body>
   </html>
 )rawliteral";
@@ -243,6 +270,22 @@ String processor(const String& var) {
   }
   if(var == "LORASENDSEC") {
     return String(drifterTimeSlotSec);
+  }
+  if(var == "DIAGNOSTICS") {
+    String diagnosticData = "";
+    diagnosticData += "<tr>";
+    diagnosticData += "<td>" + String(messages_sent) + "</td>";
+    diagnosticData += "<td>" + String(messages_received) + "</td>";
+    diagnosticData += "<td>" + String(node1Rx) + "</td>";
+    diagnosticData += "<td>" + String(node2Rx) + "</td>";
+    diagnosticData += "<td>" + String(node3Rx) + "</td>";
+    diagnosticData += "<td>" + String(node4Rx) + "</td>";
+    diagnosticData += "<td>" + String(node5Rx) + "</td>";
+    diagnosticData += "<td>" + String(node6Rx) + "</td>";
+    diagnosticData += "<td>" + String(node7Rx) + "</td>";
+    diagnosticData += "<td>" + String(masterRx) + "</td>";
+    diagnosticData += "</tr>";
+    return diagnosticData; 
   }
   return String();
 }

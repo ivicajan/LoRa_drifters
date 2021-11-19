@@ -55,6 +55,28 @@ String processor(const String& var) {
   return String();
 }
 
+void writeData2Flash() {
+  file = SPIFFS.open("/master.csv", FILE_APPEND);
+  if(!file) {
+    Serial.println("There was an error opening the file for writing");
+    lastFileWrite = "FAILED OPEN";
+    ESP.restart();
+  } else {
+    if(file.println(csvOutStr)) {
+      csvOutStr = "";
+      nSamples = 0;
+      Serial.println("Wrote data in file, current size: ");
+      Serial.println(file.size());
+      lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
+    } else {
+      lastFileWrite = "FAILED WRITE, RESTARTING";
+      ESP.restart();
+    }
+  }
+  file.close();
+  delay(50);
+}
+
 void onReceive(const int packetsize) {
   // received a packet
   Serial.println("Received packet:");
@@ -188,6 +210,10 @@ void loop() {
   const int result = daemon(1); // MESH_MASTER_MODE
 #endif // USING_MESH
   generateMaster();
+  // TODO: Use this instead of daemon implmentation (only works if we have gps time)
+  // if(gps.time.second() == 30) {
+  //   bcastRoutingStatus(1);
+  // }
 
   servantsData = "";
   for(int ii = 0; ii < nServantsMax; ii++) {
@@ -222,26 +248,4 @@ void loop() {
   if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
     writeData2Flash();
   }
-}
-
-void writeData2Flash() {
-  file = SPIFFS.open("/master.csv", FILE_APPEND);
-  if(!file) {
-    Serial.println("There was an error opening the file for writing");
-    lastFileWrite = "FAILED OPEN";
-    ESP.restart();
-  } else {
-    if(file.println(csvOutStr)) {
-      csvOutStr = "";
-      nSamples = 0;
-      Serial.println("Wrote data in file, current size: ");
-      Serial.println(file.size());
-      lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
-    } else {
-      lastFileWrite = "FAILED WRITE, RESTARTING";
-      ESP.restart();
-    }
-  }
-  file.close();
-  delay(50);
 }

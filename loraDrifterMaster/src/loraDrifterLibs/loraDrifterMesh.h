@@ -56,9 +56,9 @@ routing table structure - 19 bytes
 */
 
 // Timing Parameters
-#define RS_BCAST_TIME   4000    //Time intervals, broadcast for every 4000ms
-#define PL_TX_TIME      6000   //Receive pay load for every ms              // 6000
-#define DELETION_TIME   100000   //Reset the routing table if entry's time is older than 100000ms
+#define RS_BCAST_TIME   17000    //Time intervals, broadcast for every 4000ms
+#define PL_TX_TIME      12000   //Receive pay load for every ms              // 6000
+#define DELETION_TIME   62000   //Reset the routing table if entry's time is older than 100000ms
 #define ARQ_TIME        2000    //Automatic Repeat Request for every 1000ms
 
 #define NUM_NODES                 8
@@ -126,27 +126,37 @@ typedef enum {
 
 // TODO: pass the Packet payload to the next hop id
 // currently, if we parse a packet as a servant, we do nothing with it and lose it
-int parsePayload(Packet * packet) {
+int parsePayload() {
   // Parses the data
+  Serial.println("Parsing payload!");
+#ifdef MESH_MASTER_MODE
+  Packet packet;
+#endif // MESH_MASTER_NODE
+  memset(&packet, 0, sizeof(Packet));
   if(LoRa.available() == sizeof(Packet)) {
     uint8_t buffer[sizeof(Packet)];
     for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
       buffer[ii] = LoRa.read();
     }
-    packet = (Packet *)buffer;
+    packet = *(Packet *)buffer;
 #ifdef MESH_MASTER_MODE
 // Get ID and then send to class for decoding
-    String name = String(packet->name);
+    String name = String(packet.name);
+    Serial.println(name);
     if(!strcmp(name.substring(0, 1).c_str(), "D")) {
       Serial.println("Drifter signal found!");
       // csvOutStr += recv; // Save all packets recevied (debugging purposes)
       int id = name.substring(1, 3).toInt();
       s[id].ID = id;
-      s[id].decode(packet);
+      s[id].decode(&packet);
       s[id].rssi = LoRa.packetRssi();
       s[id].updateDistBear(m.lng, m.lat);
       s[id].active = true;
       Serial.println("RX from LoRa - decoding completed");
+    }
+    else {
+      Serial.println("Not a complete drifter packet");
+      return Payload_Err;
     }
 #endif // MESH_MASTER_MODE
     return Success;
@@ -453,7 +463,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
 #ifdef MESH_MASTER_MODE
         LoRa.write((const uint8_t*)&m, sizeof(m));
 #else
-        LoRa.write((const uint8_t*)&packet, sizeof(packet));
+        LoRa.write((const uint8_t*)&packet, sizeof(Packet));
 #endif // MESH_MASTER_MODE
         LoRa.endPacket(true);
         Serial.print("Sending GPS packet to: 0x");
@@ -494,6 +504,8 @@ void sendAckBack(const int mode, const byte source) {
   Serial.print("Sending ack to: 0x");
   Serial.println((int)source, HEX);
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
+  delay(random(5));
+  sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }
 
 int listener(const int frameSize, const int mode) {
@@ -514,6 +526,20 @@ int listener(const int frameSize, const int mode) {
   if(validHeader) {
     messages_received++;
     incNodeRxCounter(source);
+
+    if(type == DirectPl) { // this will go direct to master
+      Serial.print("Received DirectPL packet from: 0x");
+      Serial.println((int)sender, HEX);
+      Serial.print("Routed from: 0x");
+      Serial.println((int)router, HEX);
+    }
+    else if (type == RRequest) { // this is a hop
+      Serial.print("Received RRequest packet from: 0x");
+      Serial.println((int)sender, HEX);
+      Serial.print("Routed from: 0x");
+      Serial.println((int)router, HEX);
+    }
+
     // if(source != router) {
     //     incNodeRxCounter(router);
     // }
@@ -569,10 +595,8 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
   if(result == 0) {
     return -8; // Ack received or No ACK received
   }
-  Packet * packet;
-  memset(&packet, 0, sizeof(packet));
-  result = parsePayload(packet);
-  sendFrame(mode, type, router, recipient, sender, ttl);
+  // result = parsePayload();
+  // sendFrame(mode, type, router, recipient, sender, ttl);
 
   return result; // Payload error?
 }
@@ -608,7 +632,8 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
     }
     
     if(type == RRequest) {         // Type D: Route Request
-      result = routePayload(mode, recipient, sender, ttl, 2);  // don't resend when no ack
+      parsePayload();
+      result = routePayload(mode, recipient, sender, ttl, 0);
       if(result == 1) { // found a route!
         sendAckBack(mode, source);
         return result;          // Success
@@ -621,9 +646,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   
   if(mode == 1) {                // Master Mode
     if(type == DirectPl) {           // Type C: Direct PL
-      Packet * packet;
-      memset(&packet, 0, sizeof(packet));
-      result = parsePayload(packet);
+      result = parsePayload();
       if(result == 1) {
         Serial.println("Successfully parsed packet, now sending ack");
         sendAckBack(mode, source);
@@ -791,10 +814,12 @@ int setRoutingStatus() {
 }
 
 int daemon(const unsigned int mode) {
+// #ifndef MESH_MASTER_MODE
   if(runEvery(RS_BCAST_TIME)) {
     Serial.println("Broadcasting");
     return bcastRoutingStatus(mode);   // returns 1 or -1
   }
+// #endif // MESH_MASTER_MODE
   return listener(LoRa.parsePacket(), mode);
 }                                 // returns 0: Nothing relevant or valid
                                   // returns 1: Valid processing

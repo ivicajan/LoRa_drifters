@@ -1,7 +1,7 @@
 #ifndef LORADRIFTERMASTER_H
 #define LORADRIFTERMASTER_H
 
-#define nSamplesFileWrite           300      // Number of samples to store in memory before file write
+#define nSamplesFileWrite 300      // Number of samples to store in memory before file write
 
 // G. Classes for Master and Servant Data
 class Servant {
@@ -47,20 +47,20 @@ void Servant::decode(Packet * packet) {
     lat = packet->lat;
     age = packet->age;
     nSamples = packet->nSamples;
-#ifdef DEBUG_MODE
-    Serial.println(drifterTimeSlotSec);
-    Serial.println(lastUpdateMasterTime);
-    Serial.println(year);
-    Serial.println(month);
-    Serial.println(day);
-    Serial.println(hour);
-    Serial.println(minute);
-    Serial.println(second);
-    Serial.println(lng);
-    Serial.println(lat);
-    Serial.println(age);
-    Serial.println(nSamples);
-#endif //DEBUG_MODE
+// #ifdef DEBUG_MODE
+//     Serial.println(drifterTimeSlotSec);
+//     Serial.println(lastUpdateMasterTime);
+//     Serial.println(year);
+//     Serial.println(month);
+//     Serial.println(day);
+//     Serial.println(hour);
+//     Serial.println(minute);
+//     Serial.println(second);
+//     Serial.println(lng);
+//     Serial.println(lat);
+//     Serial.println(age);
+//     Serial.println(nSamples);
+// #endif //DEBUG_MODE
 }
 
 // H. This is the string literal for the main web page
@@ -82,11 +82,14 @@ const char index_html[] PROGMEM = R"rawliteral(
       p {
         font-size: 3.0rem;
       }
+      table {
+        width: 100%%;
+      }
       table, th, td {
         border: 1px solid black;
       }
       body {
-        max-width: 700px; margin:0px auto; padding-bottom: 25px;
+        max-width: 80%%; margin:0px auto; padding-bottom: 25px;
       }
       .switch {
         position: relative; display: inline-block; width: 120px; height: 68px
@@ -109,16 +112,17 @@ const char index_html[] PROGMEM = R"rawliteral(
     </style>
   </head>
   <body>
+    <h2>LoRa Drifters</h2>
     <h4>Master Node</h4>
     <table>
       <tr>
-        <td>GPS Time</td>
-        <td>Longitude</td>
-        <td>Latitude</td>
-        <td>GPS Age [milliSec]</td>
-        <td>Get Data Link </td>
-        <td>Last File Write GPS Time</td>
-        <td>Erase Data (NO WARNING)</td>
+        <td><b>GPS Time</b></td>
+        <td><b>Lon</b></td>
+        <td><b>Lat</b></td>
+        <td><b>GPS Age [ms]</b></td>
+        <td><b>Download Data </b></td>
+        <td><b>Last File Write GPS Time</b></td>
+        <td><b>Erase Data (NO WARNING)</b></td>
       </tr>
       %MASTER%
     </table>
@@ -126,16 +130,16 @@ const char index_html[] PROGMEM = R"rawliteral(
     <h4>Servants</h4>
     <table>
       <tr>
-        <td>ID</td>
-        <td>Lora Update Plan [sec]</td>
-        <td>Last Update Master Time [sec] Ago</td>
-        <td>Time</td>
-        <td>Lon</td>
-        <td>Lat</td>
-        <td>Distance [m]</td>
-        <td>Bearing [degN to]</td>
-        <td>Count</td>
-        <td>RSSI</td>
+        <td><b>ID</b></td>
+        <td><b>Lora Update Plan [s]</b></td>
+        <td><b>Last Update [s]</b></td>
+        <td><b>Time</b></td>
+        <td><b>Lon</b></td>
+        <td><b>Lat</b></td>
+        <td><b>Dist [m]</b></td>
+        <td><b>Bearing [degN to]</b></td>
+        <td><b>Count</b></td>
+        <td><b>RSSI</b></td>
       </tr>
       %SERVANTS%
     </table>
@@ -143,15 +147,15 @@ const char index_html[] PROGMEM = R"rawliteral(
     <h4>Diagnostics</h4>
     <table>
       <tr>
-        <td>Sent</td>
-        <td>Recvd</td>
-        <td>node1</td>
-        <td>node2</td>
-        <td>node3</td>
-        <td>node4</td>
-        <td>node5</td>
-        <td>node6</td>
-        <td>node7</td>
+        <td><b>Sent</b></td>
+        <td><b>Recvd</b></td>
+        <td><b>node1</b></td>
+        <td><b>node2</b></td>
+        <td><b>node3</b></td>
+        <td><b>node4</b></td>
+        <td><b>node5</b></td>
+        <td><b>node6</b></td>
+        <td><b>node7</b></td>
       </tr>
       %DIAGNOSTICS%
     </table>

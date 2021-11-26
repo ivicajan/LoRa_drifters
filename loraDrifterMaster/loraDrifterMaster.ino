@@ -291,7 +291,6 @@ void generateMaster() {
       Serial.println(" NO GPS FIX, not WRITING LOCAL DATA !");
     }
     gpsLastSecond = gps.time.second();
-    // Serial.println("nSamples: " + String(nSamples));
   }
 }
 

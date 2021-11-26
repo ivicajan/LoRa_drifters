@@ -5,8 +5,8 @@ void startWebServer(const bool webServerOn);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D05";   // ID send with packet
-int drifterTimeSlotSec = 20; // seconds after start of each GPS minute
+String drifterName = "D03";   // ID send with packet
+int drifterTimeSlotSec = 14; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -29,7 +29,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x55;
+byte localAddress = 0x33;
 
 // Diagnostics
 int messages_sent = 0;
@@ -365,10 +365,10 @@ void startWebServer(const bool webServerOn) {
 void listenTask(void * pvParameters) {
   while(1) {
     vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
-    if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+    // if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
       const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
-    }
-    xSemaphoreGive(loraSemaphore);
+    // }
+    // xSemaphoreGive(loraSemaphore);
   }
 }
 

@@ -91,24 +91,6 @@ const char index_html[] PROGMEM = R"rawliteral(
       body {
         max-width: 80%%; margin:0px auto; padding-bottom: 25px;
       }
-      .switch {
-        position: relative; display: inline-block; width: 120px; height: 68px
-      } 
-      .switch input {
-        display: none
-      }
-      .slider {
-        position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 6px
-      }
-      .slider:before {
-        position: absolute; content: ""; height: 52px; width: 52px; left: 8px; bottom: 8px; background-color: #fff; -webkit-transition: .4s; transition: .4s; border-radius: 3px
-      }
-      input:checked + .slider {
-        background-color: #b30000
-      }
-      input:checked + .slider:before {
-        -webkit-transform: translateX(52px); -ms-transform: translateX(52px); transform: translateX(52px)
-      }
     </style>
   </head>
   <body>
@@ -158,6 +140,19 @@ const char index_html[] PROGMEM = R"rawliteral(
         <td><b>node7</b></td>
       </tr>
       %DIAGNOSTICS%
+      <form action="/restartDrifter" method="get">
+        <tr>
+          <td></td>
+          <td></td>
+          <td><input type="submit" name="drifterID" value="1"><b>Restart</b></td>
+          <td><input type="submit" name="drifterID" value="2"><b>Restart</b></td>
+          <td><input type="submit" name="drifterID" value="3"><b>Restart</b></td>
+          <td><input type="submit" name="drifterID" value="4"><b>Restart</b></td>
+          <td><input type="submit" name="drifterID" value="5"><b>Restart</b></td>
+          <td><input type="submit" name="drifterID" value="6"><b>Restart</b></td>
+          <td><input type="submit" name="drifterID" value="7"><b>Restart</b></td>
+        </tr>
+      </form>
     </table>
     <br><br>
   </body>

@@ -139,6 +139,11 @@ int idToIndex(const byte nodeID) {
   return (nodeID == 0) ? 0 : nodeID / 0x10;
 }
 
+byte indexToId(const int idx) {
+  if(idx == 0) return 0xAA;
+  return (idx == 0) ? 0x00 : (idx * 0x10) + idx;
+}
+
 void incNodeRxCounter(const int nodeID) {
   switch(nodeID) {
     case 0x11:

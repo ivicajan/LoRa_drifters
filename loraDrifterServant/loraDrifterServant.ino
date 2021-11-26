@@ -105,7 +105,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <td>Drifter IDs from D00 to D07</td>
           </tr>
           <tr>
-              <td><label for="lname"><b>LoRa Sending Second</b></label></td>
+            <td><label for="lname"><b>LoRa Sending Second</b></label></td>
             <td>%LORASENDSEC%</td>
             <td><input type="text" id="lname" name="loraSendSec"></td>
             <td>Sending second is from 0 to 59 seconds</td>

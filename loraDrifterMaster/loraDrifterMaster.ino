@@ -54,6 +54,9 @@ String processor(const String& var) {
   if(var == "SERVANTS") {    return servantsData;  }
   if(var == "MASTER") {      return masterData;  }
   if(var == "DIAGNOSTICS") { return diagnosticData; }
+  if(var == "RESTARTDRIFTER") {
+    return "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/restartDrifter\">Restart</a></td>";
+  }
   return String();
 }
 
@@ -137,10 +140,12 @@ void setup(){
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send_P(200, "text/html", index_html, processor);
   });
+
   server.on("/getMaster", HTTP_GET, [](AsyncWebServerRequest * request) {
     writeData2Flash();
     request->send(SPIFFS, "/master.csv", "text/html", true);
   });
+
   server.on("/deleteMaster", HTTP_GET, [](AsyncWebServerRequest * request) {
     SPIFFS.remove("/master.csv");
     file = SPIFFS.open("/master.csv", FILE_WRITE);
@@ -157,6 +162,24 @@ void setup(){
     lastFileWrite="";
     request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
   });
+
+  server.on("/restartDrifter", HTTP_GET, [](AsyncWebServerRequest * request) {
+    int paramsNr = request->params();
+    for(int ii = 0; ii < paramsNr; ii++) {
+      AsyncWebParameter* p = request->getParam(ii);
+      if(p->name() == "drifterID") {
+        int drifterID = (p->value()).toInt();
+        byte drifterIDByte = indexToId(drifterID);
+        Serial.println(drifterID);
+        Serial.println(drifterIDByte, HEX);
+        // send restart packet
+      }
+    }
+    request->send(200, "text/html", "<html>\\
+      <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Sent restart packet!  BACK </a>\\
+    </html>");
+  });
+
   server.begin();
   delay(50);
 
@@ -205,7 +228,6 @@ void sendTask(void * pvParameters) {
   while(1) {
     generateMaster();
 #ifdef USING_MESH
-    // const int result = daemon(MASTER_MODE); // MESH_MASTER_MODE
     // if(gps.time.second() == RS_BCAST_TIME) {
     if(loop_runEvery(RS_BCAST_TIME)) {
       if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {

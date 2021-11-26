@@ -164,7 +164,7 @@ bool initPMU() {
 
 void initBoard() {
     Serial.begin(115200);
-    while (!Serial);
+    while(!Serial);
     Serial.println("initBoard");
     initPMU();
     delay(50);

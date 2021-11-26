@@ -130,8 +130,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         <td>Lora Update Plan [sec]</td>
         <td>Last Update Master Time [sec] Ago</td>
         <td>Time</td>
-        <td>Longitude</td>
-        <td>Latitude</td>
+        <td>Lon</td>
+        <td>Lat</td>
         <td>Distance [m]</td>
         <td>Bearing [degN to]</td>
         <td>Count</td>
@@ -143,15 +143,15 @@ const char index_html[] PROGMEM = R"rawliteral(
     <h4>Diagnostics</h4>
     <table>
       <tr>
-        <td>Msgs Sent</td>
-        <td>Msgs Recvd</td>
-        <td>node1Rx</td>
-        <td>node2Rx</td>
-        <td>node3Rx</td>
-        <td>node4Rx</td>
-        <td>node5Rx</td>
-        <td>node6Rx</td>
-        <td>node7Rx</td>
+        <td>Sent</td>
+        <td>Recvd</td>
+        <td>node1</td>
+        <td>node2</td>
+        <td>node3</td>
+        <td>node4</td>
+        <td>node5</td>
+        <td>node6</td>
+        <td>node7</td>
       </tr>
       %DIAGNOSTICS%
     </table>

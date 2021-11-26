@@ -451,7 +451,6 @@ void sendAckBack(const int mode, const byte source) {
   // To send an ACK back to the source
   Serial.print("Sending ack to: 0x");
   Serial.println((int)source, HEX);
-  sendFrame(mode, ACK, source, source, localAddress,  0x0F);
   delay(random(5));
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }

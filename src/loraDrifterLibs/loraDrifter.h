@@ -15,7 +15,7 @@
 
 // C. GPS libraries
 #include <Wire.h>           // for reseting NMEA output from some T-Beam units
-#include <TinyGPS++.h>      // decoding GPS 
+#include <TinyGPS++.h>      // decoding GPS
 
 // D. Power management on the TTGo T-beam
 #include "axp20x.h"         // I need it for the new ones

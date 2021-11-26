@@ -10,9 +10,6 @@ SemaphoreHandle_t loraSemaphore = NULL;
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-#include "soc/timer_group_struct.h"
-#include "soc/timer_group_reg.h"
-
 // GLOBAL VARIABLES
 AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 TinyGPSPlus gps;                      // decoder for GPS stream
@@ -228,8 +225,8 @@ void sendTask(void * pvParameters) {
           servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
           servantsData += "<td>" + String((millis() - s[ii].lastUpdateMasterTime) / 1000) + "</td>";
           servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
-          servantsData += "<td>" + String(s[ii].lng, 8) + "</td>";
-          servantsData += "<td>" + String(s[ii].lat, 8) + "</td>";
+          servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
+          servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
           servantsData += "<td>" + String(s[ii].dist) + "</td>";
           servantsData += "<td>" + String(s[ii].bear) + "</td>";
           servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
@@ -281,14 +278,14 @@ void generateMaster() {
 
     const String tDate = String(m.year) + "-" + String(m.month) + "-" + String(m.day);
     const String tTime = String(m.hour) + ":" + String(m.minute) + ":" + String(m.second);
-    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 8) + "</td><td>" + String(m.lat, 8) + "</td><td>" + String(m.age) + "</td>";
+    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
     masterData += "<td>" + lastFileWrite + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
     masterData += "</tr>";
     // Update String to be written to file
     if((m.lng != 0.0) && (m.age < 1000)) {
-      csvOutStr += tDate + "," + tTime + "," + String(m.lng, 8) + "," + String(m.lat, 8) + "," + String(m.age) + "\n";
+      csvOutStr += tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "\n";
       nSamples += 1;
     } else {
       Serial.println(" NO GPS FIX, not WRITING LOCAL DATA !");

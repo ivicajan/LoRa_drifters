@@ -1,12 +1,11 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// F. Functions
-void startWebServer(const bool webServerOn);
+// #define USING_IMU
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D04";   // ID send with packet
-int drifterTimeSlotSec = 35; // seconds after start of each GPS minute
+String drifterName = "D06";   // ID send with packet
+int drifterTimeSlotSec = 28; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -17,7 +16,7 @@ bool webServerOn = false;
 String csvFileName = "";
 File file;                            // Data file for the SPIFFS output
 int nSamples;                         // Counter for the number of samples gathered
-int webServerPin = BUTTON_PIN;
+const int webServerPin = BUTTON_PIN;
 int gpsLastSecond = -1;
 String tTime = "";
 
@@ -29,7 +28,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x44;
+byte localAddress = 0x66;
 
 // Diagnostics
 int messages_sent = 0;
@@ -65,11 +64,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         p {
           font-size: 3.0rem;
         }
+        table {
+          width: 100%%;
+        }
         table, th, td {
            border: 1px solid black;
         }
         body {
-          max-width: 700px; margin:0px auto; padding-bottom: 25px;
+          max-width: 80%%; margin:0px auto; padding-bottom: 25px;
         }
       </style>
     </head>
@@ -78,44 +80,32 @@ const char index_html[] PROGMEM = R"rawliteral(
       <h4>Servant Node</h4>
       <table>
         <tr>
-          <td>Filename</td>
-          <td>Get Data Link</td>
-          <td>Last File Write GPS Time</td>
-          <td>Erase Data (NO WARNING)</td>
+          <td><b>Filename</b></td>
+          <td><b>Download data</b></td>
+          <td><b>Last File Write GPS Time</b></td>
+          <td><b>Erase Data (NO WARNING)</b></td>
+          <td><b>Calibrate IMU</b></td>
         </tr>
         %SERVANT%
-      </table>
-      <br><br>
-      <h4>Routing table</h4>
-      <table>
-        <tr>
-          <td>nodeID</td>
-          <td>hopCount</td>
-          <td>hopID</td>
-          <td>Rssi</td>
-          <td>snr</td>
-          <td>currentTime</td>
-        </tr>
-        %ROUTINGTABLE%
       </table>
       <br><br>
       <h4>Configuration</h4>
       <form action="/configure" method="get">
         <table>
           <tr>
-            <td>Setting</td>
-            <td>Current Values</td>
-            <td>New Values</td>
-            <td>Guidance</td>
+            <td><b>Setting</b></td>
+            <td><b>Current Values</b></td>
+            <td><b>New Values</b></td>
+            <td><b>Guidance</b></td>
           </tr>
           <tr>
-            <td><label for="fname">Drifter ID:</label></td>
+            <td><label for="fname"><b>Drifter ID</b></label></td>
             <td>%DRIFTERID%</td>
             <td><input type="text" id="fname" name="drifterID"></td>
-            <td>Drifter IDs from D00 to D11</td>
+            <td>Drifter IDs from D00 to D07</td>
           </tr>
           <tr>
-              <td><label for="lname">LoRa Sending Second:</label></td>
+              <td><label for="lname"><b>LoRa Sending Second</b></label></td>
             <td>%LORASENDSEC%</td>
             <td><input type="text" id="lname" name="loraSendSec"></td>
             <td>Sending second is from 0 to 59 seconds</td>
@@ -126,16 +116,16 @@ const char index_html[] PROGMEM = R"rawliteral(
       <h4>Diagnostics</h4>
       <table>
         <tr>
-          <td>Msgs Sent</td>
-          <td>Msgs Recvd</td>
-          <td>node1Rx</td>
-          <td>node2Rx</td>
-          <td>node3Rx</td>
-          <td>node4Rx</td>
-          <td>node5Rx</td>
-          <td>node6Rx</td>
-          <td>node7Rx</td>
-          <td>masterRx</td>
+          <td><b>Sent</b></td>
+          <td><b>Recvd</b></td>
+          <td><b>node1</b></td>
+          <td><b>node2</b></td>
+          <td><b>node3</b></td>
+          <td><b>node4</b></td>
+          <td><b>node5</b></td>
+          <td><b>node6</b></td>
+          <td><b>node7</b></td>
+          <td><b>master</b></td>
         </tr>
         %DIAGNOSTICS%
       </table>
@@ -279,11 +269,10 @@ void generatePacket() {
       nSamples += 1;
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
-      const String tLocation = String(packet.lng, 8) + "," + String(packet.lat, 8) + "," + String(packet.age);
+      const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
       csvOutStr += tDate + "," + tTime + "," + tLocation + String(messages_received) + String(messages_sent) + "\n";
       // B. Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
-        Serial.println("Sending packet via LoRa");
 #ifndef USING_MESH
         LoRa.beginPacket();
         LoRa.write((const uint8_t*)&packet, sizeof(packet));
@@ -295,6 +284,25 @@ void generatePacket() {
       Serial.println("NO GPS FIX, NOT SENDING OR WRITING");
     }
   }
+}
+
+bool calibrateIMU() {
+#ifndef USING_IMU
+  return false;
+#endif // USING_IMU
+  // calibrate IMU
+  file = SPIFFS.open("imuCalibrations.txt", FILE_READ);
+  if(!file) {
+    Serial.println("There was an error opening the file for appending, creating a new one");
+    file = SPIFFS.open("imuCalibrations.txt", FILE_WRITE);
+  }
+  if(!file) { // this should be reached unless SPIFFS are not working
+      Serial.println("There was an error opening the file for writing");
+      lastFileWrite = "FAILED OPEN";
+      ESP.restart();
+  }
+  // use calibrations if we do not have them
+  return true;
 }
 
 void startWebServer(const bool webServerOn) {
@@ -323,9 +331,7 @@ void startWebServer(const bool webServerOn) {
           drifterTimeSlotSec = String(p->value()).toInt();
         }
       }
-      Serial.print("Before csvFileName");
       csvFileName = "/svt" + String(drifterName) + ".csv";
-      Serial.print("Before config file open");
       file = SPIFFS.open("/config.txt", FILE_WRITE);
       if(!file) {
         Serial.println("Could not open config.txt for writing");
@@ -357,6 +363,23 @@ void startWebServer(const bool webServerOn) {
       file.close();
       lastFileWrite = "";
       request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+    });
+
+    server.on("/calibrateIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
+      if(calibrateIMU()) {
+        request->send(200, "text/html", 
+        "<html>\\
+          <span>Successfully calibrated IMU!</span>\\
+          <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a>\\
+        </html>");
+      }
+      else {
+        request->send(200, "text/html", 
+        "<html>\\
+          <span>Failed to calibrate IMU</span>\\
+          <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a>\\
+        </html>");
+      }
     });
     server.begin();
   }
@@ -438,25 +461,9 @@ String processor(const String& var) {
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
     servantData += "<td>" + lastFileWrite + "</td>";
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
+    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/calibrateIMU\"> CALIBRATE </a></td>";
     servantData += "</tr>";
     return servantData;
-  }
-  if(var == "ROUTINGTABLE") {
-    String routingData = "";
-    for(int idx = 0; idx < NUM_NODES; idx++) {
-      routingData += "<tr>";
-      routingData += "<td>" + String(routingTable[idx * ROUTING_TABLE_ENTRY_SIZE]) + "</td>";
-      routingData += "<td>" + String(routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1]) + "</td>";
-      routingData += "<td>" + String(routingTable[(idx*ROUTING_TABLE_ENTRY_SIZE) + 2]) + "</td>";
-      routingData += "<td>" + String(*(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3])) + "</td>";
-      routingData += "<td>" + String(*(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7])) + "</td>";
-      routingData += "<td>" + String(*(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11])) + "</td>";
-      if(idx != NUM_NODES - 1) {
-        routingData += "</tr>";
-      }
-    }
-    routingData += "</tr>";
-    return routingData;
   }
   if(var == "DRIFTERID") {
     return drifterName;

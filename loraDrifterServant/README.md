@@ -1,4 +1,4 @@
-# Timimg Parameter details
+# Timing Parameter Details
 RS_BCAST_TIME 6000: Time intervals, broadcast for every 6000ms
 
 PL_TX_TIME 10000: Receive pay load for every 10000ms
@@ -15,3 +15,56 @@ The localAddress identifies the header of each nodes, need to be changed accordi
 drifterName = "D01"; localAddress = 0x11;
 drifterName = "D02"; localAddress = 0x22;
 etc.
+
+# Mesh info
+
+All Nodes are filling their Routing Tables and Routing Statuses dynamically.
+Slaves: Broadcast local routing status to the network and sent to the master
+
+Node 1: 
+byte localAddress = 0x11;
+byte localNextHopID = 0x00;
+byte localHopCount = 0x00;
+
+Node 2: 
+byte localAddress = 0x22;
+byte localNextHopID = 0x00;
+byte localHopCount = 0x00;
+
+Node 3: 
+byte localAddress = 0x33;
+byte localNextHopID = 0x00;
+byte localHopCount = 0x00;
+
+Node 4:
+byte localAddress = 0x44;
+byte localNextHopID = 0x00;
+byte localHopCount = 0x00;
+
+Node 5:
+byte localAddress = 0x55;
+byte localNextHopID = 0x00;
+byte localHopCount = 0x00;
+
+Node 6:
+byte localAddress = 0x66;
+byte localNextHopID = 0x00;
+byte localHopCount = 0x00;
+
+Node 7:
+byte localAddress = 0x77;
+byte localNextHopID = 0x00;
+byte localHopCount = 0x00;
+
+Master: 
+byte localAddress = 0xAA;
+byte localNextHopID = 0xAA;
+byte localHopCount = 0x00;
+
+routing table structure - 19 bytes
+  nodeId         1 byte
+  hopCount       1 byte
+  hopId          1 byte
+  Rssi           4 bytes
+  snr            4 bytes
+  current time   8 bytes

@@ -1,60 +1,6 @@
 #ifndef LORADRIFTERMESH_H
 #define LORADRIFTERMESH_H
 
-/*
-All Nodes are filling their Routing Tables and Routing Statuses dynamically.
-Slaves: Broadcast local routing status to the network and sent to the master
-
-Node 1: 
-byte localAddress = 0x11;
-byte localNextHopID = 0x00;
-byte localHopCount = 0x00;
-
-Node 2: 
-byte localAddress = 0x22;
-byte localNextHopID = 0x00;
-byte localHopCount = 0x00;
-
-Node 3: 
-byte localAddress = 0x33;
-byte localNextHopID = 0x00;
-byte localHopCount = 0x00;
-
-Node 4:
-byte localAddress = 0x44;
-byte localNextHopID = 0x00;
-byte localHopCount = 0x00;
-
-Node 5:
-byte localAddress = 0x55;
-byte localNextHopID = 0x00;
-byte localHopCount = 0x00;
-
-Node 6:
-byte localAddress = 0x66;
-byte localNextHopID = 0x00;
-byte localHopCount = 0x00;
-
-Node 7:
-byte localAddress = 0x77;
-byte localNextHopID = 0x00;
-byte localHopCount = 0x00;
-
-Master: 
-byte localAddress = 0xAA;
-byte localNextHopID = 0xAA;
-byte localHopCount = 0x00;
-
-routing table structure - 19 bytes
-  nodeId         1 byte
-  hopCount       1 byte
-  hopId          1 byte
-  Rssi           4 bytes
-  snr            4 bytes
-  current time   8 bytes
-
-*/
-
 // Timing Parameters
 #define RS_BCAST_TIME   17000    //Time intervals, broadcast for every 4000ms
 #define PL_TX_TIME      12000   //Receive pay load for every ms              // 6000
@@ -64,7 +10,9 @@ routing table structure - 19 bytes
 #define NUM_NODES                 8
 #define ROUTING_TABLE_ENTRY_SIZE 19
 
-// #define MESH_MASTER_MODE
+#define SERVANT_MODE 0
+#define MASTER_MODE  1
+
 class Master;
 class Servant;
 struct Packet;
@@ -73,9 +21,10 @@ struct Packet;
 extern Master m;
 #define nServantsMax             8       // Maximum number of servant drifters (just for setting array size)
 extern Servant s[nServantsMax]; // Servants data array
+extern SemaphoreHandle_t servantSemaphore;
 #else
 extern Packet packet;
-Master m;
+extern SemaphoreHandle_t loraSemaphore;
 #endif //MESH_MASTER_MODE
 
 extern byte routingTable[0x99];
@@ -83,9 +32,6 @@ extern byte payload[24];
 extern byte localHopCount;
 extern byte localNextHopID;
 extern byte localAddress;
-
-extern int messages_sent;
-extern int messages_received;
 
 // DIAGNOSTICS
 extern int node1Rx;
@@ -95,6 +41,8 @@ extern int node4Rx;
 extern int node5Rx;
 extern int node6Rx;
 extern int node7Rx;
+extern int messages_sent;
+extern int messages_received;
 
 #ifndef MESH_MASTER_MODE
 extern int localLinkRssi;
@@ -124,10 +72,7 @@ typedef enum {
   Success = 1,
 } ResultType;
 
-// TODO: pass the Packet payload to the next hop id
-// currently, if we parse a packet as a servant, we do nothing with it and lose it
 int parsePayload() {
-  // Parses the data
   Serial.println("Parsing payload!");
 #ifdef MESH_MASTER_MODE
   Packet packet;
@@ -141,18 +86,21 @@ int parsePayload() {
     packet = *(Packet *)buffer;
 #ifdef MESH_MASTER_MODE
 // Get ID and then send to class for decoding
-    String name = String(packet.name);
+    const String name = String(packet.name);
     Serial.println(name);
     if(!strcmp(name.substring(0, 1).c_str(), "D")) {
       Serial.println("Drifter signal found!");
       // csvOutStr += recv; // Save all packets recevied (debugging purposes)
-      int id = name.substring(1, 3).toInt();
-      s[id].ID = id;
-      s[id].decode(&packet);
-      s[id].rssi = LoRa.packetRssi();
-      s[id].updateDistBear(m.lng, m.lat);
-      s[id].active = true;
-      Serial.println("RX from LoRa - decoding completed");
+      const int id = name.substring(1, 3).toInt();
+      if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
+        s[id].ID = id;
+        s[id].decode(&packet);
+        s[id].rssi = LoRa.packetRssi();
+        s[id].updateDistBear(m.lng, m.lat);
+        s[id].active = true;
+        Serial.println("RX from LoRa - decoding completed");
+      }
+      xSemaphoreGive(servantSemaphore);
     }
     else {
       Serial.println("Not a complete drifter packet");
@@ -219,6 +167,8 @@ void incNodeRxCounter(const int nodeID) {
       masterRx++;
       break;
 #endif // MESH_MASTER_MODE
+    default:
+      break;
   }
 }
 
@@ -445,8 +395,8 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
   header[6] = ttl - 1;      // ttl
 
   delay(random(20));
-  if(mode == 0) {                 // Node Mode
-    switch(header[1]){            // check type
+  if(mode == SERVANT_MODE) {
+    switch(type) {
       case RSBcastS:              // Type B: RS BCAST
         header[7] = 0x02;         // sizePayload
         LoRa.beginPacket();
@@ -460,9 +410,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         header[7] = 0x18;
         LoRa.beginPacket();
         LoRa.write(header, 8);
-#ifdef MESH_MASTER_MODE
-        LoRa.write((const uint8_t*)&m, sizeof(m));
-#else
+#ifndef MESH_MASTER_MODE // for compiling
         LoRa.write((const uint8_t*)&packet, sizeof(Packet));
 #endif // MESH_MASTER_MODE
         LoRa.endPacket(true);
@@ -479,8 +427,8 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         Serial.println("Not valid for this mode");
         break;
       }
-  } else if(mode == 1) {        // Master Mode
-    switch(header[1]){          // check type
+  } else if(mode == MASTER_MODE) {        // Master Mode
+    switch(type) {          // check type
       case RSBcastM:            // Type A: RS BCAST
       case ACK:                 // Type E: ACK
         header[7] = 0x00;
@@ -544,7 +492,7 @@ int listener(const int frameSize, const int mode) {
     //     incNodeRxCounter(router);
     // }
     return frameHandler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
-  } 
+  }
   return 0;
 }
 
@@ -565,12 +513,19 @@ bool waitForAck(const byte router) {
 
 int ackHandshake(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl, int resend) {
   // If no ACK received, resend two more times.
-  sendFrame(mode, type, router, recipient, sender, ttl);
-  bool ack = waitForAck(router);
-
-  while(!ack && resend < 2) {
+  bool ack = false;
+  if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
     sendFrame(mode, type, router, recipient, sender, ttl);
     ack = waitForAck(router);
+  }
+  xSemaphoreGive(loraSemaphore);
+
+  while(!ack && resend < 2) {
+    if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+      sendFrame(mode, type, router, recipient, sender, ttl);
+      ack = waitForAck(router);
+    }
+    xSemaphoreGive(loraSemaphore);
     resend++;
   }
   if(!ack) {
@@ -605,7 +560,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   //Process data frame
   int result = 0;
 
-  if(mode == 0) {              // Node Mode
+  if(mode == SERVANT_MODE) {              // Node Mode
     if(type == RSBcastM) {         // Type A: Master BCAST
       const int rssi = LoRa.packetRssi();
       const float snr = LoRa.packetSnr();
@@ -641,11 +596,11 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
         return result;          // No ACK
       }
     }
-    return Node_Mode_Err;                // Node Mode ERR
+    return Node_Mode_Err;
   } 
   
-  if(mode == 1) {                // Master Mode
-    if(type == DirectPl) {           // Type C: Direct PL
+  if(mode == MASTER_MODE) {
+    if(type == DirectPl) {
       result = parsePayload();
       if(result == 1) {
         Serial.println("Successfully parsed packet, now sending ack");
@@ -654,7 +609,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       }
       return result;            // Parse ERR
     } 
-    return Master_Mode_Err;                // Master Mode ERR
+    return Master_Mode_Err;
   }
   
   // Checking the ackMode that was passed from waitForAck()
@@ -814,12 +769,10 @@ int setRoutingStatus() {
 }
 
 int daemon(const unsigned int mode) {
-// #ifndef MESH_MASTER_MODE
   if(runEvery(RS_BCAST_TIME)) {
     Serial.println("Broadcasting");
     return bcastRoutingStatus(mode);   // returns 1 or -1
   }
-// #endif // MESH_MASTER_MODE
   return listener(LoRa.parsePacket(), mode);
 }                                 // returns 0: Nothing relevant or valid
                                   // returns 1: Valid processing

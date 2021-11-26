@@ -2,12 +2,11 @@
 
 // F. Functions
 void startWebServer(const bool webServerOn);
-String IpAddress2String(const IPAddress& ipAddress);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D04";   // ID send with packet
-int drifterTimeSlotSec = 17; // seconds after start of each GPS minute
+String drifterName = "D05";   // ID send with packet
+int drifterTimeSlotSec = 20; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -27,11 +26,10 @@ Packet packet;
 #ifdef USING_MESH
 byte routingTable[153] = "";
 byte payload[24] = "";
-int servantMode = 0;
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x44;
+byte localAddress = 0x55;
 
 // Diagnostics
 int messages_sent = 0;
@@ -45,6 +43,10 @@ int node6Rx = 0;
 int node7Rx = 0;
 int masterRx = 0;
 #endif // USING_MESH
+
+TaskHandle_t ListenTask;
+TaskHandle_t SendTask;
+SemaphoreHandle_t loraSemaphore = NULL;
 
 const char index_html[] PROGMEM = R"rawliteral(
   <!DOCTYPE HTML>
@@ -142,8 +144,33 @@ const char index_html[] PROGMEM = R"rawliteral(
   </html>
 )rawliteral";
 
-// FUNCTION DEFINITIONS
-void setup(){
+void writeData2Flash() {
+  file = SPIFFS.open(csvFileName, FILE_APPEND);
+  if(!file) {
+    Serial.println("There was an error opening the file for appending, creating a new one");
+    file = SPIFFS.open(csvFileName, FILE_WRITE);
+  }
+  if(!file) {
+      Serial.println("There was an error opening the file for writing");
+      lastFileWrite = "FAILED OPEN";
+      ESP.restart();
+  } else {
+    if(file.println(csvOutStr)) {
+      Serial.print("Wrote data in file, current size: ");
+      Serial.println(file.size());
+      csvOutStr = "";
+      nSamples = 0;
+      lastFileWrite = tTime;
+    } else {
+      lastFileWrite = "FAILED WRITE, RESTARTING";
+      ESP.restart();
+    }
+  }
+  file.close();
+  delay(50);
+}
+
+void setup() {
   initBoard();
   delay(500);
   if(!SPIFFS.begin(true)) {
@@ -164,10 +191,9 @@ void setup(){
   // LoRa.setSyncWord(LORA_SYNC_WORD);
   // LoRa.setGain(LORA_GAIN);
 
-
   if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("LoRa init failed. Check your connections.");
-    while (true);                       // if failed, do nothing
+    while(true); // if failed, do nothing
   }
   delay(50);
   
@@ -188,200 +214,30 @@ void setup(){
 
   csvFileName="/svt" + String(drifterName)+".csv";
   webServerOn = false;
-  
+  loraSemaphore = xSemaphoreCreateMutex();
+
+  //create a task that will be executed in the listenTask() function, with priority 1 and executed on core 0
+  xTaskCreatePinnedToCore(
+                    listenTask,      /* Task function. */
+                    "listenTask",    /* name of task. */
+                    10000,           /* Stack size of task */
+                    NULL,            /* parameter of the task */
+                    1,               /* priority of the task */
+                    &ListenTask,     /* Task handle to keep track of created task */
+                    0);              /* pin task to core 0 */
+  delay(500);
+
+  //create a task that will be executed in the sendTask() function, with priority 1 and executed on core 1
+  xTaskCreatePinnedToCore(
+                    sendTask,        /* Task function. */
+                    "sendTask",      /* name of task. */
+                    10000,           /* Stack size of task */
+                    NULL,            /* parameter of the task */
+                    2,               /* priority of the task */
+                    &SendTask,       /* Task handle to keep track of created task */
+                    1);              /* pin task to core 1 */
+  delay(500);
   Serial.println("Initialization complete.");
-}
-
-void loop(){
-  // A. Check for button press
-  if(digitalRead(BUTTON_PIN) == LOW) {
-    if(webServerOn) {
-      Serial.println("Web server already started");
-      webServerOn = false;
-      startWebServer(webServerOn);
-      delay(1000);
-    } else {
-      webServerOn = true;
-      startWebServer(webServerOn);
-      Serial.println("Web server started");
-      delay(1000);
-    }
-  }
-  if(!webServerOn) {
-#ifdef USING_MESH
-    int result = daemon(servantMode);
-    if(loop_runEvery(PL_TX_TIME)) {
-    // TODO: use drifterTimeSlotSec rather than PL_TX_TIME to help prevent collisions with messages
-    // if(gps.time.second() == drifterTimeSlotSec) {
-      generatePacket();
-      // changes made to route payload may break this
-      result = routePayload(
-        servantMode,        // Node Mode
-        0xAA,               // recipient: Master
-        localAddress,       // sender
-        0x0F,               // ttl
-        0                   // set resend counter
-      );
-    }
-#else
-    generatePacket();
-#endif // USING_MESH
-    delay(10);
-    // B. Write data to onboard flash if nSamples is large enough
-    if(nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
-      Serial.println("Dump data into the memory");
-      writeData2Flash();
-    }
-  } else {
-    Serial.println("Web server is ON, not GPS data or saving during the time");
-    delay(40);
-    digitalWrite(BOARD_LED, LED_OFF);
-    delay(40);
-    digitalWrite(BOARD_LED, LED_ON);
-  }
-}
-
-String processor(const String& var) {
-  if(var == "SERVANT") {
-    String servantData = "";
-    servantData += "<td>" + csvFileName + "</td>";
-    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
-    servantData += "<td>" + lastFileWrite + "</td>";
-    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
-    servantData += "</tr>";
-    return servantData;
-  }
-  if(var == "ROUTINGTABLE") {
-    String routingData = "";
-    for(int idx = 0; idx < NUM_NODES; idx++) {
-      routingData += "<tr>";
-      routingData += "<td>" + String(routingTable[idx * ROUTING_TABLE_ENTRY_SIZE]) + "</td>";
-      routingData += "<td>" + String(routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1]) + "</td>";
-      routingData += "<td>" + String(routingTable[(idx*ROUTING_TABLE_ENTRY_SIZE) + 2]) + "</td>";
-      routingData += "<td>" + String(*(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3])) + "</td>";
-      routingData += "<td>" + String(*(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7])) + "</td>";
-      routingData += "<td>" + String(*(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11])) + "</td>";
-      if(idx != NUM_NODES - 1) {
-        routingData += "</tr>";
-      }
-    }
-    routingData += "</tr>";
-    return routingData;
-  }
-  if(var == "DRIFTERID") {
-    return drifterName;
-  }
-  if(var == "LORASENDSEC") {
-    return String(drifterTimeSlotSec);
-  }
-  if(var == "DIAGNOSTICS") {
-    String diagnosticData = "";
-    diagnosticData += "<tr>";
-    diagnosticData += "<td>" + String(messages_sent) + "</td>";
-    diagnosticData += "<td>" + String(messages_received) + "</td>";
-    diagnosticData += "<td>" + String(node1Rx) + "</td>";
-    diagnosticData += "<td>" + String(node2Rx) + "</td>";
-    diagnosticData += "<td>" + String(node3Rx) + "</td>";
-    diagnosticData += "<td>" + String(node4Rx) + "</td>";
-    diagnosticData += "<td>" + String(node5Rx) + "</td>";
-    diagnosticData += "<td>" + String(node6Rx) + "</td>";
-    diagnosticData += "<td>" + String(node7Rx) + "</td>";
-    diagnosticData += "<td>" + String(masterRx) + "</td>";
-    diagnosticData += "</tr>";
-    return diagnosticData; 
-  }
-  return String();
-}
-
-void startWebServer(const bool webServerOn) {
-  if(!webServerOn) {
-    server.end();
-    WiFi.disconnect();
-    WiFi.mode(WIFI_OFF);
-    btStop();
-  } else {
-    WiFi.softAP(ssid, password);
-    Serial.println(WiFi.softAPIP());    // Print ESP32 Local IP Address
-
-    // F. Web Server Callbacks setup
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
-      request->send_P(200, "text/html", index_html, processor);
-    });
-    server.on("/configure", HTTP_GET, [](AsyncWebServerRequest * request) {
-      int paramsNr = request->params();
-      Serial.println(paramsNr);
-      for(int ii = 0; ii < paramsNr; ii++) {
-        AsyncWebParameter* p = request->getParam(ii);
-        if(p->name() == "drifterID") {
-          drifterName = p->value();
-        }
-        if(p->name() == "loraSendSec") {
-          drifterTimeSlotSec = String(p->value()).toInt();
-        }
-      }
-      Serial.print("Before csvFileName");
-      csvFileName = "/svt" + String(drifterName) + ".csv";
-      Serial.print("Before config file open");
-      file = SPIFFS.open("/config.txt", FILE_WRITE);
-      if(!file) {
-        Serial.println("Could not open config.txt for writing");
-        request->send(200, "text/plain", "Failed writing configuration file config.txt!");
-      } else {
-        file.print(drifterName + "," + String(drifterTimeSlotSec));
-        file.close();
-        request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
-      }
-    });
-
-    server.on("/getServant", HTTP_GET, [](AsyncWebServerRequest * request) {
-      writeData2Flash();
-      request->send(SPIFFS, csvFileName, "text/plain", true);
-    });
-
-    server.on("/deleteServant", HTTP_GET, [](AsyncWebServerRequest * request) {
-      SPIFFS.remove(csvFileName);
-      file = SPIFFS.open(csvFileName, FILE_WRITE);
-      if(!file) {
-        Serial.println("There was an error opening the file for writing");
-        return;
-      }
-      if(file.println("#FILE ERASED at " + lastFileWrite)) {
-        Serial.println("File was created");
-      } else {
-        Serial.println("File creation failed");
-      }
-      file.close();
-      lastFileWrite = "";
-      request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
-    });
-    server.begin();
-  }
-}
-
-void writeData2Flash() {
-  file = SPIFFS.open(csvFileName, FILE_APPEND);
-  if(!file) {
-    Serial.println("There was an error opening the file for appending, creating a new one");
-    file = SPIFFS.open(csvFileName, FILE_WRITE);
-  }
-  if(!file) {
-      Serial.println("There was an error opening the file for writing");
-      lastFileWrite = "FAILED OPEN";
-      ESP.restart();
-  } else {
-    if(file.println(csvOutStr)) {
-      Serial.println("Wrote data in file, current size: ");
-      Serial.println(file.size());
-      csvOutStr = "";
-      nSamples = 0;
-      lastFileWrite = tTime;
-    } else {
-      lastFileWrite = "FAILED WRITE, RESTARTING";
-      ESP.restart();
-    }
-  }
-  file.close();
-  delay(50);
 }
 
 void generatePacket() {
@@ -439,4 +295,189 @@ void generatePacket() {
       Serial.println("NO GPS FIX, NOT SENDING OR WRITING");
     }
   }
+}
+
+void startWebServer(const bool webServerOn) {
+  if(!webServerOn) {
+    server.end();
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    btStop();
+  } else {
+    WiFi.softAP(ssid, password);
+    Serial.println(WiFi.softAPIP());  // Print ESP32 Local IP Address
+
+    // F. Web Server Callbacks setup
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+      request->send_P(200, "text/html", index_html, processor);
+    });
+    server.on("/configure", HTTP_GET, [](AsyncWebServerRequest * request) {
+      int paramsNr = request->params();
+      Serial.println(paramsNr);
+      for(int ii = 0; ii < paramsNr; ii++) {
+        AsyncWebParameter* p = request->getParam(ii);
+        if(p->name() == "drifterID") {
+          drifterName = p->value();
+        }
+        if(p->name() == "loraSendSec") {
+          drifterTimeSlotSec = String(p->value()).toInt();
+        }
+      }
+      Serial.print("Before csvFileName");
+      csvFileName = "/svt" + String(drifterName) + ".csv";
+      Serial.print("Before config file open");
+      file = SPIFFS.open("/config.txt", FILE_WRITE);
+      if(!file) {
+        Serial.println("Could not open config.txt for writing");
+        request->send(200, "text/plain", "Failed writing configuration file config.txt!");
+      } else {
+        file.print(drifterName + "," + String(drifterTimeSlotSec));
+        file.close();
+        request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+      }
+    });
+
+    server.on("/getServant", HTTP_GET, [](AsyncWebServerRequest * request) {
+      writeData2Flash();
+      request->send(SPIFFS, csvFileName, "text/plain", true);
+    });
+
+    server.on("/deleteServant", HTTP_GET, [](AsyncWebServerRequest * request) {
+      SPIFFS.remove(csvFileName);
+      file = SPIFFS.open(csvFileName, FILE_WRITE);
+      if(!file) {
+        Serial.println("There was an error opening the file for writing");
+        return;
+      }
+      if(file.println("#FILE ERASED at " + lastFileWrite)) {
+        Serial.println("File was created");
+      } else {
+        Serial.println("File creation failed");
+      }
+      file.close();
+      lastFileWrite = "";
+      request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+    });
+    server.begin();
+  }
+}
+
+void listenTask(void * pvParameters) {
+  while(1) {
+    vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
+    if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+      const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
+    }
+    xSemaphoreGive(loraSemaphore);
+  }
+}
+
+void sendTask(void * pvParameters) {
+  while(1) {
+    // A. Check for button press
+    if(digitalRead(BUTTON_PIN) == LOW) {
+      if(webServerOn) {
+        Serial.println("Web server already started");
+        webServerOn = false;
+        startWebServer(webServerOn);
+        delay(1000);
+      } else {
+        webServerOn = true;
+        startWebServer(webServerOn);
+        Serial.println("Web server started");
+        delay(1000);
+      }
+    }
+    if(!webServerOn) {
+#ifdef USING_MESH
+      int result = 0;
+      // if(gps.time.second() == drifterTimeSlotSec) {
+      if(runEvery(PL_TX_TIME)) {
+        generatePacket();
+        result = routePayload(
+          SERVANT_MODE,       // Node Mode
+          0xAA,               // recipient: Master
+          localAddress,       // sender
+          0x0F,               // ttl
+          0                   // set resend counter
+        );
+      }
+      else if(loop_runEvery(RS_BCAST_TIME)) {
+        Serial.println("Route broadcast");
+        if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+          result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
+        }
+        xSemaphoreGive(loraSemaphore);
+      }
+#else
+      generatePacket();
+#endif // USING_MESH
+      delay(10);
+      // B. Write data to onboard flash if nSamples is large enough
+      if(nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
+        Serial.println("Dump data into the memory");
+        writeData2Flash();
+      }
+    } else {
+      Serial.println("Web server is ON, not GPS data or saving during the time");
+      delay(40);
+      digitalWrite(BOARD_LED, LED_OFF);
+      delay(40);
+      digitalWrite(BOARD_LED, LED_ON);
+    }
+  }
+}
+
+// Loop does nothing as the loop functions are split into tasks
+void loop() {}
+
+String processor(const String& var) {
+  if(var == "SERVANT") {
+    String servantData = "";
+    servantData += "<td>" + csvFileName + "</td>";
+    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
+    servantData += "<td>" + lastFileWrite + "</td>";
+    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
+    servantData += "</tr>";
+    return servantData;
+  }
+  if(var == "ROUTINGTABLE") {
+    String routingData = "";
+    for(int idx = 0; idx < NUM_NODES; idx++) {
+      routingData += "<tr>";
+      routingData += "<td>" + String(routingTable[idx * ROUTING_TABLE_ENTRY_SIZE]) + "</td>";
+      routingData += "<td>" + String(routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1]) + "</td>";
+      routingData += "<td>" + String(routingTable[(idx*ROUTING_TABLE_ENTRY_SIZE) + 2]) + "</td>";
+      routingData += "<td>" + String(*(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3])) + "</td>";
+      routingData += "<td>" + String(*(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7])) + "</td>";
+      routingData += "<td>" + String(*(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11])) + "</td>";
+      if(idx != NUM_NODES - 1) {
+        routingData += "</tr>";
+      }
+    }
+    routingData += "</tr>";
+    return routingData;
+  }
+  if(var == "DRIFTERID") {
+    return drifterName;
+  }
+  if(var == "LORASENDSEC") {
+    return String(drifterTimeSlotSec);
+  }
+  if(var == "DIAGNOSTICS") {
+    String diagnosticData = "";
+    diagnosticData += "<tr>";
+    diagnosticData += "<td>" + String(messages_sent) + "</td>";
+    diagnosticData += "<td>" + String(messages_received) + "</td>";
+    diagnosticData += "<td>" + String(node1Rx) + "</td>";
+    diagnosticData += "<td>" + String(node2Rx) + "</td>";
+    diagnosticData += "<td>" + String(node3Rx) + "</td>";
+    diagnosticData += "<td>" + String(node4Rx) + "</td>";
+    diagnosticData += "<td>" + String(node5Rx) + "</td>";
+    diagnosticData += "<td>" + String(node6Rx) + "</td>";
+    diagnosticData += "<td>" + String(node7Rx) + "</td>";
+    diagnosticData += "<td>" + String(masterRx) + "</td>";
+    return diagnosticData += "</tr>";
+  }
+  return String();
 }

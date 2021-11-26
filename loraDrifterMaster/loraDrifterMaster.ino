@@ -5,13 +5,16 @@
 #define MESH_MASTER_MODE
 #endif // USING_MESH
 
+SemaphoreHandle_t servantSemaphore = NULL;
+SemaphoreHandle_t loraSemaphore = NULL;
+
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// F. Functions
-void startWebServer(const bool webServerOn);
-String IpAddress2String(const IPAddress& ipAddress);
+#include "soc/timer_group_struct.h"
+#include "soc/timer_group_reg.h"
 
 // GLOBAL VARIABLES
+AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 TinyGPSPlus gps;                      // decoder for GPS stream
 const char* ssid = "DrifterMaster";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -22,7 +25,6 @@ String servantsData = "";
 String diagnosticData = "";
 String csvOutStr = "";                // Buffer for output file
 String lastFileWrite = "";
-AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 File file;                            // Data file for the SPIFFS output
 int nSamples;                         // Counter for the number of samples gathered
 //int ledState = LOW;
@@ -47,6 +49,9 @@ int node4Rx = 0;
 int node5Rx = 0;
 int node6Rx = 0;
 int node7Rx = 0;
+
+TaskHandle_t ListenTask;
+TaskHandle_t SendTask;
 
 String processor(const String& var) {
   if(var == "SERVANTS") {    return servantsData;  }
@@ -108,11 +113,14 @@ void setup(){
   initBoard();
   delay(500);
 
+  servantSemaphore = xSemaphoreCreateMutex();
+  loraSemaphore = xSemaphoreCreateMutex();
+
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
 
   if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("LoRa init failed. Check your connections.");
-    while(1);                       // if failed, do nothing
+    while(1); // if failed, do nothing
   }
 
 #ifndef USING_MESH
@@ -156,6 +164,28 @@ void setup(){
   server.begin();
   delay(50);
 
+  //create a task that will be executed in the listenTask() function, with priority 1 and executed on core 1
+  xTaskCreatePinnedToCore(
+                    listenTask,       /* Task function. */
+                    "listenTask",     /* name of task. */
+                    10000,            /* Stack size of task */
+                    NULL,             /* parameter of the task */
+                    1,                /* priority of the task */
+                    &ListenTask,      /* Task handle to keep track of created task */
+                    1);               /* pin task to core 1 */
+  delay(500); 
+
+  //create a task that will be executed in the sendTask() function, with priority 1 and executed on core 0
+  xTaskCreatePinnedToCore(
+                    sendTask,        /* Task function. */
+                    "sendTask",      /* name of task. */
+                    10000,           /* Stack size of task */
+                    NULL,            /* parameter of the task */
+                    2,               /* priority of the task */
+                    &SendTask,       /* Task handle to keep track of created task */
+                    0);              /* pin task to core 0 */
+  delay(500);
+
   // G. SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
@@ -165,9 +195,72 @@ void setup(){
   Serial.println("Initialization complete.");
 }
 
+void listenTask(void * pvParameters) {
+  disableCore0WDT();
+  while(1) {
+    if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+      const int result = listener(LoRa.parsePacket(), MASTER_MODE);
+    }
+    xSemaphoreGive(loraSemaphore);
+  }
+}
+
+void sendTask(void * pvParameters) {
+  while(1) {
+    generateMaster();
+#ifdef USING_MESH
+    // const int result = daemon(MASTER_MODE); // MESH_MASTER_MODE
+    // if(gps.time.second() == RS_BCAST_TIME) {
+    if(loop_runEvery(RS_BCAST_TIME)) {
+      if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+        Serial.println("Route broadcast");
+        bcastRoutingStatus(MASTER_MODE);
+      }
+      xSemaphoreGive(loraSemaphore);
+#endif // USING_MESH
+    }
+    servantsData = "";
+    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
+      for(int ii = 0; ii < nServantsMax; ii++) {
+        if(s[ii].active) {
+          servantsData += "<tr>";
+          servantsData += "<td>" + String(s[ii].ID) + "</td>";
+          servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
+          servantsData += "<td>" + String((millis() - s[ii].lastUpdateMasterTime) / 1000) + "</td>";
+          servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
+          servantsData += "<td>" + String(s[ii].lng, 8) + "</td>";
+          servantsData += "<td>" + String(s[ii].lat, 8) + "</td>";
+          servantsData += "<td>" + String(s[ii].dist) + "</td>";
+          servantsData += "<td>" + String(s[ii].bear) + "</td>";
+          servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
+          servantsData += "<td>" + String(s[ii].rssi) + "</td>";
+          servantsData += "</tr>";
+        }
+      }
+    }
+    xSemaphoreGive(servantSemaphore);
+    diagnosticData = "";
+    diagnosticData += "<tr>";
+    diagnosticData += "<td>" + String(messages_sent) + "</td>";
+    diagnosticData += "<td>" + String(messages_received) + "</td>";
+    diagnosticData += "<td>" + String(node1Rx) + "</td>";
+    diagnosticData += "<td>" + String(node2Rx) + "</td>";
+    diagnosticData += "<td>" + String(node3Rx) + "</td>";
+    diagnosticData += "<td>" + String(node4Rx) + "</td>";
+    diagnosticData += "<td>" + String(node5Rx) + "</td>";
+    diagnosticData += "<td>" + String(node6Rx) + "</td>";
+    diagnosticData += "<td>" + String(node7Rx) + "</td>";
+    diagnosticData += "</tr>";
+    // D. Write data to onboard flash
+    if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
+      writeData2Flash();
+    }
+  }
+}
+
 void generateMaster() {
   // Read GPS and run decoder
-  unsigned long start = millis();
+  const unsigned long start = millis();
   do {
     while(Serial1.available() > 0) {
       gps.encode(Serial1.read());
@@ -205,47 +298,5 @@ void generateMaster() {
   }
 }
 
-void loop() {
-#ifdef USING_MESH
-  const int result = daemon(1); // MESH_MASTER_MODE
-#endif // USING_MESH
-  generateMaster();
-  // TODO: Use this instead of daemon implmentation (only works if we have gps time)
-  // if(gps.time.second() == 30) {
-  //   bcastRoutingStatus(1);
-  // }
-
-  servantsData = "";
-  for(int ii = 0; ii < nServantsMax; ii++) {
-    if(s[ii].active) {
-      servantsData += "<tr>";
-      servantsData += "<td>" + String(s[ii].ID) + "</td>";
-      servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
-      servantsData += "<td>" + String((millis() - s[ii].lastUpdateMasterTime) / 1000) + "</td>";
-      servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
-      servantsData += "<td>" + String(s[ii].lng, 8) + "</td>";
-      servantsData += "<td>" + String(s[ii].lat, 8) + "</td>";
-      servantsData += "<td>" + String(s[ii].dist) + "</td>";
-      servantsData += "<td>" + String(s[ii].bear) + "</td>";
-      servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
-      servantsData += "<td>" + String(s[ii].rssi) + "</td>";
-      servantsData += "</tr>";
-    }
-  }
-  diagnosticData = "";
-  diagnosticData += "<tr>";
-  diagnosticData += "<td>" + String(messages_sent) + "</td>";
-  diagnosticData += "<td>" + String(messages_received) + "</td>";
-  diagnosticData += "<td>" + String(node1Rx) + "</td>";
-  diagnosticData += "<td>" + String(node2Rx) + "</td>";
-  diagnosticData += "<td>" + String(node3Rx) + "</td>";
-  diagnosticData += "<td>" + String(node4Rx) + "</td>";
-  diagnosticData += "<td>" + String(node5Rx) + "</td>";
-  diagnosticData += "<td>" + String(node6Rx) + "</td>";
-  diagnosticData += "<td>" + String(node7Rx) + "</td>";
-  diagnosticData += "</tr>";
-  // D. Write data to onboard flash
-  if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
-    writeData2Flash();
-  }
-}
+// Loop does nothing as the loop functions are split into tasks
+void loop() {}

@@ -81,7 +81,6 @@ void writeData2Flash() {
 
 void onReceive(const int packetsize) {
   // received a packet
-  Serial.println("Received packet:");
   uint8_t buffer[sizeof(Packet)];
   for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
     buffer[ii] = LoRa.read();

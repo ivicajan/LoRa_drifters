@@ -22,15 +22,15 @@ class Servant {
     double lat = 0.0;
     uint32_t age = 0;
     int nSamples = 0;
-    float dist = 0.0;
-    float bear = 0.0;
+    int dist = 0;
+    float bear = 0.f;
     int rssi = 0;
     bool active = false;
     ~Servant() = default;
 };
 
 void Servant::updateDistBear(const double fromLon, const double fromLat) {
-   dist = TinyGPSPlus::distanceBetween(fromLat, fromLon, lat, lng);
+   dist = (int)TinyGPSPlus::distanceBetween(fromLat, fromLon, lat, lng);
    bear = TinyGPSPlus::courseTo(fromLat, fromLon, lat, lng);
 }
 

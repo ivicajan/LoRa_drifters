@@ -5,8 +5,8 @@ void startWebServer(const bool webServerOn);
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D03";   // ID send with packet
-int drifterTimeSlotSec = 14; // seconds after start of each GPS minute
+String drifterName = "D04";   // ID send with packet
+int drifterTimeSlotSec = 35; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -29,7 +29,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x33;
+byte localAddress = 0x44;
 
 // Diagnostics
 int messages_sent = 0;
@@ -402,7 +402,7 @@ void sendTask(void * pvParameters) {
           0                   // set resend counter
         );
       }
-      else if(loop_runEvery(RS_BCAST_TIME)) {
+      if(loop_runEvery(RS_BCAST_TIME)) {
         Serial.println("Route broadcast");
         if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
           result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1

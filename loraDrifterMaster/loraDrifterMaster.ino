@@ -30,6 +30,7 @@ int gpsLastSecond = -1;
 int webServerPin = BUTTON_PIN;
 String hour, minute, second, year, month, day, tTime, tDate;
 
+#ifdef USING_MESH
 byte routingTable[0x99] = "";
 byte payload[24] = "";
 byte localAddress = 0xAA;
@@ -37,8 +38,8 @@ byte localNextHopID = 0xAA;
 byte localHopCount = 0x00;
 
 // Diagnostics
-int messages_sent = 0;
-int messages_received = 0;
+int messagesSent = 0;
+int messagesReceived = 0;
 int node1Rx = 0;
 int node2Rx = 0;
 int node3Rx = 0;
@@ -46,6 +47,7 @@ int node4Rx = 0;
 int node5Rx = 0;
 int node6Rx = 0;
 int node7Rx = 0;
+#endif // USING_MESH
 
 TaskHandle_t ListenTask;
 TaskHandle_t SendTask;
@@ -54,9 +56,11 @@ String processor(const String& var) {
   if(var == "SERVANTS") {    return servantsData;  }
   if(var == "MASTER") {      return masterData;  }
   if(var == "DIAGNOSTICS") { return diagnosticData; }
+#ifdef USING_MESH
   if(var == "RESTARTDRIFTER") {
     return "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/restartDrifter\">Restart</a></td>";
   }
+#endif
   return String();
 }
 
@@ -81,7 +85,7 @@ void writeData2Flash() {
   file.close();
   delay(50);
 }
-
+#ifndef USING_MESH
 void onReceive(const int packetsize) {
   // received a packet
   uint8_t buffer[sizeof(Packet)];
@@ -97,15 +101,19 @@ void onReceive(const int packetsize) {
     Serial.println("Drifter signal found!");
     // csvOutStr += recv; // Save all packets recevied (debugging purposes)
     const int id = name.substring(1, 3).toInt();
-    s[id].ID = id;
-    s[id].decode(packet);
-    s[id].rssi = LoRa.packetRssi();
-    s[id].updateDistBear(m.lng, m.lat);
-    s[id].active = true;
+    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
+      s[id].ID = id;
+      s[id].decode(packet);
+      s[id].rssi = LoRa.packetRssi();
+      s[id].updateDistBear(m.lng, m.lat);
+      s[id].active = true;
+    }
+    xSemaphoreGive(servantSemaphore);
     Serial.println("RX from LoRa - decoding completed");
   }
   delay(50);
 }
+#endif // USING_MESH
 
 // FUNCTION DEFINITIONS
 void setup(){
@@ -160,32 +168,25 @@ void setup(){
     }
     file.close();
     lastFileWrite="";
-    request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+    request->send(200, "text/html", "<html><span>Successfully deleted master!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
   });
-
+#ifdef USING_MESH
   server.on("/restartDrifter", HTTP_GET, [](AsyncWebServerRequest * request) {
     int paramsNr = request->params();
     for(int ii = 0; ii < paramsNr; ii++) {
       AsyncWebParameter* p = request->getParam(ii);
       if(p->name() == "drifterID") {
-        int drifterID = (p->value()).toInt();
-        byte drifterIDByte = indexToId(drifterID);
-        Serial.println(drifterID);
-        Serial.println(drifterIDByte, HEX);
-        sendFrame(
-          MASTER_MODE,
-          Restart,
-          localAddress,
-          drifterIDByte,
-          localAddress,
-          0x0F
-        );
+        const int drifterID = (p->value()).toInt();
+        const byte drifterIDByte = indexToId(drifterID);
+        sendFrame(MASTER_MODE, Restart, localAddress, drifterIDByte, localAddress, 0x0F);
       }
     }
     request->send(200, "text/html", "<html>\\
-      <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Sent restart packet!  BACK </a>\\
+      <span>Sent restart packet!</span>\\
+      <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a>\\
     </html>");
   });
+#endif // USING_MESH
 
   server.begin();
   delay(50);
@@ -214,7 +215,8 @@ void setup(){
 
   // G. SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
-    Serial.println("An Error has occurred while mounting SPIFFS - need to add retry");
+    // TODO: add retry
+    Serial.println("An Error has occurred while mounting SPIFFS");
     while(1);
   }
   delay(50);
@@ -222,7 +224,7 @@ void setup(){
 }
 
 void listenTask(void * pvParameters) {
-  disableCore0WDT();
+  disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
     if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
       const int result = listener(LoRa.parsePacket(), MASTER_MODE);
@@ -264,10 +266,11 @@ void sendTask(void * pvParameters) {
       }
     }
     xSemaphoreGive(servantSemaphore);
+#ifdef USING_MESH
     diagnosticData = "";
     diagnosticData += "<tr>";
-    diagnosticData += "<td>" + String(messages_sent) + "</td>";
-    diagnosticData += "<td>" + String(messages_received) + "</td>";
+    diagnosticData += "<td>" + String(messagesSent) + "</td>";
+    diagnosticData += "<td>" + String(messagesReceived) + "</td>";
     diagnosticData += "<td>" + String(node1Rx) + "</td>";
     diagnosticData += "<td>" + String(node2Rx) + "</td>";
     diagnosticData += "<td>" + String(node3Rx) + "</td>";
@@ -276,6 +279,7 @@ void sendTask(void * pvParameters) {
     diagnosticData += "<td>" + String(node6Rx) + "</td>";
     diagnosticData += "<td>" + String(node7Rx) + "</td>";
     diagnosticData += "</tr>";
+#endif // USING_MESH
     // D. Write data to onboard flash
     if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
       writeData2Flash();

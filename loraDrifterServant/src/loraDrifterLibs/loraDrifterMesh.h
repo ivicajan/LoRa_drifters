@@ -2,10 +2,10 @@
 #define LORADRIFTERMESH_H
 
 // Timing Parameters
-#define RS_BCAST_TIME   17000    //Time intervals, broadcast for every 4000ms
-#define PL_TX_TIME      12000   //Receive pay load for every ms              // 6000
-#define DELETION_TIME   62000   //Reset the routing table if entry's time is older than 100000ms
-#define ARQ_TIME        2000    //Automatic Repeat Request for every 1000ms
+#define RS_BCAST_TIME   17000   // Time intervals, broadcast for every 17s
+#define PL_TX_TIME      12000   // Receive pay load for every 12s
+#define DELETION_TIME   62000   // Reset the routing table if entry's time is older than 62s
+#define ARQ_TIME        2000    // Automatic Repeat Request for every 2s
 
 #define NUM_NODES                 8
 #define ROUTING_TABLE_ENTRY_SIZE 19
@@ -20,7 +20,7 @@ struct Packet;
 #ifdef MESH_MASTER_MODE
 extern Master m;
 #define nServantsMax             8       // Maximum number of servant drifters (just for setting array size)
-extern Servant s[nServantsMax]; // Servants data array
+extern Servant s[nServantsMax];          // Servants data array
 extern SemaphoreHandle_t servantSemaphore;
 #else
 extern Packet packet;
@@ -41,8 +41,8 @@ extern int node4Rx;
 extern int node5Rx;
 extern int node6Rx;
 extern int node7Rx;
-extern int messages_sent;
-extern int messages_received;
+extern int messagesSent;
+extern int messagesReceived;
 
 #ifndef MESH_MASTER_MODE
 extern int localLinkRssi;
@@ -50,24 +50,26 @@ extern int masterRx;
 #endif // MESH_MASTER_MODE
 
 typedef enum {
-  RSBcastM = 0x41, // master
-  RSBcastS = 0x42, // slave
-  DirectPl = 0x43,
-  RRequest = 0x44,
+  RouteBroadcastMaster = 0x41,
+  RouteBroadcastServant = 0x42,
+  DirectPayload = 0x43,
+  RouteRequest = 0x44,
   ACK      = 0x45,
   Restart  = 0x46
 } MessageType;
 
 typedef enum {
-  Invalid_Node_ID   = -9,
-  Master_Mode_Err   = -6,
-  Node_Mode_Err     = -5,
-  Frame_Handler_Err = -4,
-  ACK_Mode_Err      = -3,
-  Payload_Err       = -2,
-  Invalid           = -1,
+  InvalidNodeID   = -9,
+  NoACK           = -8,
+  MasterModeErr   = -6,
+  NodeModeErr     = -5,
+  FrameHandlerErr = -4,
+  ACKModeErr      = -3,
+  PayloadErr      = -2,
+  Invalid         = -1,
 } ErrorType;
 
+// This is backwards
 typedef enum {
   Failure = 0,
   Success = 1,
@@ -105,12 +107,12 @@ int parsePayload() {
     }
     else {
       Serial.println("Not a complete drifter packet");
-      return Payload_Err;
+      return PayloadErr;
     }
 #endif // MESH_MASTER_MODE
     return Success;
   }
-  return Payload_Err;       // Payload ERR
+  return PayloadErr;       // Payload ERR
 }
 
 // To help compiler
@@ -230,7 +232,7 @@ int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID,
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
     return Success;         // Success
   }
-  return Invalid_Node_ID;   // E -9: invalid nodeID
+  return InvalidNodeID;   // E -9: invalid nodeID
 }
 
 boolean runEvery(const unsigned long interval) {
@@ -316,11 +318,11 @@ int findMinHopCount() {
 bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, const byte router, const byte source, const byte recipient, 
                       const byte sender, const byte ttl, const byte sizePayload) {
   // Check if header values are valid
-  if(sizeHeader!= 0x08) {
+  if(sizeHeader != 0x08) {
     Serial.println("checkFrameHeader: invalid sizeHeader");
     return false;
   }
-  if(type < RSBcastM || type > Restart) {
+  if(type < RouteBroadcastMaster || type > Restart) {
     Serial.println("checkFrameHeader: invalid type");
     return false; 
   }
@@ -351,11 +353,11 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
 
   // type and router ID
   if(mode == SERVANT_MODE) {
-    if(type == DirectPl || type == ACK) {
+    if(type == DirectPayload || type == ACK) {
       Serial.println("checkFrameHeader: invalid type for Node Mode");
       return false;
     }
-    if(type == RSBcastM && sender != 0xAA) {
+    if(type == RouteBroadcastMaster && sender != 0xAA) {
       Serial.println("checkFrameHeader: Invalid Type && sender ID");
       return false;
     }
@@ -369,8 +371,8 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
     return true;
   }
 
-  if(mode == MASTER_MODE) {                  // Master Mode
-    if(type != DirectPl) {         // Type C: Direct Master
+  if(mode == MASTER_MODE) {
+    if(type != DirectPayload) {         // Type C: Direct Master
       return false;
     }
     if(router != localAddress) {
@@ -378,9 +380,8 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
     }
     return true;
   }
-
-  if(mode > 16 && mode < 171) {        // ACK Mode
-    if(type != ACK) {                  // Type E: ACK
+  if(mode > 0x10 && mode < 0xAB) {
+    if(type != ACK) {
       return false;
     }
     if(router != localAddress) {
@@ -393,11 +394,11 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
 
 void typeToPrintout(const byte type, const byte router) {
   switch(type) {
-    case RSBcastS:
+    case RouteBroadcastServant:
       Serial.print("Sending broadcast packet to: 0x");
       Serial.println((int)router, HEX);
       break;
-    case DirectPl:
+    case DirectPayload:
       Serial.print("Sending direct payload packet to: 0x");
       Serial.println((int)router, HEX);
       break;
@@ -408,7 +409,7 @@ void typeToPrintout(const byte type, const byte router) {
 
 void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl) {
   // Send a complete header with a random delay
-  messages_sent++;
+  messagesSent++;
   byte header[8] = "";
   header[0] = 0x08;         // sizeHeader
   header[1] = type;
@@ -421,7 +422,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
   delay(random(20));
   if(mode == SERVANT_MODE) {
     switch(type) {
-      case RSBcastS:
+      case RouteBroadcastServant:
         header[7] = 0x02;         // sizePayload
         LoRa.beginPacket();
         LoRa.write(header, 8);
@@ -430,8 +431,8 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.endPacket(true);
         typeToPrintout(type, router);
         break;
-      case DirectPl:
-      case RRequest:
+      case DirectPayload:
+      case RouteRequest:
         header[7] = 0x18;
         LoRa.beginPacket();
         LoRa.write(header, 8);
@@ -456,7 +457,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
       }
   } else if(mode == MASTER_MODE) {
     switch(type) {
-      case RSBcastM:
+      case RouteBroadcastMaster:
       case ACK:
       case Restart:
         header[7] = 0x00;
@@ -474,15 +475,15 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
   }
 }
 
+// Send an ACK back to the source
 void sendAckBack(const int mode, const byte source) {
-  // To send an ACK back to the source
   delay(random(5));
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }
 
 int listener(const int frameSize, const int mode) {
-  if(frameSize == 0) {
-    return 0;             // nothing to receive
+  if(!frameSize) {
+    return Failure;             // nothing to receive
   }
   // Parse Header
   const byte sizeHeader = LoRa.read();
@@ -496,28 +497,27 @@ int listener(const int frameSize, const int mode) {
 
   const bool validHeader = checkFrameHeader(mode, sizeHeader,type, router, source, recipient, sender, ttl, sizePayload);
   if(validHeader) {
-    messages_received++;
+    messagesReceived++;
     incNodeRxCounter(source);
 
-    if(type == DirectPl) { // this will go direct to master
-      Serial.print("Received DirectPL packet from: 0x");
+    if(type == DirectPayload) { // this will go direct to master
+      Serial.print("Received DirectPayload packet from: 0x");
       Serial.println((int)sender, HEX);
       Serial.print("Routed from: 0x");
       Serial.println((int)router, HEX);
     }
-    else if(type == RRequest) { // this is a hop
-      Serial.print("Received RRequest packet from: 0x");
+    else if(type == RouteRequest) { // this is a hop
+      Serial.print("Received RouteRequest packet from: 0x");
       Serial.println((int)sender, HEX);
       Serial.print("Routed from: 0x");
       Serial.println((int)router, HEX);
     }
     return frameHandler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
   }
-  return 0;
+  return Failure;
 }
 
 bool waitForAck(const byte router) {
-  // Wait for ACK
   int maxloops = 0;
   int result = 0;
   const int interval = ARQ_TIME * localHopCount;
@@ -528,7 +528,7 @@ bool waitForAck(const byte router) {
     delay(1);
     maxloops++;
   }
-  return (result == 1) ? true : false; // ACK received from router or not
+  return (result == Success) ? true : false; // ACK received from router or not
 }
 
 int ackHandshake(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl, int resend) {
@@ -548,7 +548,7 @@ int ackHandshake(const int mode, const byte type, const byte router, const byte 
     xSemaphoreGive(loraSemaphore);
     resend++;
   }
-  return (!ack) ? 0 : Success;
+  return (!ack) ? Failure : Success;
 }
 
 int routePayload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend) {
@@ -556,18 +556,18 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
   byte type = 0x00;
 
   // Check first if the localNextHopID is the Master ID
-  type = (recipient == localNextHopID) ? DirectPl : RRequest; // Type C: Direct Master PL, Type D: Route Request
+  type = (recipient == localNextHopID) ? DirectPayload : RouteRequest; // Type C: Direct Master PL, Type D: Route Request
   const byte router = localNextHopID;
   int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
   Serial.print("Route payload ACK handshake result with router (0x");
   Serial.print((int)router, HEX);
   Serial.print("): ");
-  (result == 0) ? Serial.println("Failed.") : Serial.println("Success!");
-  if(result == 0) {
-    return -8; // Ack received or No ACK received
+  if(result == Failure) {
+    Serial.println("Failed.");
+    return NoACK;
   }
-
-  return result; // Payload error?
+  Serial.println("Success!");
+  return Success;
 }
 
 int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl) {
@@ -575,17 +575,17 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   int result = 0;
 
   if(mode == SERVANT_MODE) {              // Node Mode
-    if(type == RSBcastM) {         // Type A: Master BCAST
+    if(type == RouteBroadcastMaster) {         // Type A: Master BCAST
       const int rssi = LoRa.packetRssi();
       const float snr = LoRa.packetSnr();
       const unsigned long time = millis();
       result = insertRoutingTable(sender, 0x01, 0xAA, rssi, snr, time);
-      if(result != 1) {
+      if(result != Success) {
         return result;
       }
       return setRoutingStatus(); // 1 or -1
     }
-    else if(type == RSBcastS) {                // Type B: Neighbor BCAST
+    else if(type == RouteBroadcastServant) {                // Type B: Neighbor BCAST
       const byte hopCount = LoRa.read();  // Parsing Payload
       const byte nextHopID = LoRa.read();
       const int rssi = LoRa.packetRssi();
@@ -593,12 +593,12 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       const unsigned long time = millis();
       
       result = insertRoutingTable(sender, hopCount, nextHopID, rssi, snr, time);
-      if(result != 1) {
+      if(result != Success) {
         return result;        // invalid nodeID
       }
       return setRoutingStatus(); // 1 or -1
     }
-    else if(type == RRequest) {         // Type D: Route Request
+    else if(type == RouteRequest) {         // Type D: Route Request
       parsePayload();
       result = routePayload(mode, recipient, sender, ttl, 0);
       if(result == 1) { // found a route!
@@ -615,11 +615,11 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
         ESP.restart();
       }
     }
-    return Node_Mode_Err;
+    return NodeModeErr;
   } 
   
   if(mode == MASTER_MODE) {
-    if(type == DirectPl) {
+    if(type == DirectPayload) {
       result = parsePayload();
       if(result == 1) {
         Serial.println("Successfully parsed packet, now sending ack");
@@ -628,7 +628,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       }
       return result;            // Parse ERR
     } 
-    return Master_Mode_Err;
+    return MasterModeErr;
   }
   
   // Checking the ackMode that was passed from waitForAck()
@@ -637,13 +637,13 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   // Node 2 - 0x22 - 34
   // Master Node - 0xAA - 170
   
-  if(mode > 0x11 - 1 && mode < 0xAA + 1) {          // ACK Mode
+  if(mode > 0x10 && mode < 0xAB) {          // ACK Mode
     if(type == ACK) {
       return Success;
     } 
-    return ACK_Mode_Err;
+    return ACKModeErr;
   }
-  return Frame_Handler_Err;
+  return FrameHandlerErr;
 }
 
 int bcastRoutingStatus(const int mode) {
@@ -656,7 +656,7 @@ int bcastRoutingStatus(const int mode) {
     }
     sendFrame(
       mode,
-      RSBcastS,         // type: Type B
+      RouteBroadcastServant,         // type: Type B
       0xFF,             // router: BCAST
       0xFF,             // recipient: BCAST
       localAddress,     // sender
@@ -665,7 +665,7 @@ int bcastRoutingStatus(const int mode) {
   } else if(mode == 1) {   // Master Mode
     sendFrame(
       mode,
-      RSBcastM,         // type: Type A
+      RouteBroadcastMaster,         // type: Type A
       0xFF,             // router: BCAST
       0xFF,             // recipient: BCAST
       localAddress,     // sender

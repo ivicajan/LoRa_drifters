@@ -31,8 +31,8 @@ byte localNextHopID = 0x00;
 byte localAddress = 0x55;
 
 // Diagnostics
-int messages_sent = 0;
-int messages_received = 0;
+int messagesSent = 0;
+int messagesReceived = 0;
 int node1Rx = 0;
 int node2Rx = 0;
 int node3Rx = 0;
@@ -264,7 +264,7 @@ void generatePacket() {
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
-      csvOutStr += tDate + "," + tTime + "," + tLocation + String(messages_received) + String(messages_sent) + "\n";
+      csvOutStr += tDate + "," + tTime + "," + tLocation + String(messagesReceived) + String(messagesSent) + "\n";
 #ifndef USING_MESH
       // B. Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
@@ -468,8 +468,8 @@ String processor(const String& var) {
   if(var == "DIAGNOSTICS") {
     String diagnosticData = "";
     diagnosticData += "<tr>";
-    diagnosticData += "<td>" + String(messages_sent) + "</td>";
-    diagnosticData += "<td>" + String(messages_received) + "</td>";
+    diagnosticData += "<td>" + String(messagesSent) + "</td>";
+    diagnosticData += "<td>" + String(messagesReceived) + "</td>";
     diagnosticData += "<td>" + String(node1Rx) + "</td>";
     diagnosticData += "<td>" + String(node2Rx) + "</td>";
     diagnosticData += "<td>" + String(node3Rx) + "</td>";

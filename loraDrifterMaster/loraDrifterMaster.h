@@ -130,14 +130,14 @@ const char index_html[] PROGMEM = R"rawliteral(
     <table>
       <tr>
         <td><b>Sent</b></td>
-        <td><b>Recvd</b></td>
-        <td><b>node1</b></td>
-        <td><b>node2</b></td>
-        <td><b>node3</b></td>
-        <td><b>node4</b></td>
-        <td><b>node5</b></td>
-        <td><b>node6</b></td>
-        <td><b>node7</b></td>
+        <td><b>Rcvd</b></td>
+        <td><b>D01</b></td>
+        <td><b>D02</b></td>
+        <td><b>D03</b></td>
+        <td><b>D04</b></td>
+        <td><b>D05</b></td>
+        <td><b>D06</b></td>
+        <td><b>D07</b></td>
       </tr>
       %DIAGNOSTICS%
       <form action="/restartDrifter" method="get">

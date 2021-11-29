@@ -27,7 +27,7 @@ int nSamples;                         // Counter for the number of samples gathe
 //int ledState = LOW;
 //int ledPin = 14;
 int gpsLastSecond = -1;
-int webServerPin = BUTTON_PIN;
+const int webServerPin = BUTTON_PIN;
 String hour, minute, second, year, month, day, tTime, tDate;
 
 #ifdef USING_MESH
@@ -54,14 +54,29 @@ TaskHandle_t SendTask;
 
 String processor(const String& var) {
   if(var == "SERVANTS") {    return servantsData;  }
-  if(var == "MASTER") {      return masterData;  }
-  if(var == "DIAGNOSTICS") { return diagnosticData; }
+  else if(var == "MASTER") {      return masterData;  }
 #ifdef USING_MESH
-  if(var == "RESTARTDRIFTER") {
-    return "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/restartDrifter\">Restart</a></td>";
+  else if(var == "DIAGNOSTICS") {
+    return R"rawliteral(
+    <br><br>
+    <h4>Diagnostics</h4>
+    <table>
+      <tr>
+        <td><b>Sent</b></td>
+        <td><b>Rcvd</b></td>
+        <td><b>D01</b></td>
+        <td><b>D02</b></td>
+        <td><b>D03</b></td>
+        <td><b>D04</b></td>
+        <td><b>D05</b></td>
+        <td><b>D06</b></td>
+        <td><b>D07</b></td>
+      </tr>)rawliteral"
+      + diagnosticData; }
+#endif // USING_MESH
+  else {
+    return String();
   }
-#endif
-  return String();
 }
 
 void writeData2Flash() {
@@ -238,7 +253,7 @@ void sendTask(void * pvParameters) {
     generateMaster();
 #ifdef USING_MESH
     // if(gps.time.second() == RS_BCAST_TIME) {
-    if(loop_runEvery(RS_BCAST_TIME)) {
+    if(loop_runEvery(RS_BCAST_TIME)) { // TODO: delete this for field usage
       if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
         Serial.println("Route broadcast");
         bcastRoutingStatus(MASTER_MODE);
@@ -246,7 +261,26 @@ void sendTask(void * pvParameters) {
       xSemaphoreGive(loraSemaphore);
 #endif // USING_MESH
     }
-    servantsData = "";
+    servantsData = R"rawliteral(
+      <br><br>
+      <h4>Servants</h4>
+      <table>
+        <tr>
+          <td><b>ID</b></td>
+          <td><b>Lora Update Plan [s]</b></td>
+          <td><b>Last Update [s]</b></td>
+          <td><b>Time</b></td>
+          <td><b>Lon</b></td>
+          <td><b>Lat</b></td>
+          <td><b>Dist [m]</b></td>
+          <td><b>Bearing [degN to]</b></td>
+          <td><b>Count</b></td>
+          <td><b>RSSI</b></td>
+    )rawliteral";
+#ifdef USING_MESH
+    servantsData += "<td><b>Restart</b></td>";
+#endif // USING_MESH
+    servantsData += "</tr>";
     if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
       for(int ii = 0; ii < nServantsMax; ii++) {
         if(s[ii].active) {
@@ -261,7 +295,13 @@ void sendTask(void * pvParameters) {
           servantsData += "<td>" + String(s[ii].bear) + "</td>";
           servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
           servantsData += "<td>" + String(s[ii].rssi) + "</td>";
-          servantsData += "</tr>";
+#ifdef USING_MESH
+          servantsData += R"rawliteral(
+            <td><form action="/restartDrifter" method="get"><button type="submit" name="drifterID" value=
+          )rawliteral";
+          servantsData += String(s[ii].ID) + ">Restart</button></form></td>";
+#endif // USING_MESH
+          servantsData += "</tr></table>";
         }
       }
     }

@@ -108,53 +108,8 @@ const char index_html[] PROGMEM = R"rawliteral(
       </tr>
       %MASTER%
     </table>
-    <br><br>
-    <h4>Servants</h4>
-    <table>
-      <tr>
-        <td><b>ID</b></td>
-        <td><b>Lora Update Plan [s]</b></td>
-        <td><b>Last Update [s]</b></td>
-        <td><b>Time</b></td>
-        <td><b>Lon</b></td>
-        <td><b>Lat</b></td>
-        <td><b>Dist [m]</b></td>
-        <td><b>Bearing [degN to]</b></td>
-        <td><b>Count</b></td>
-        <td><b>RSSI</b></td>
-      </tr>
-      %SERVANTS%
-    </table>
-    <br><br>
-    <h4>Diagnostics</h4>
-    <table>
-      <tr>
-        <td><b>Sent</b></td>
-        <td><b>Rcvd</b></td>
-        <td><b>D01</b></td>
-        <td><b>D02</b></td>
-        <td><b>D03</b></td>
-        <td><b>D04</b></td>
-        <td><b>D05</b></td>
-        <td><b>D06</b></td>
-        <td><b>D07</b></td>
-      </tr>
-      %DIAGNOSTICS%
-      <form action="/restartDrifter" method="get">
-        <tr>
-          <td></td>
-          <td></td>
-          <td><button type="submit" name="drifterID" value="1">Restart</td>
-          <td><button type="submit" name="drifterID" value="2">Restart</td>
-          <td><button type="submit" name="drifterID" value="3">Restart</td>
-          <td><button type="submit" name="drifterID" value="4">Restart</td>
-          <td><button type="submit" name="drifterID" value="5">Restart</td>
-          <td><button type="submit" name="drifterID" value="6">Restart</td>
-          <td><button type="submit" name="drifterID" value="7">Restart</td>
-        </tr>
-      </form>
-    </table>
-    <br><br>
+    %SERVANTS%
+    %DIAGNOSTICS%
   </body>
 </html>
 )rawliteral";

@@ -1,12 +1,10 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // #define USING_IMU
+#define SAMPLES_BEFORE_WRITE 300      // Number of samples to store in memory before file write
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D05";   // ID send with packet
-int drifterTimeSlotSec = 20; // seconds after start of each GPS minute
-int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
 String csvOutStr = "";                 // Buffer for output file
@@ -19,8 +17,8 @@ int nSamples;                         // Counter for the number of samples gathe
 const int webServerPin = BUTTON_PIN;
 int gpsLastSecond = -1;
 String tTime = "";
-
-Packet packet;
+String drifterName = "D05";       // ID send with packet
+int drifterTimeSlotSec = 20;      // seconds after start of each GPS minute
 
 #ifdef USING_MESH
 byte routingTable[153] = "";
@@ -43,6 +41,7 @@ int node7Rx = 0;
 int masterRx = 0;
 #endif // USING_MESH
 
+Packet packet;
 TaskHandle_t ListenTask;
 TaskHandle_t SendTask;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -431,7 +430,7 @@ void sendTask(void * pvParameters) {
 #endif // USING_MESH
       delay(10);
       // B. Write data to onboard flash if nSamples is large enough
-      if(nSamples >= nSamplesFileWrite) {  // only write after collecting a good number of samples
+      if(nSamples >= SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
         Serial.println("Dump data into the memory");
         writeData2Flash();
       }
@@ -455,17 +454,20 @@ String processor(const String& var) {
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
     servantData += "<td>" + lastFileWrite + "</td>";
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
+#ifdef USING_IMU
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/calibrateIMU\"> CALIBRATE </a></td>";
+#endif // USING_IMU
     servantData += "</tr>";
     return servantData;
   }
-  if(var == "DRIFTERID") {
+  else if(var == "DRIFTERID") {
     return drifterName;
   }
-  if(var == "LORASENDSEC") {
+  else if(var == "LORASENDSEC") {
     return String(drifterTimeSlotSec);
   }
-  if(var == "DIAGNOSTICS") {
+#ifdef USING_MESH
+  else if(var == "DIAGNOSTICS") {
     String diagnosticData = "";
     diagnosticData += "<tr>";
     diagnosticData += "<td>" + String(messagesSent) + "</td>";
@@ -480,5 +482,8 @@ String processor(const String& var) {
     diagnosticData += "<td>" + String(masterRx) + "</td>";
     return diagnosticData += "</tr>";
   }
-  return String();
+#endif // USING_MESH
+  else {
+    return String();
+  }
 }

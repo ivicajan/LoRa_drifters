@@ -4,8 +4,8 @@
 
 // GLOBAL VARIABLES
 TinyGPSPlus gps;
-String drifterName = "D06";   // ID send with packet
-int drifterTimeSlotSec = 28; // seconds after start of each GPS minute
+String drifterName = "D05";   // ID send with packet
+int drifterTimeSlotSec = 20; // seconds after start of each GPS minute
 int nSamplesFileWrite = 300;      // Number of samples to store in memory before file write
 const char* ssid = "DrifterServant";   // Wifi ssid and password
 const char* password = "Tracker1";
@@ -28,7 +28,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x66;
+byte localAddress = 0x55;
 
 // Diagnostics
 int messages_sent = 0;
@@ -46,6 +46,9 @@ int masterRx = 0;
 TaskHandle_t ListenTask;
 TaskHandle_t SendTask;
 SemaphoreHandle_t loraSemaphore = NULL;
+
+void listenTask(void * pvParameters);
+void sendTask(void * pvParameters);
 
 const char index_html[] PROGMEM = R"rawliteral(
   <!DOCTYPE HTML>
@@ -71,7 +74,7 @@ const char index_html[] PROGMEM = R"rawliteral(
            border: 1px solid black;
         }
         body {
-          max-width: 80%%; margin:0px auto; padding-bottom: 25px;
+          max-width: 90%%; margin:0px auto; padding-bottom: 25px;
         }
       </style>
     </head>
@@ -206,7 +209,7 @@ void setup() {
   webServerOn = false;
   loraSemaphore = xSemaphoreCreateMutex();
 
-  //create a task that will be executed in the listenTask() function, with priority 1 and executed on core 0
+  // Create a task that will be executed in the listenTask() function, with priority 1 and executed on core 0
   xTaskCreatePinnedToCore(
                     listenTask,      /* Task function. */
                     "listenTask",    /* name of task. */
@@ -217,7 +220,7 @@ void setup() {
                     0);              /* pin task to core 0 */
   delay(500);
 
-  //create a task that will be executed in the sendTask() function, with priority 1 and executed on core 1
+  // Create a task that will be executed in the sendTask() function, with priority 1 and executed on core 1
   xTaskCreatePinnedToCore(
                     sendTask,        /* Task function. */
                     "sendTask",      /* name of task. */
@@ -238,7 +241,8 @@ void generatePacket() {
       gps.encode(Serial1.read());
     }
   } while(millis() - start < 400);
-  if(gps.time.second() != gpsLastSecond) {
+  // if(gps.time.second() != gpsLastSecond) {
+  if(true) { // TODO: Delete this when in field
     Serial.println("new GPS record");
     strcpy(packet.name, dName.c_str());
     packet.drifterTimeSlotSec = drifterTimeSlotSec;
@@ -253,16 +257,6 @@ void generatePacket() {
     packet.lat = gps.location.lat();
     packet.nSamples = nSamples;
     packet.age = gps.location.age();
-//#ifdef DEBUG_MODE
-//    Serial.println(packet.hour);
-//    Serial.println(packet.minute);
-//    Serial.println(packet.second);
-//    Serial.println(packet.year);
-//    Serial.println(packet.month);
-//    Serial.println(packet.day);
-//    Serial.println(packet.lng);
-//    Serial.println(packet.lat);
-//#endif //DEBUG_MODE
     gpsLastSecond = gps.time.second();
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       Serial.println("GPS still valid");
@@ -271,17 +265,17 @@ void generatePacket() {
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
       csvOutStr += tDate + "," + tTime + "," + tLocation + String(messages_received) + String(messages_sent) + "\n";
+#ifndef USING_MESH
       // B. Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
-#ifndef USING_MESH
         LoRa.beginPacket();
         LoRa.write((const uint8_t*)&packet, sizeof(packet));
         LoRa.endPacket();
         delay(50); // Don't send more than 1 packet
-#endif // USING_MESH
       }
+#endif // USING_MESH
     } else {
-      Serial.println("NO GPS FIX, NOT SENDING OR WRITING");
+      Serial.println("No GPS fix, not sending or writing");
     }
   }
 }

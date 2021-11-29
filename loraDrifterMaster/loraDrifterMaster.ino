@@ -172,7 +172,14 @@ void setup(){
         byte drifterIDByte = indexToId(drifterID);
         Serial.println(drifterID);
         Serial.println(drifterIDByte, HEX);
-        // send restart packet
+        sendFrame(
+          MASTER_MODE,
+          Restart,
+          localAddress,
+          drifterIDByte,
+          localAddress,
+          0x0F
+        );
       }
     }
     request->send(200, "text/html", "<html>\\

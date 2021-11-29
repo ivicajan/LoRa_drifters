@@ -89,7 +89,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         border: 1px solid black;
       }
       body {
-        max-width: 80%%; margin:0px auto; padding-bottom: 25px;
+        max-width: 90%%; margin:0px auto; padding-bottom: 25px;
       }
     </style>
   </head>
@@ -144,13 +144,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         <tr>
           <td></td>
           <td></td>
-          <td><input type="submit" name="drifterID" value="1"><b>Restart</b></td>
-          <td><input type="submit" name="drifterID" value="2"><b>Restart</b></td>
-          <td><input type="submit" name="drifterID" value="3"><b>Restart</b></td>
-          <td><input type="submit" name="drifterID" value="4"><b>Restart</b></td>
-          <td><input type="submit" name="drifterID" value="5"><b>Restart</b></td>
-          <td><input type="submit" name="drifterID" value="6"><b>Restart</b></td>
-          <td><input type="submit" name="drifterID" value="7"><b>Restart</b></td>
+          <td><button type="submit" name="drifterID" value="1">Restart</td>
+          <td><button type="submit" name="drifterID" value="2">Restart</td>
+          <td><button type="submit" name="drifterID" value="3">Restart</td>
+          <td><button type="submit" name="drifterID" value="4">Restart</td>
+          <td><button type="submit" name="drifterID" value="5">Restart</td>
+          <td><button type="submit" name="drifterID" value="6">Restart</td>
+          <td><button type="submit" name="drifterID" value="7">Restart</td>
         </tr>
       </form>
     </table>

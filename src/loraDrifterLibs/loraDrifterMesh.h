@@ -55,6 +55,7 @@ typedef enum {
   DirectPl = 0x43,
   RRequest = 0x44,
   ACK      = 0x45,
+  Restart  = 0x46
 } MessageType;
 
 typedef enum {
@@ -319,7 +320,7 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
     Serial.println("checkFrameHeader: invalid sizeHeader");
     return false;
   }
-  if(type < RSBcastM || type > ACK) {
+  if(type < RSBcastM || type > Restart) {
     Serial.println("checkFrameHeader: invalid type");
     return false; 
   }
@@ -349,15 +350,18 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
   }
 
   // type and router ID
-  if(mode == 0) {              // Node Mode
-    if(type == 0x43 || type == 0x45) {   // Type D OR Type E
+  if(mode == SERVANT_MODE) {
+    if(type == DirectPl || type == ACK) {
       Serial.println("checkFrameHeader: invalid type for Node Mode");
       return false;
     }
-    if(type == 0x41 && sender != 0xAA) {
-       Serial.println("checkFrameHeader: Invalid Type && sender ID");
-       return false;
-     }
+    if(type == RSBcastM && sender != 0xAA) {
+      Serial.println("checkFrameHeader: Invalid Type && sender ID");
+      return false;
+    }
+    if(type == Restart) {
+      return true;
+    }
     if(router != localAddress && router != 0xFF) {
         Serial.println("checkFrameHeader: Not addressed to local");
         return false;
@@ -365,7 +369,7 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
     return true;
   }
 
-  if(mode == 1) {                  // Master Mode
+  if(mode == MASTER_MODE) {                  // Master Mode
     if(type != DirectPl) {         // Type C: Direct Master
       return false;
     }
@@ -387,31 +391,47 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
   return false;
 }
 
+void typeToPrintout(const byte type, const byte router) {
+  switch(type) {
+    case RSBcastS:
+      Serial.print("Sending broadcast packet to: 0x");
+      Serial.println((int)router, HEX);
+      break;
+    case DirectPl:
+      Serial.print("Sending direct payload packet to: 0x");
+      Serial.println((int)router, HEX);
+      break;
+    default:
+      break;
+  }
+}
+
 void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl) {
   // Send a complete header with a random delay
   messages_sent++;
   byte header[8] = "";
   header[0] = 0x08;         // sizeHeader
-  header[1] = type;         // type
-  header[2] = router;       // router
+  header[1] = type;
+  header[2] = router;
   header[3] = localAddress; // source
-  header[4] = recipient;    // recipient
-  header[5] = sender;       // sender
+  header[4] = recipient;
+  header[5] = sender;
   header[6] = ttl - 1;      // ttl
 
   delay(random(20));
   if(mode == SERVANT_MODE) {
     switch(type) {
-      case RSBcastS:              // Type B: RS BCAST
+      case RSBcastS:
         header[7] = 0x02;         // sizePayload
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.write(localHopCount);    // RS payload
         LoRa.write(localNextHopID);   // RS payload
         LoRa.endPacket(true);
+        typeToPrintout(type, router);
         break;
-      case DirectPl:              // Type C: Direct PL
-      case RRequest:              // Type D: RRequest
+      case DirectPl:
+      case RRequest:
         header[7] = 0x18;
         LoRa.beginPacket();
         LoRa.write(header, 8);
@@ -421,8 +441,10 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         LoRa.endPacket(true);
         Serial.print("Sending GPS packet to: 0x");
         Serial.println((int)router, HEX);
+        typeToPrintout(type, router);
         break;
-      case ACK:                 // Type E: ACK
+      case ACK:
+      case Restart:
         header[7] = 0x00;       // sizePayload
         LoRa.beginPacket();
         LoRa.write(header, 8);
@@ -432,16 +454,16 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
         Serial.println("Not valid for this mode");
         break;
       }
-  } else if(mode == MASTER_MODE) {        // Master Mode
-    switch(type) {          // check type
-      case RSBcastM:            // Type A: RS BCAST
-      case ACK:                 // Type E: ACK
+  } else if(mode == MASTER_MODE) {
+    switch(type) {
+      case RSBcastM:
+      case ACK:
+      case Restart:
         header[7] = 0x00;
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
-        Serial.print("Sending ack packet to: 0x");
-        Serial.println((int)router, HEX);
+        typeToPrintout(type, router);
         break;
       default:
         Serial.println("Not valid for this mode");
@@ -454,8 +476,6 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
 
 void sendAckBack(const int mode, const byte source) {
   // To send an ACK back to the source
-  Serial.print("Sending ack to: 0x");
-  Serial.println((int)source, HEX);
   delay(random(5));
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }
@@ -485,16 +505,12 @@ int listener(const int frameSize, const int mode) {
       Serial.print("Routed from: 0x");
       Serial.println((int)router, HEX);
     }
-    else if (type == RRequest) { // this is a hop
+    else if(type == RRequest) { // this is a hop
       Serial.print("Received RRequest packet from: 0x");
       Serial.println((int)sender, HEX);
       Serial.print("Routed from: 0x");
       Serial.println((int)router, HEX);
     }
-
-    // if(source != router) {
-    //     incNodeRxCounter(router);
-    // }
     return frameHandler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
   }
   return 0;
@@ -532,11 +548,7 @@ int ackHandshake(const int mode, const byte type, const byte router, const byte 
     xSemaphoreGive(loraSemaphore);
     resend++;
   }
-  if(!ack) {
-    return 0;
-  } else {
-    return Success;
-  }
+  return (!ack) ? 0 : Success;
 }
 
 int routePayload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend) {
@@ -554,8 +566,6 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
   if(result == 0) {
     return -8; // Ack received or No ACK received
   }
-  // result = parsePayload();
-  // sendFrame(mode, type, router, recipient, sender, ttl);
 
   return result; // Payload error?
 }
@@ -575,8 +585,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       }
       return setRoutingStatus(); // 1 or -1
     }
-    
-    if(type == RSBcastS) {                // Type B: Neighbor BCAST
+    else if(type == RSBcastS) {                // Type B: Neighbor BCAST
       const byte hopCount = LoRa.read();  // Parsing Payload
       const byte nextHopID = LoRa.read();
       const int rssi = LoRa.packetRssi();
@@ -589,8 +598,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
       }
       return setRoutingStatus(); // 1 or -1
     }
-    
-    if(type == RRequest) {         // Type D: Route Request
+    else if(type == RRequest) {         // Type D: Route Request
       parsePayload();
       result = routePayload(mode, recipient, sender, ttl, 0);
       if(result == 1) { // found a route!
@@ -598,6 +606,13 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
         return result;          // Success
       } else {
         return result;          // No ACK
+      }
+    }
+    else if(type == Restart) {
+      if(recipient == localAddress) {
+        sendAckBack(mode, source);
+        Serial.println("Restarting device");
+        ESP.restart();
       }
     }
     return Node_Mode_Err;
@@ -622,13 +637,13 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   // Node 2 - 0x22 - 34
   // Master Node - 0xAA - 170
   
-  if(mode > 16 && mode < 171) {          // ACK Mode
+  if(mode > 0x11 - 1 && mode < 0xAA + 1) {          // ACK Mode
     if(type == ACK) {
-      return Success;               // Success
+      return Success;
     } 
-    return ACK_Mode_Err;                // ACK Mode ERR
+    return ACK_Mode_Err;
   }
-  return Frame_Handler_Err;                  // frHandler ERR
+  return Frame_Handler_Err;
 }
 
 int bcastRoutingStatus(const int mode) {

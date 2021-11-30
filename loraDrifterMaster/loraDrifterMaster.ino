@@ -32,7 +32,7 @@ const int webServerPin = BUTTON_PIN;
 String hour, minute, second, year, month, day, tTime, tDate;
 
 #ifdef USING_MESH
-byte routingTable[0x99] = "";
+byte routingTable[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
 byte localAddress = 0xAA;
 byte localNextHopID = 0xAA;

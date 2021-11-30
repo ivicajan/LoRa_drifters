@@ -263,11 +263,11 @@ void generatePacket() {
     get_current_location(lat, lng);
     Serial << "Lat: " << lat << " Lng: " << lng << "\n";
 
-#ifdef DEBUG
+#ifdef DEBUG_MODE
     Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
             << " pitch: " << float(mpu.getPitch() / 180.f * PI)
             << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
-#endif
+#endif // DEBUG_MODE
     Serial << "-------------------------------- \n";
 #endif // USING_IMU
     Serial.println("new GPS record");

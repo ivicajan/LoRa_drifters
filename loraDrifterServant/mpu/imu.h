@@ -70,9 +70,9 @@ BLA::Matrix<3, 3, Diagonal<3, float>> R;
 BLA::Matrix<3, 3, Diagonal<3, float>> Q;
 BLA::Matrix<8, 8> A_E;
 BLA::Matrix<8, 3> B_E;
-float beta;
+#define BETA 0.005
 
-void Initial_Kalman() {
+static void Initial_Kalman() {
   //Form matrix reference.
   BLA::Matrix<2, 2> C_;
   BLA::Matrix<8, 8> big_zero;
@@ -83,7 +83,6 @@ void Initial_Kalman() {
   big_diag.Fill(1);
 
   //Setup initial Guess:
-  beta = 0.005;
   float P_0_[8] = {10, 10, 10, 10, 90 * PI / 180, 5, 5, 25 * PI / 180};
   float R_[3] = {1, 1, PI / 180};
   float Q_[3] = {1, 1, 0.1 * PI / 180};
@@ -153,7 +152,7 @@ void Update_Kalman() {
            1 / 2 * T_ * X_INS(1) + X_INS(3),
            X_INS(4) + T_ * U_INS(3)};
 
-  P = A_E * P * ~A_E + B_E * Q * ~B_E + P_0 * beta;
+  P = A_E * P * ~A_E + B_E * Q * ~B_E + P_0 * BETA;
 
 /*
  * X = {[V_x],
@@ -251,9 +250,11 @@ void initIMU() {
 
   //Detect if MPU setup correctly
   if(!mpu.setup(0x68)) {  // change to your own address
-    while (1) {
+    while(1) {
       Serial << "MPU connection failed. Please check your connection with `connection_check` example.\n";
       delay(1000);
+// #undef USING_IMU
+//       break;
     }
   } else Serial << "MPU is connected. \n";
 

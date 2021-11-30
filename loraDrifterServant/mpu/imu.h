@@ -30,8 +30,8 @@ MPU9250 mpu;
 int sample_period = 50; //in ms
 float T_ = sample_period / 1000; //in Sec
 // int Freq_acc = 1000 / sample_period; //40Hz
-char in123 = 'a';         // char for input debug
-char incomingByte = 'a';
+// char in123 = 'a';         // char for input debug
+// char incomingByte = 'a';
 int count = 0;            //Count for drift velocity elimination
 
 // The TinyGPS++ object
@@ -39,27 +39,27 @@ extern TinyGPSPlus gps;
 
 //Define global variables
 BLA::Matrix<3> acc = {0.f, 0.f, 0.f};
-float Acc_mag[2] = {0.f, 0.f};
-float Acc[3][2] = {{}, {}};
-float Vel[3][2];
-float Pos[3][2] = {{}, {}};
-float Acc_bias[3] = {0.f, 0.f, 0.f};
+// float Acc_mag[2] = {0.f, 0.f};
+// float Acc[3][2] = {{}, {}};
+// float Vel[3][2];
+// float Pos[3][2] = {{}, {}};
+// float Acc_bias[3] = {0.f, 0.f, 0.f};
 float Yaw[2] = {0.f, 0.f};
-float thread_G = 0.01f;
+// float thread_G = 0.01f;
 // int stationary = 1;
-int count_S = 0, count_v = 0;
+// int count_S = 0, count_v = 0;
 
 float Lat_o, Lng_o;
 
 BLA::Matrix<3> U_INS = {0, 0, 0};
-BLA::Matrix<3> Y_INS = {0, 0, 0};
+// BLA::Matrix<3> Y_INS = {0, 0, 0};
 BLA::Matrix<5> X_INS = {0, 0, 0, 0, 0};
-BLA::Matrix<3> N_INS = {0, 0, 0};
+// BLA::Matrix<3> N_INS = {0, 0, 0};
 BLA::Matrix<3> Y_GPS = {0, 0, 0};
-BLA::Matrix<3> N_GPS = {0, 0, 0};
-BLA::Matrix<3> Bias = {0, 0, 0};
+// BLA::Matrix<3> N_GPS = {0, 0, 0};
+// BLA::Matrix<3> Bias = {0, 0, 0};
 BLA::Matrix<3> Bias_Predic = {0, 0, 0};
-BLA::Matrix<3> U_E = {0, 0, 0};
+// BLA::Matrix<3> U_E = {0, 0, 0};
 BLA::Matrix<3> Y_E = {0, 0, 0};
 BLA::Matrix<8> X_E_Predic;
 BLA::Matrix<8, 8> P;
@@ -70,15 +70,14 @@ BLA::Matrix<3, 3, Diagonal<3, float>> R;
 BLA::Matrix<3, 3, Diagonal<3, float>> Q;
 BLA::Matrix<8, 8> A_E;
 BLA::Matrix<8, 3> B_E;
-BLA::Matrix<2, 2> C_;
 float beta;
-
-BLA::Matrix<8, 8> big_zero;
-BLA::Matrix<8, 8> big_I;
-BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
 
 void Initial_Kalman() {
   //Form matrix reference.
+  BLA::Matrix<2, 2> C_;
+  BLA::Matrix<8, 8> big_zero;
+  BLA::Matrix<8, 8> big_I;
+  BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
   big_zero.Fill(0);
   big_I.Fill(1);
   big_diag.Fill(1);
@@ -218,9 +217,9 @@ void measure_imu_data() {
   float acc_x___ = mpu.getAccX() / 1.02; //get from mpu
   float acc_y___ = mpu.getAccY();
   float acc_z___ = mpu.getAccZ() / 1.045;
-  float acc_the = mpu.getRoll() / 180.f * PI;
-  float acc_fin = mpu.getPitch() / 180.f * PI;
-  float acc_psi = mpu.getYaw() / 180.f * PI;
+  const float acc_the = mpu.getRoll() / 180.f * PI;
+  const float acc_fin = mpu.getPitch() / 180.f * PI;
+  const float acc_psi = mpu.getYaw() / 180.f * PI;
 
   //Set Max Acc
   if(acc_x___ >= 2) acc_x___ = 2;

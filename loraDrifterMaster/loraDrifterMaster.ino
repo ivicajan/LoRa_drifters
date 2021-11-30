@@ -1,9 +1,10 @@
-#define MASTER_MODE
 #define USING_MESH
 
 #ifdef USING_MESH
 #define MESH_MASTER_MODE
 #endif // USING_MESH
+
+#define MASTER_NODE
 
 SemaphoreHandle_t servantSemaphore = NULL;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -196,10 +197,7 @@ void setup(){
         sendFrame(MASTER_MODE, Restart, localAddress, drifterIDByte, localAddress, 0x0F);
       }
     }
-    request->send(200, "text/html", "<html>\\
-      <span>Sent restart packet!</span>\\
-      <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a>\\
-    </html>");
+    request->send(200, "text/html", "<html><span>Sent restart packet!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
   });
 #endif // USING_MESH
 
@@ -321,7 +319,7 @@ void sendTask(void * pvParameters) {
     diagnosticData += "</tr>";
 #endif // USING_MESH
     // D. Write data to onboard flash
-    if(nSamples > nSamplesFileWrite) {  // only write after collecting a good number of samples
+    if(nSamples > SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
       writeData2Flash();
     }
   }

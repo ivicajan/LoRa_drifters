@@ -1,12 +1,10 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // #define USING_IMU
-#define SAMPLES_BEFORE_WRITE 300      // Number of samples to store in memory before file write
+#define SSID     "DrifterServant"   // Wifi ssid and password
+#define PASSWORD "Tracker1"
 
 // GLOBAL VARIABLES
-TinyGPSPlus gps;
-const char* ssid = "DrifterServant";   // Wifi ssid and password
-const char* password = "Tracker1";
 String csvOutStr = "";                 // Buffer for output file
 String lastFileWrite = "";
 AsyncWebServer server(80);
@@ -14,19 +12,19 @@ bool webServerOn = false;
 String csvFileName = "";
 File file;                            // Data file for the SPIFFS output
 int nSamples;                         // Counter for the number of samples gathered
-const int webServerPin = BUTTON_PIN;
+
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D05";       // ID send with packet
-int drifterTimeSlotSec = 20;      // seconds after start of each GPS minute
+String drifterName = "D06";       // ID send with packet
+int drifterTimeSlotSec = 28;      // seconds after start of each GPS minute
 
 #ifdef USING_MESH
-byte routingTable[153] = "";
+byte routingTable[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x55;
+byte localAddress = 0x66;
 
 // Diagnostics
 int messagesSent = 0;
@@ -169,7 +167,7 @@ void setup() {
     Serial.println("SPIFFS ERROR HAS OCCURED");
     return;
   }
-  pinMode(webServerPin, INPUT);
+  pinMode(WEB_SERVER_PIN, INPUT);
 
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
   /* LoRa paramters - https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
@@ -232,7 +230,7 @@ void setup() {
   Serial.println("Initialization complete.");
 }
 
-void generatePacket() {
+void generatePacket(TinyGPSPlus & gps) {
   const String dName = drifterName;
   unsigned long start = millis();
   do {
@@ -305,7 +303,7 @@ void startWebServer(const bool webServerOn) {
     WiFi.mode(WIFI_OFF);
     btStop();
   } else {
-    WiFi.softAP(ssid, password);
+    WiFi.softAP(SSID, PASSWORD);
     Serial.println(WiFi.softAPIP());  // Print ESP32 Local IP Address
 
     // F. Web Server Callbacks setup
@@ -361,17 +359,11 @@ void startWebServer(const bool webServerOn) {
     server.on("/calibrateIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
       if(calibrateIMU()) {
         request->send(200, "text/html", 
-        "<html>\\
-          <span>Successfully calibrated IMU!</span>\\
-          <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a>\\
-        </html>");
+        "<html><span>Successfully calibrated IMU!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
       }
       else {
         request->send(200, "text/html", 
-        "<html>\\
-          <span>Failed to calibrate IMU</span>\\
-          <a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a>\\
-        </html>");
+        "<html><span>Failed to calibrate IMU</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
       }
     });
     server.begin();
@@ -389,6 +381,7 @@ void listenTask(void * pvParameters) {
 }
 
 void sendTask(void * pvParameters) {
+  TinyGPSPlus gps;
   while(1) {
     // A. Check for button press
     if(digitalRead(BUTTON_PIN) == LOW) {
@@ -409,7 +402,7 @@ void sendTask(void * pvParameters) {
       int result = 0;
       // if(gps.time.second() == drifterTimeSlotSec) {
       if(runEvery(PL_TX_TIME)) {
-        generatePacket();
+        generatePacket(gps);
         result = routePayload(
           SERVANT_MODE,       // Node Mode
           0xAA,               // recipient: Master

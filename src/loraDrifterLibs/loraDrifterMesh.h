@@ -2,16 +2,16 @@
 #define LORADRIFTERMESH_H
 
 // Timing Parameters
-#define RS_BCAST_TIME   17000   // Time intervals, broadcast for every 17s
-#define PL_TX_TIME      12000   // Receive pay load for every 12s
-#define DELETION_TIME   62000   // Reset the routing table if entry's time is older than 62s
-#define ARQ_TIME        2000    // Automatic Repeat Request for every 2s
+#define RS_BCAST_TIME             17000   // Time intervals, broadcast for every 17s
+#define PL_TX_TIME                12000   // Receive pay load for every 12s
+#define DELETION_TIME             62000   // Reset the routing table if entry's time is older than 62s
+#define ARQ_TIME                  2000    // Automatic Repeat Request for every 2s
 
 #define NUM_NODES                 8
-#define ROUTING_TABLE_ENTRY_SIZE 19
+#define ROUTING_TABLE_ENTRY_SIZE  19
 
-#define SERVANT_MODE 0
-#define MASTER_MODE  1
+#define SERVANT_MODE              0
+#define MASTER_MODE               1
 
 class Master;
 class Servant;

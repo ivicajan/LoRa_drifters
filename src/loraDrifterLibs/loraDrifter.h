@@ -52,6 +52,9 @@ AXP20X_Class PMU;
 #define BOARD_LED                   4
 #define LED_ON                      LOW
 #define LED_OFF                     HIGH
+#define WEB_SERVER_PIN              BUTTON_PIN
+#define ROUTING_TABLE_SIZE          153
+#define SAMPLES_BEFORE_WRITE        300      // Number of samples to store in memory before file write
 
 #define DEBUG_MODE
 #define USING_MESH
@@ -88,12 +91,9 @@ class Master {
     ~Master() = default;
 };
 
-#ifdef MASTER_MODE
+#ifdef MASTER_NODE
 #include "../../loraDrifterMaster.h"
 #endif // MASTER_MODE
-#ifdef MESH_MASTER_MODE
-#include "../../loraDrifterMaster.h"
-#endif // MESH_MASTER_MODE
 
 #ifdef USING_MESH
 #include "loraDrifterMesh.h"

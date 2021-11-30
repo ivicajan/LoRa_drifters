@@ -1,6 +1,11 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
+TinyGPSPlus gps;
 // #define USING_IMU
+#ifdef USING_IMU
+#include "mpu/imu.h"
+#endif // USING_IMU
+
 #define SSID     "DrifterServant"   // Wifi ssid and password
 #define PASSWORD "Tracker1"
 
@@ -163,6 +168,10 @@ void writeData2Flash() {
 void setup() {
   initBoard();
   delay(500);
+#ifdef USING_IMU
+  initIMU();
+  delay(500);
+#endif // USING_IMU
   if(!SPIFFS.begin(true)) {
     Serial.println("SPIFFS ERROR HAS OCCURED");
     return;
@@ -186,7 +195,7 @@ void setup() {
     while(true); // if failed, do nothing
   }
   delay(50);
-  
+
   // Enable CRC --> if packet is corrupted, packet gets dropped silently
   LoRa.enableCrc();
   //H. Read config file if exists
@@ -230,16 +239,37 @@ void setup() {
   Serial.println("Initialization complete.");
 }
 
-void generatePacket(TinyGPSPlus & gps) {
+void generatePacket() {
   const String dName = drifterName;
   unsigned long start = millis();
   do {
     while(Serial1.available() > 0) {
       gps.encode(Serial1.read());
+#ifdef USING_IMU
+      measure_gps_data();
+#endif // USING_IMU
     }
   } while(millis() - start < 400);
   // if(gps.time.second() != gpsLastSecond) {
   if(true) { // TODO: Delete this when in field
+#ifdef USING_IMU
+    //Run Kalman with fusion IMU and GPS
+    Update_Kalman();
+    if(mpu.update()) {
+      measure_imu_data();
+    }
+    //Ouput current location in lat and lng
+    float lat, lng;
+    get_current_location(lat, lng);
+    Serial << "Lat: " << lat << " Lng: " << lng << "\n";
+
+#ifdef DEBUG
+    Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
+            << " pitch: " << float(mpu.getPitch() / 180.f * PI)
+            << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
+#endif
+    Serial << "-------------------------------- \n";
+#endif // USING_IMU
     Serial.println("new GPS record");
     strcpy(packet.name, dName.c_str());
     packet.drifterTimeSlotSec = drifterTimeSlotSec;
@@ -358,11 +388,11 @@ void startWebServer(const bool webServerOn) {
 
     server.on("/calibrateIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
       if(calibrateIMU()) {
-        request->send(200, "text/html", 
+        request->send(200, "text/html",
         "<html><span>Successfully calibrated IMU!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
       }
       else {
-        request->send(200, "text/html", 
+        request->send(200, "text/html",
         "<html><span>Failed to calibrate IMU</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
       }
     });
@@ -381,7 +411,6 @@ void listenTask(void * pvParameters) {
 }
 
 void sendTask(void * pvParameters) {
-  TinyGPSPlus gps;
   while(1) {
     // A. Check for button press
     if(digitalRead(BUTTON_PIN) == LOW) {
@@ -402,7 +431,7 @@ void sendTask(void * pvParameters) {
       int result = 0;
       // if(gps.time.second() == drifterTimeSlotSec) {
       if(runEvery(PL_TX_TIME)) {
-        generatePacket(gps);
+        generatePacket();
         result = routePayload(
           SERVANT_MODE,       // Node Mode
           0xAA,               // recipient: Master

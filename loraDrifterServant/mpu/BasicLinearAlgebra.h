@@ -160,5 +160,5 @@ struct Diagonal
 
 }  // namespace BLA
 
-#include "impl/BasicLinearAlgebra.h"
-#include "impl/NotSoBasicLinearAlgebra.h"
+#include "impl/BasicLinearAlgebraImpl.h"
+#include "impl/NotSoBasicLinearAlgebraImpl.h"

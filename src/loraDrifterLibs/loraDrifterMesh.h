@@ -13,16 +13,15 @@
 #define SERVANT_MODE              0
 #define MASTER_MODE               1
 
-class Master;
-class Servant;
-struct Packet;
-
 #ifdef MESH_MASTER_MODE
+class Master;
 extern Master m;
-#define nServantsMax             8       // Maximum number of servant drifters (just for setting array size)
-extern Servant s[nServantsMax];          // Servants data array
+#define nServantsMax              8       // Maximum number of servant drifters (just for setting array size)
+class Servant;
+extern Servant s[nServantsMax];           // Servants data array
 extern SemaphoreHandle_t servantSemaphore;
 #else
+struct Packet;
 extern Packet packet;
 extern SemaphoreHandle_t loraSemaphore;
 #endif //MESH_MASTER_MODE
@@ -32,7 +31,6 @@ extern byte payload[24];
 extern byte localHopCount;
 extern byte localNextHopID;
 extern byte localAddress;
-
 // DIAGNOSTICS
 extern int node1Rx;
 extern int node2Rx;
@@ -50,10 +48,10 @@ extern int masterRx;
 #endif // MESH_MASTER_MODE
 
 typedef enum {
-  RouteBroadcastMaster = 0x41,
+  RouteBroadcastMaster  = 0x41,
   RouteBroadcastServant = 0x42,
-  DirectPayload = 0x43,
-  RouteRequest = 0x44,
+  DirectPayload         = 0x43,
+  RouteRequest          = 0x44,
   ACK      = 0x45,
   Restart  = 0x46
 } MessageType;
@@ -112,7 +110,7 @@ int parsePayload() {
 #endif // MESH_MASTER_MODE
     return Success;
   }
-  return PayloadErr;       // Payload ERR
+  return PayloadErr;
 }
 
 // To help compiler
@@ -216,10 +214,7 @@ void printRoutingTable() {
 }
 
 int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID, const int Rssi, const float snr, const unsigned long currentTime) {
-  const bool validNode = validateID(nodeID);
-  const bool validHop = validateID(hopID);
-
-  if(validNode && validHop) {
+  if(validateID(nodeID) && validateID(hopID)) { // validate node id and hop id
     Serial.print("Added 0x");
     Serial.print((int)nodeID, HEX);
     Serial.println(" to routing table");
@@ -786,15 +781,5 @@ int setRoutingStatus() {
     return Invalid;
   }
 }
-
-int daemon(const unsigned int mode) {
-  if(runEvery(RS_BCAST_TIME)) {
-    Serial.println("Broadcasting");
-    return bcastRoutingStatus(mode);   // returns 1 or -1
-  }
-  return listener(LoRa.parsePacket(), mode);
-}                                 // returns 0: Nothing relevant or valid
-                                  // returns 1: Valid processing
-                                  // returns -8 to -1: Processing Errors
 
 #endif // LORADRIFTERMESH_H

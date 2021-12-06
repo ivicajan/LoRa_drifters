@@ -1,10 +1,29 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-TinyGPSPlus gps;
 // #define USING_IMU
 #ifdef USING_IMU
 #include "mpu/imu.h"
 #endif // USING_IMU
+
+#ifdef USING_MESH
+byte routingTable[ROUTING_TABLE_SIZE] = "";
+byte payload[24] = "";
+int localLinkRssi = 0;
+byte localHopCount = 0x00;
+byte localNextHopID = 0x00;
+byte localAddress = 0x66;
+// Diagnostics
+int messagesSent = 0;
+int messagesReceived = 0;
+int node1Rx = 0;
+int node2Rx = 0;
+int node3Rx = 0;
+int node4Rx = 0;
+int node5Rx = 0;
+int node6Rx = 0;
+int node7Rx = 0;
+int masterRx = 0;
+#endif // USING_MESH
 
 #define SSID     "DrifterServant"   // Wifi ssid and password
 #define PASSWORD "Tracker1"
@@ -22,35 +41,12 @@ int gpsLastSecond = -1;
 String tTime = "";
 String drifterName = "D06";       // ID send with packet
 int drifterTimeSlotSec = 28;      // seconds after start of each GPS minute
-
-#ifdef USING_MESH
-byte routingTable[ROUTING_TABLE_SIZE] = "";
-byte payload[24] = "";
-int localLinkRssi = 0;
-byte localHopCount = 0x00;
-byte localNextHopID = 0x00;
-byte localAddress = 0x66;
-
-// Diagnostics
-int messagesSent = 0;
-int messagesReceived = 0;
-int node1Rx = 0;
-int node2Rx = 0;
-int node3Rx = 0;
-int node4Rx = 0;
-int node5Rx = 0;
-int node6Rx = 0;
-int node7Rx = 0;
-int masterRx = 0;
-#endif // USING_MESH
+TinyGPSPlus gps;
 
 Packet packet;
 TaskHandle_t ListenTask;
 TaskHandle_t SendTask;
 SemaphoreHandle_t loraSemaphore = NULL;
-
-void listenTask(void * pvParameters);
-void sendTask(void * pvParameters);
 
 const char index_html[] PROGMEM = R"rawliteral(
   <!DOCTYPE HTML>
@@ -165,6 +161,64 @@ void writeData2Flash() {
   delay(50);
 }
 
+void listenTask(void * params) {
+  (void)params;
+  while(1) {
+    vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
+    const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
+  }
+}
+
+void sendTask(void * params) {
+  (void)params;
+  while(1) {
+    if(digitalRead(BUTTON_PIN) == LOW) { //Check for button press
+      if(webServerOn) {
+        Serial.println("Web server already started");
+        webServerOn = false;
+        startWebServer(webServerOn);
+        delay(1000);
+      } else {
+        webServerOn = true;
+        startWebServer(webServerOn);
+        Serial.println("Web server started");
+        delay(1000);
+      }
+    }
+    if(!webServerOn) {
+#ifdef USING_MESH
+      int result = 0;
+      // if(gps.time.second() == drifterTimeSlotSec) {
+      if(runEvery(PL_TX_TIME)) {
+        generatePacket();
+        result = routePayload(SERVANT_MODE, 0xAA, localAddress, 0x0F, 0);
+      }
+      if(loop_runEvery(RS_BCAST_TIME)) {
+        Serial.println("Route broadcast");
+        if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+          result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
+        }
+        xSemaphoreGive(loraSemaphore);
+      }
+#else
+      generatePacket();
+#endif // USING_MESH
+      delay(10);
+      // Write data to onboard flash if nSamples is large enough
+      if(nSamples >= SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
+        Serial.println("Dump data into the memory");
+        writeData2Flash();
+      }
+    } else {
+      Serial.println("Web server is ON, not GPS data or saving during the time");
+      delay(40);
+      digitalWrite(BOARD_LED, LED_OFF);
+      delay(40);
+      digitalWrite(BOARD_LED, LED_ON);
+    }
+  }
+}
+
 void setup() {
   initBoard();
   delay(500);
@@ -216,32 +270,31 @@ void setup() {
   loraSemaphore = xSemaphoreCreateMutex();
 
   // Create a task that will be executed in the listenTask() function, with priority 1 and executed on core 0
-  xTaskCreatePinnedToCore(
-                    listenTask,      /* Task function. */
-                    "listenTask",    /* name of task. */
-                    10000,           /* Stack size of task */
-                    NULL,            /* parameter of the task */
-                    1,               /* priority of the task */
-                    &ListenTask,     /* Task handle to keep track of created task */
-                    0);              /* pin task to core 0 */
+  xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 1, NULL, 0);
   delay(500);
-
-  // Create a task that will be executed in the sendTask() function, with priority 1 and executed on core 1
-  xTaskCreatePinnedToCore(
-                    sendTask,        /* Task function. */
-                    "sendTask",      /* name of task. */
-                    10000,           /* Stack size of task */
-                    NULL,            /* parameter of the task */
-                    2,               /* priority of the task */
-                    &SendTask,       /* Task handle to keep track of created task */
-                    1);              /* pin task to core 1 */
+  // Create a task that will be executed in the sendTask() function, with priority 2 and executed on core 1
+  xTaskCreatePinnedToCore(sendTask, "sendTask", 10000, NULL, 2, NULL, 1);
   delay(500);
   Serial.println("Initialization complete.");
 }
 
+void fill_packet(Packet * packet) {
+  strcpy(packet->name, drifterName.c_str());
+  packet->drifterTimeSlotSec = drifterTimeSlotSec;
+  packet->hour = gps.time.hour();
+  packet->minute = gps.time.minute();
+  packet->second = gps.time.second();
+  packet->year = gps.date.year();
+  packet->month = gps.date.month();
+  packet->day = gps.date.day();
+  packet->lng = gps.location.lng();
+  packet->lat = gps.location.lat();
+  packet->nSamples = nSamples;
+  packet->age = gps.location.age();
+}
+
 void generatePacket() {
-  const String dName = drifterName;
-  unsigned long start = millis();
+  const unsigned long start = millis();
   do {
     while(Serial1.available() > 0) {
       gps.encode(Serial1.read());
@@ -270,20 +323,9 @@ void generatePacket() {
 #endif // DEBUG_MODE
     Serial << "-------------------------------- \n";
 #endif // USING_IMU
-    Serial.println("new GPS record");
-    strcpy(packet.name, dName.c_str());
-    packet.drifterTimeSlotSec = drifterTimeSlotSec;
-    Serial.println(dName);
-    packet.hour = gps.time.hour();
-    packet.minute = gps.time.minute();
-    packet.second = gps.time.second();
-    packet.year = gps.date.year();
-    packet.month = gps.date.month();
-    packet.day = gps.date.day();
-    packet.lng = gps.location.lng();
-    packet.lat = gps.location.lat();
-    packet.nSamples = nSamples;
-    packet.age = gps.location.age();
+    Serial.print("New GPS record from: ");
+    Serial.println(drifterName);
+    fill_packet(&packet);
     gpsLastSecond = gps.time.second();
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       Serial.println("GPS still valid");
@@ -322,7 +364,7 @@ bool calibrateIMU() {
       lastFileWrite = "FAILED OPEN";
       ESP.restart();
   }
-  // use calibrations if we do not have them
+  // use calibrations if we have them
   return true;
 }
 
@@ -397,72 +439,6 @@ void startWebServer(const bool webServerOn) {
       }
     });
     server.begin();
-  }
-}
-
-void listenTask(void * pvParameters) {
-  while(1) {
-    vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
-    // if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
-      const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
-    // }
-    // xSemaphoreGive(loraSemaphore);
-  }
-}
-
-void sendTask(void * pvParameters) {
-  while(1) {
-    // A. Check for button press
-    if(digitalRead(BUTTON_PIN) == LOW) {
-      if(webServerOn) {
-        Serial.println("Web server already started");
-        webServerOn = false;
-        startWebServer(webServerOn);
-        delay(1000);
-      } else {
-        webServerOn = true;
-        startWebServer(webServerOn);
-        Serial.println("Web server started");
-        delay(1000);
-      }
-    }
-    if(!webServerOn) {
-#ifdef USING_MESH
-      int result = 0;
-      // if(gps.time.second() == drifterTimeSlotSec) {
-      if(runEvery(PL_TX_TIME)) {
-        generatePacket();
-        result = routePayload(
-          SERVANT_MODE,       // Node Mode
-          0xAA,               // recipient: Master
-          localAddress,       // sender
-          0x0F,               // ttl
-          0                   // set resend counter
-        );
-      }
-      if(loop_runEvery(RS_BCAST_TIME)) {
-        Serial.println("Route broadcast");
-        if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
-          result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
-        }
-        xSemaphoreGive(loraSemaphore);
-      }
-#else
-      generatePacket();
-#endif // USING_MESH
-      delay(10);
-      // B. Write data to onboard flash if nSamples is large enough
-      if(nSamples >= SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
-        Serial.println("Dump data into the memory");
-        writeData2Flash();
-      }
-    } else {
-      Serial.println("Web server is ON, not GPS data or saving during the time");
-      delay(40);
-      digitalWrite(BOARD_LED, LED_OFF);
-      delay(40);
-      digitalWrite(BOARD_LED, LED_ON);
-    }
   }
 }
 

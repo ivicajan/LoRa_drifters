@@ -27,9 +27,9 @@
 
 using namespace BLA;
 MPU9250 mpu;
-int sample_period = 50; //in ms
-float T_ = sample_period / 1000; //in Sec
-// int Freq_acc = 1000 / sample_period; //40Hz
+#define SAMPLE_PERIOD_ms 50
+float T_ = SAMPLE_PERIOD_ms / 1000; //in Sec
+// int Freq_acc = 1000 / SAMPLE_PERIOD_ms; //40Hz
 // char in123 = 'a';         // char for input debug
 // char incomingByte = 'a';
 int count = 0;            //Count for drift velocity elimination
@@ -70,44 +70,41 @@ BLA::Matrix<3, 3, Diagonal<3, float>> R;
 BLA::Matrix<3, 3, Diagonal<3, float>> Q;
 BLA::Matrix<8, 8> A_E;
 BLA::Matrix<8, 3> B_E;
+BLA::Matrix<2, 2> C_;
+BLA::Matrix<8, 8> big_zero;
+BLA::Matrix<8, 8> big_I;
+BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
 #define BETA 0.005
 
 static void Initial_Kalman() {
   //Form matrix reference.
-  BLA::Matrix<2, 2> C_;
-  BLA::Matrix<8, 8> big_zero;
-  BLA::Matrix<8, 8> big_I;
-  BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
   big_zero.Fill(0);
   big_I.Fill(1);
   big_diag.Fill(1);
 
   //Setup initial Guess:
   float P_0_[8] = {10, 10, 10, 10, 90 * PI / 180, 5, 5, 25 * PI / 180};
-  float R_[3] = {1, 1, PI / 180};
-  float Q_[3] = {1, 1, 0.1 * PI / 180};
-  for(int ii = 0; ii < 8; ii++) { 
-    P_0(ii, ii) =  P_0_[ii]; 
-  }
-  for(int ii = 0; ii < 3; ii++) { 
-    R(ii,ii) =  R_[ii]; 
-    Q(ii,ii) =  Q_[ii]; 
-  }
-  
-  P.Fill(0.1);    //Initial The cov of error.
+  float R_[3] = {0.1, 0.1, 0.1 * PI / 180};
+  float Q_[3] = {1, 1, 1 * PI / 180};
+  for (int i = 0; i < 8; i++) P_0(i, i) =  P_0_[i];
+  for (int i = 0; i < 3; i++) R(i, i) =  R_[i];
+  for (int i = 0; i < 3; i++) Q(i, i) =  Q_[i];
+  Bias_Predic = {0, 0, 0};
+
+  P = P_0;    //Initial The cov of error.
   H.Fill(0);
   //form: H = {0,0,1,1,1,0,0,0, 0,0,1,1,1,0,0,0, 0,0,1,1,1,0,0,0};
   H = (big_zero.Submatrix<3, 2>(1, 1) || big_I.Submatrix<3, 3>(1, 1) || big_zero.Submatrix<3, 3>(1, 1));
   X_E_Predic.Fill(0);
 
   //Para matrix for IMU(U) and GPS(Y)
-  C_ = {cos(X_INS(5)), sin(X_INS(5)), cos(X_INS(5)), -sin(X_INS(5))};
-  A_E = (big_zero.Submatrix<2, 2>(0, 0) && big_I.Submatrix<2, 2>(0, 0) && big_zero.Submatrix<4, 2>(0, 0)) ||
-        big_zero.Submatrix<8, 3>(0, 0) ||
-        (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
-        (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
-  B_E = (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
-        (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
+  Y_E.Fill(0);
+  G_k.Fill(0);
+  X_E_Predic.Fill(0);
+  U_INS.Fill(0);
+  X_INS.Fill(0);
+  Y_GPS.Fill(0);
+
 #ifdef DEBUG_MODE
   Serial << "Initial Kal: \n"
          << "P_0" << P_0 << "\n"
@@ -115,83 +112,78 @@ static void Initial_Kalman() {
          << "Q" << Q << "\n"
          << "H" << H << "\n"
          << "X_E_Predic" << X_E_Predic << "\n"
-         << "C_" << C_ << "\n"
+
          << "A_E" << A_E << "\n"
          << "B_E" << B_E << "\n";
 #endif
 }
 
 void Update_Kalman() {
-  //BLA::Matrix<3> X_35 = {X_INS(3), X_INS(4), X_INS(5)};
-  //Y_E = X_35 - Y_GPS;
+   //Parameters update
+  C_ = {cos(X_INS(4)), sin(X_INS(4)), cos(X_INS(4)), -sin(X_INS(4))};
+  A_E = (big_zero.Submatrix<2, 2>(0, 0) && big_I.Submatrix<2, 2>(0, 0) && big_zero.Submatrix<4, 2>(0, 0)) ||
+        big_zero.Submatrix<8, 3>(0, 0) ||
+        (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
+        (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
+  B_E = (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
+        (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
+
+
+  //Optimized output X and cov matrix.
+  //Update from input
+  BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1]) / T_};
+  U_INS = U_pre - Bias_Predic;
+  X_INS = {X_INS(0) + T_ * U_INS(0),
+           X_INS(1) + T_ * U_INS(1),
+           0.5 * T_ * X_INS(0) + X_INS(2),
+           0.5 * T_ * X_INS(1) + X_INS(3),
+           X_INS(4) + T_ * U_INS(2)
+          };
+  P = A_E * P * ~A_E + B_E * Q * ~B_E + P_0 * BETA;
 
   //Update the kalman para
-  for(int ii = 0; ii < 3; ii++) {
-      Y_E(ii) = X_INS(2 + ii) - Y_GPS(ii);
-  }
+  for (int i = 0; i < 3; i++ )Y_E(i) = X_INS(2 + i) - Y_GPS(i);
   BLA::Matrix<3, 3> dom = H * P * ~H + R;
   BLA::Matrix<3, 3> dom1 = Invert(dom);
   G_k = P * ~H * dom1;
-  BLA::Matrix<8, 8> I_8;
-  I_8.Fill(1);
-  P = (I_8 - G_k * H) * P;
-  BLA::Matrix<8>Bias_0; Bias_0.Fill(0); Bias_0.Submatrix<1, 5>(0, 0);
+  P = (big_diag - G_k * H) * P;
+  BLA::Matrix<8>Bias_0; Bias_0.Fill(0);
+  for (int i = 0; i < 3; i++) Bias_0(i + 5) = Bias_Predic(i);
   X_E_Predic = Bias_0 + G_k * Y_E;
 
   X_INS -= X_E_Predic.Submatrix<5, 1>(0, 0);
   Bias_Predic = X_E_Predic.Submatrix<3, 1>(5, 0);
-
-  //Update from input
-  BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1]) / T_};
-  U_INS = U_pre - Bias_Predic;
-
-  //Optimized output X and cov matrix.
-  X_INS = {X_INS(0) + T_ * U_INS(0),
-           X_INS(1) + T_ * U_INS(1),
-           1 / 2 * T_ * X_INS(0) + X_INS(2),
-           1 / 2 * T_ * X_INS(1) + X_INS(3),
-           X_INS(4) + T_ * U_INS(3)};
-
-  P = A_E * P * ~A_E + B_E * Q * ~B_E + P_0 * BETA;
-
-/*
- * X = {[V_x],
- *      [V_y],
- *      [P_x],
- *      [P_y],
- *      [Yaw]}
- */
-#ifdef DEBUG_MODE
-  Serial << "Y_E: " << Y_E << "\n"
-         << "H: "   << H   << "\n"
-         << "G_k: " << G_k << "\n"
-         << "X_E_Predic: " << X_E_Predic << "\n"
-         << "Bias_Predic: " << Bias_Predic << "\n"
-         << "U_INS: " << U_INS << "\n"
-         << "X_INS: " << X_INS << "\n"
-         << "P: " <<  P << "\n";
-  Serial << "U_pre: " << U_pre
-         << "U_INS: " << U_INS << "\n";
-#endif
-  Serial << "K_Px: " << X_INS(2) << " K_Py: " << X_INS(3)
-         << " K_Vx: " << X_INS(0) << " K_Vy: " << X_INS(1)
-         << " K_Yew: " << X_INS(5) << "\n";
+//  #ifdef DEBUG_MODE
+//  Serial << "Y_E: " << Y_E << "\n"
+//         << "H: "   << H   << "\n"
+//         << "G_k: " << G_k << "\n"
+//         << "X_E_Predic: " << X_E_Predic << "\n"
+//         << "Bias_Predic: " << Bias_Predic << "\n"
+//         << "U_pre: [" << U_pre(0) << "; " << U_pre(1) << "; " << U_pre(2) << "] "
+//         << "U_INS: " << U_INS << "\n"
+//         << "Y_GPS: " << Y_GPS << "\n"
+//         << "X_INS: " << X_INS << "\n"
+//         << "P: " <<  P << "\n"
+//         << "Yaw" << Yaw[0] << " C_" << C_ << "\n"
+//         << "----------------------------------------------------\n";
+//  #endif
 }
 
-static void update_ref_location() {
+void update_ref_location() {
   if(gps.location.isValid()) {
     Lat_o = gps.location.lat();
     Lng_o = gps.location.lng();
   }
+  X_INS.Fill(0);
 }
 
 static float get_diff_dist(const float oringe, const float update_) {
   return 6372795 * PI / 180 * (update_ - oringe);
 }
 
-void get_current_location(float & lat, float & lng) {
-  lat = X_INS(2) * 180 / (6372795 * PI) + Lat_o;
-  lng = X_INS(3) * 180 / (6372795 * PI) + Lng_o;
+void get_current_location(float * lat, float * lng) {
+  *lat = X_INS(2) * 180 / (6372795 * PI) + Lat_o;
+  *lng = X_INS(3) * 180 / (6372795 * PI) + Lng_o;
 }
 
 //Record GPS data

@@ -1,6 +1,6 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// #define USING_IMU
+#define USING_IMU
 #ifdef USING_IMU
 #include "mpu/imu.h"
 #endif // USING_IMU
@@ -161,6 +161,41 @@ void writeData2Flash() {
   delay(50);
 }
 
+#ifdef USING_IMU
+void update_imu() {
+  if(mpu.update()) {
+    static uint32_t prev_ms = millis();
+    static uint32_t imu_ms = millis(); //For reset
+    if(millis() > prev_ms + SAMPLE_PERIOD_ms) {
+      if(millis() > imu_ms + 20000) {
+        update_ref_location(); // Reset data after 20 secs
+        imu_ms = millis();
+      }
+      while(Serial1.available() > 0) {
+        gps.encode(Serial1.read());
+        measure_gps_data();
+      }
+      //Run Kalman with fusion IMU and GPS
+      Update_Kalman();
+      if(mpu.update()) {
+        measure_imu_data();
+      }
+      //Ouput current location in lat and lng
+      float lat, lng;
+      get_current_location(&lat, &lng);
+      Serial << "Lat: " << lat << " Lng: " << lng << "\n";
+
+  #ifdef DEBUG_MODE
+      Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
+              << " pitch: " << float(mpu.getPitch() / 180.f * PI)
+              << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
+  #endif // DEBUG_MODE
+      prev_ms = millis();
+    }
+  }
+}
+#endif // USING_IMU
+
 void listenTask(void * params) {
   (void)params;
   while(1) {
@@ -189,6 +224,9 @@ void sendTask(void * params) {
 #ifdef USING_MESH
       int result = 0;
       // if(gps.time.second() == drifterTimeSlotSec) {
+#ifdef USING_IMU
+      update_imu();
+#endif // USING_IMU
       if(runEvery(PL_TX_TIME)) {
         generatePacket();
         result = routePayload(SERVANT_MODE, 0xAA, localAddress, 0x0F, 0);
@@ -294,35 +332,14 @@ void fill_packet(Packet * packet) {
 }
 
 void generatePacket() {
-  const unsigned long start = millis();
+  const uint32_t start = millis();
   do {
     while(Serial1.available() > 0) {
       gps.encode(Serial1.read());
-#ifdef USING_IMU
-      measure_gps_data();
-#endif // USING_IMU
     }
   } while(millis() - start < 400);
   // if(gps.time.second() != gpsLastSecond) {
   if(true) { // TODO: Delete this when in field
-#ifdef USING_IMU
-    //Run Kalman with fusion IMU and GPS
-    Update_Kalman();
-    if(mpu.update()) {
-      measure_imu_data();
-    }
-    //Ouput current location in lat and lng
-    float lat, lng;
-    get_current_location(lat, lng);
-    Serial << "Lat: " << lat << " Lng: " << lng << "\n";
-
-#ifdef DEBUG_MODE
-    Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
-            << " pitch: " << float(mpu.getPitch() / 180.f * PI)
-            << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
-#endif // DEBUG_MODE
-    Serial << "-------------------------------- \n";
-#endif // USING_IMU
     Serial.print("New GPS record from: ");
     Serial.println(drifterName);
     fill_packet(&packet);

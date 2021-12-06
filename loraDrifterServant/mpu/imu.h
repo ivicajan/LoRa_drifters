@@ -83,12 +83,16 @@ static void Initial_Kalman() {
   big_diag.Fill(1);
 
   //Setup initial Guess:
-  float P_0_[8] = {10, 10, 10, 10, 90 * PI / 180, 5, 5, 25 * PI / 180};
-  float R_[3] = {0.1, 0.1, 0.1 * PI / 180};
-  float Q_[3] = {1, 1, 1 * PI / 180};
-  for (int i = 0; i < 8; i++) P_0(i, i) =  P_0_[i];
-  for (int i = 0; i < 3; i++) R(i, i) =  R_[i];
-  for (int i = 0; i < 3; i++) Q(i, i) =  Q_[i];
+  const float P_0_[8] = {10, 10, 10, 10, 90 * PI / 180, 5, 5, 25 * PI / 180};
+  const float R_[3] = {0.1, 0.1, 0.1 * PI / 180};
+  const float Q_[3] = {1, 1, 1 * PI / 180};
+  for(int ii = 0; ii < 8; ii++) {
+    P_0(ii, ii) = P_0_[ii];
+  }
+  for(int ii = 0; ii < 3; ii++) {
+    R(ii, ii) = R_[ii];
+    Q(ii, ii) = Q_[ii];
+  }
   Bias_Predic = {0, 0, 0};
 
   P = P_0;    //Initial The cov of error.
@@ -131,7 +135,7 @@ void Update_Kalman() {
 
   //Optimized output X and cov matrix.
   //Update from input
-  BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1]) / T_};
+  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1]) / T_};
   U_INS = U_pre - Bias_Predic;
   X_INS = {X_INS(0) + T_ * U_INS(0),
            X_INS(1) + T_ * U_INS(1),
@@ -142,13 +146,18 @@ void Update_Kalman() {
   P = A_E * P * ~A_E + B_E * Q * ~B_E + P_0 * BETA;
 
   //Update the kalman para
-  for (int i = 0; i < 3; i++ )Y_E(i) = X_INS(2 + i) - Y_GPS(i);
+  for(int ii = 0; ii < 3; ii++ ) {
+    Y_E(ii) = X_INS(2 + ii) - Y_GPS(ii);
+  }
   BLA::Matrix<3, 3> dom = H * P * ~H + R;
-  BLA::Matrix<3, 3> dom1 = Invert(dom);
+  const BLA::Matrix<3, 3> dom1 = Invert(dom);
   G_k = P * ~H * dom1;
   P = (big_diag - G_k * H) * P;
-  BLA::Matrix<8>Bias_0; Bias_0.Fill(0);
-  for (int i = 0; i < 3; i++) Bias_0(i + 5) = Bias_Predic(i);
+  BLA::Matrix<8> Bias_0;
+  Bias_0.Fill(0);
+  for(int ii = 0; ii < 3; ii++) {
+    Bias_0(ii + 5) = Bias_Predic(ii);
+  }
   X_E_Predic = Bias_0 + G_k * Y_E;
 
   X_INS -= X_E_Predic.Submatrix<5, 1>(0, 0);
@@ -177,7 +186,7 @@ void update_ref_location() {
   X_INS.Fill(0);
 }
 
-static float get_diff_dist(const float oringe, const float update_) {
+static const float get_diff_dist(const float oringe, const float update_) {
   return 6372795 * PI / 180 * (update_ - oringe);
 }
 

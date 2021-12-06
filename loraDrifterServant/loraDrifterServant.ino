@@ -11,7 +11,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x66;
+byte localAddress = 0x55;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
@@ -39,8 +39,8 @@ int nSamples;                         // Counter for the number of samples gathe
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D06";       // ID send with packet
-int drifterTimeSlotSec = 28;      // seconds after start of each GPS minute
+String drifterName = "D05";       // ID send with packet
+int drifterTimeSlotSec = 20;      // seconds after start of each GPS minute
 TinyGPSPlus gps;
 
 Packet packet;
@@ -135,7 +135,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   </html>
 )rawliteral";
 
-void writeData2Flash() {
+static void writeData2Flash() {
   file = SPIFFS.open(csvFileName, FILE_APPEND);
   if(!file) {
     Serial.println("There was an error opening the file for appending, creating a new one");
@@ -162,7 +162,7 @@ void writeData2Flash() {
 }
 
 #ifdef USING_IMU
-void update_imu() {
+static void update_imu() {
   if(mpu.update()) {
     static uint32_t prev_ms = millis();
     static uint32_t imu_ms = millis(); //For reset
@@ -196,7 +196,7 @@ void update_imu() {
 }
 #endif // USING_IMU
 
-void listenTask(void * params) {
+static void listenTask(void * params) {
   (void)params;
   while(1) {
     vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
@@ -204,7 +204,7 @@ void listenTask(void * params) {
   }
 }
 
-void sendTask(void * params) {
+static void sendTask(void * params) {
   (void)params;
   while(1) {
     if(digitalRead(BUTTON_PIN) == LOW) { //Check for button press
@@ -257,6 +257,46 @@ void sendTask(void * params) {
   }
 }
 
+// Init the LoRa communications with/without default factory settings
+static void initLoRa(bool default_params = false) {
+  LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
+  if(!default_params) {
+    /* LoRa paramters - https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
+
+    // LoRa.setFrequency(LORA_FREQUENCY);
+    LoRa.setTxPower(LORA_TX_POWER);
+    LoRa.setSpreadingFactor(LORA_SPREADING_FACTOR);
+    LoRa.setSignalBandwidth(LORA_SIGNAL_BANDWIDTH);
+    LoRa.setCodingRate4(LORA_CODING_RATE);
+    // LoRa.setPreambleLength(LORA_PREAMBLE_LENGTH);
+    // LoRa.setSyncWord(LORA_SYNC_WORD);
+    // LoRa.setGain(LORA_GAIN);
+    // Enable CRC --> if packet is corrupted, packet gets dropped silently
+    LoRa.enableCrc();
+  }
+  if(!LoRa.begin(LORA_FREQUENCY)) {
+    Serial.println("LoRa init failed. Check your connections.");
+    while(true); // if failed, do nothing
+  }
+}
+
+//H. Read config file, if it exists
+static void readConfigFile() {
+  file = SPIFFS.open("/config.txt", FILE_READ);
+  if(!file) {
+    Serial.println("Failed to open config.txt configuration file");
+  } else {
+    String inData = file.readStringUntil('\n');
+    int comma = inData.indexOf(",");
+    drifterName = inData.substring(0, comma);
+    drifterTimeSlotSec = inData.substring(comma + 1).toInt();
+    Serial.println(inData);
+    file.close();
+  }
+  delay(50);
+  csvFileName = "/svt" + String(drifterName)+".csv";
+}
+
 void setup() {
   initBoard();
   delay(500);
@@ -268,55 +308,19 @@ void setup() {
     Serial.println("SPIFFS ERROR HAS OCCURED");
     return;
   }
-  pinMode(WEB_SERVER_PIN, INPUT);
-
-  LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
-  /* LoRa paramters - https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
-
-  // LoRa.setFrequency(LORA_FREQUENCY);
-  LoRa.setTxPower(LORA_TX_POWER);
-  LoRa.setSpreadingFactor(LORA_SPREADING_FACTOR);
-  LoRa.setSignalBandwidth(LORA_SIGNAL_BANDWIDTH);
-  LoRa.setCodingRate4(LORA_CODING_RATE);
-  // LoRa.setPreambleLength(LORA_PREAMBLE_LENGTH);
-  // LoRa.setSyncWord(LORA_SYNC_WORD);
-  // LoRa.setGain(LORA_GAIN);
-
-  if(!LoRa.begin(LORA_FREQUENCY)) {
-    Serial.println("LoRa init failed. Check your connections.");
-    while(true); // if failed, do nothing
-  }
+  initLoRa();
   delay(50);
-
-  // Enable CRC --> if packet is corrupted, packet gets dropped silently
-  LoRa.enableCrc();
-  //H. Read config file if exists
-  file = SPIFFS.open("/config.txt", FILE_READ);
-  if(!file) {
-    Serial.println("Failed to open config.txt configuration file");
-  } else {
-    String inData = file.readStringUntil('\n');
-    int comma = inData.indexOf(",");
-    drifterName = inData.substring(0, comma);
-    drifterTimeSlotSec = inData.substring(comma + 1).toInt();
-    Serial.println(inData);
-  }
-  delay(50);
-
-  csvFileName="/svt" + String(drifterName)+".csv";
-  webServerOn = false;
+  readConfigFile();
   loraSemaphore = xSemaphoreCreateMutex();
-
-  // Create a task that will be executed in the listenTask() function, with priority 1 and executed on core 0
+  // Create listen and send RTOS tasks
   xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 1, NULL, 0);
   delay(500);
-  // Create a task that will be executed in the sendTask() function, with priority 2 and executed on core 1
   xTaskCreatePinnedToCore(sendTask, "sendTask", 10000, NULL, 2, NULL, 1);
   delay(500);
   Serial.println("Initialization complete.");
 }
 
-void fill_packet(Packet * packet) {
+static void fill_packet(Packet * packet) {
   strcpy(packet->name, drifterName.c_str());
   packet->drifterTimeSlotSec = drifterTimeSlotSec;
   packet->hour = gps.time.hour();
@@ -331,7 +335,7 @@ void fill_packet(Packet * packet) {
   packet->age = gps.location.age();
 }
 
-void generatePacket() {
+static void generatePacket() {
   const uint32_t start = millis();
   do {
     while(Serial1.available() > 0) {
@@ -366,7 +370,7 @@ void generatePacket() {
   }
 }
 
-bool calibrateIMU() {
+static bool calibrateIMU() {
 #ifndef USING_IMU
   return false;
 #endif // USING_IMU
@@ -385,7 +389,7 @@ bool calibrateIMU() {
   return true;
 }
 
-void startWebServer(const bool webServerOn) {
+static void startWebServer(const bool webServerOn) {
   if(!webServerOn) {
     server.end();
     WiFi.disconnect();
@@ -462,7 +466,7 @@ void startWebServer(const bool webServerOn) {
 // Loop does nothing as the loop functions are split into tasks
 void loop() {}
 
-String processor(const String& var) {
+static String processor(const String& var) {
   if(var == "SERVANT") {
     String servantData = "";
     servantData += "<td>" + csvFileName + "</td>";

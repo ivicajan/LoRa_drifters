@@ -180,7 +180,7 @@ void initBoard() {
     digitalWrite(BOARD_LED, LED_ON);
 #endif
     delay(50);
- 
+    pinMode(WEB_SERVER_PIN, INPUT);
     Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     Serial.println("init gps");
     delay(50);

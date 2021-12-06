@@ -77,7 +77,6 @@ static int parsePayload() {
 #ifdef MESH_MASTER_MODE
   Packet packet;
 #endif // MESH_MASTER_NODE
-  memset(&packet, 0, sizeof(Packet));
   if(LoRa.available() == sizeof(Packet)) {
     uint8_t buffer[sizeof(Packet)];
     for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
@@ -185,7 +184,7 @@ static void printRoutingTable() {
     const int Rssi = *(int*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3]);
     const float snr = *(float*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7]);
     const unsigned long currentTime = *(unsigned long*)(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11]);
-    if(Rssi != 0) {
+    if(Rssi) {
       Serial.print("Routing Table Entry ");
       Serial.print(idx);
       Serial.println(": ");
@@ -224,14 +223,14 @@ static int insertRoutingTable(const byte nodeID, const byte hopCount, const byte
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3], &Rssi, sizeof(Rssi));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7], &snr, sizeof(snr));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
-    return Success;         // Success
+    return Success;
   }
-  return InvalidNodeID;   // E -9: invalid nodeID
+  return InvalidNodeID;
 }
 
 boolean runEvery(const unsigned long interval) {
-  static unsigned long previousMillis = 0;
-  unsigned long currentMillis = millis();
+  static uint32_t previousMillis = 0;
+  uint32_t currentMillis = millis();
   if(currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     return true;
@@ -240,8 +239,8 @@ boolean runEvery(const unsigned long interval) {
 }
 
 boolean loop_runEvery(const unsigned long interval) {
-  static unsigned long previousMillis = 0;
-  unsigned long currentMillis = millis();
+  static uint32_t previousMillis = 0;
+  uint32_t currentMillis = millis();
   if(currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     return true;
@@ -251,7 +250,7 @@ boolean loop_runEvery(const unsigned long interval) {
 
 static void deleteOldEntries() {
   // Reset when entry's time is older than DELETION_TIME
-  const long int currentTime = millis();
+  const uint32_t currentTime = millis();
   long int lastTime = 0;
   int timeIndex = 0;
   int difference = 0;
@@ -389,16 +388,27 @@ static bool checkFrameHeader(const int mode, const byte sizeHeader, const byte t
 static void typeToPrintout(const byte type, const byte router) {
   switch(type) {
     case RouteBroadcastServant:
-      Serial.print("Sending broadcast packet to: 0x");
-      Serial.println((int)router, HEX);
+      Serial.print("Sending slave broadcast packet: ");
+      break;
+    case RouteBroadcastMaster:
+      Serial.print("Sending master broadcast packet: ");
       break;
     case DirectPayload:
       Serial.print("Sending direct payload packet to: 0x");
-      Serial.println((int)router, HEX);
+      break;
+    case RouteRequest:
+      Serial.print("Sending GPS packet to: 0x");
+      break;
+    case ACK:
+      Serial.print("Sending ACK packet to: 0x");
+      break;
+    case Restart:
+      Serial.print("Sending Restart packet to: 0x");
       break;
     default:
       break;
   }
+  Serial.println((int)router, HEX);
 }
 
 static void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl) {
@@ -417,11 +427,11 @@ static void sendFrame(const int mode, const byte type, const byte router, const 
   if(mode == SERVANT_MODE) {
     switch(type) {
       case RouteBroadcastServant:
-        header[7] = 0x02;         // sizePayload
+        header[7] = 0x02;           // sizePayload
         LoRa.beginPacket();
         LoRa.write(header, 8);
-        LoRa.write(localHopCount);    // RS payload
-        LoRa.write(localNextHopID);   // RS payload
+        LoRa.write(localHopCount);  // RS payload
+        LoRa.write(localNextHopID); // RS payload
         LoRa.endPacket(true);
         typeToPrintout(type, router);
         break;
@@ -431,19 +441,18 @@ static void sendFrame(const int mode, const byte type, const byte router, const 
         LoRa.beginPacket();
         LoRa.write(header, 8);
 #ifndef MESH_MASTER_MODE // for compiling
-        LoRa.write((const uint8_t*)&packet, sizeof(Packet));
+        LoRa.write((const uint8_t *)&packet, sizeof(Packet));
 #endif // MESH_MASTER_MODE
         LoRa.endPacket(true);
-        Serial.print("Sending GPS packet to: 0x");
-        Serial.println((int)router, HEX);
         typeToPrintout(type, router);
         break;
       case ACK:
       case Restart:
-        header[7] = 0x00;       // sizePayload
+        header[7] = 0x00;
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
+        typeToPrintout(type, router);
         break;
       default:
         Serial.println("Not valid for this mode");
@@ -548,7 +557,6 @@ static int ackHandshake(const int mode, const byte type, const byte router, cons
 static int routePayload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend) {
   // Send the data based on routing status
   byte type = 0x00;
-
   // Check first if the localNextHopID is the Master ID
   type = (recipient == localNextHopID) ? DirectPayload : RouteRequest; // Type C: Direct Master PL, Type D: Route Request
   const byte router = localNextHopID;
@@ -564,74 +572,76 @@ static int routePayload(const int mode, const byte recipient, const byte sender,
   return Success;
 }
 
+//Process data frame
 static int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl) {
-  //Process data frame
   int result = 0;
-
-  if(mode == SERVANT_MODE) {              // Node Mode
-    if(type == RouteBroadcastMaster) {         // Type A: Master BCAST
-      const int rssi = LoRa.packetRssi();
-      const float snr = LoRa.packetSnr();
-      const unsigned long time = millis();
-      result = insertRoutingTable(sender, 0x01, 0xAA, rssi, snr, time);
-      if(result != Success) {
-        return result;
+  if(mode == SERVANT_MODE) {
+    switch(type) {
+      case RouteBroadcastMaster: {
+        const int rssi = LoRa.packetRssi();
+        const float snr = LoRa.packetSnr();
+        const unsigned long time = millis();
+        result = insertRoutingTable(sender, 0x01, 0xAA, rssi, snr, time);
+        if(result != Success) {
+          return result;
+        }
+        return setRoutingStatus();
       }
-      return setRoutingStatus(); // 1 or -1
+      case RouteBroadcastServant: {
+        const byte hopCount = LoRa.read();     // Parsing Payload
+        const byte nextHopID = LoRa.read();
+        const int rssi = LoRa.packetRssi();
+        const float snr = LoRa.packetSnr();
+        const unsigned long time = millis();
+        result = insertRoutingTable(sender, hopCount, nextHopID, rssi, snr, time);
+        if(result != Success) {
+          return InvalidNodeID;
+        }
+        return setRoutingStatus();
+      }
+      case RouteRequest: {
+        parsePayload();
+        result = routePayload(mode, recipient, sender, ttl, 0);
+        if(result == Success) {
+          sendAckBack(mode, source);
+          return Success;
+        } else {
+          return NoACK;
+        }
+      }
+      case Restart: {
+        if(recipient == localAddress) {
+          sendAckBack(mode, source);
+          Serial.println("Restarting device");
+          ESP.restart();
+        }
+      }
+      default:
+        return NodeModeErr;
     }
-    else if(type == RouteBroadcastServant) {                // Type B: Neighbor BCAST
-      const byte hopCount = LoRa.read();  // Parsing Payload
-      const byte nextHopID = LoRa.read();
-      const int rssi = LoRa.packetRssi();
-      const float snr = LoRa.packetSnr();
-      const unsigned long time = millis();
-      
-      result = insertRoutingTable(sender, hopCount, nextHopID, rssi, snr, time);
-      if(result != Success) {
-        return result;        // invalid nodeID
-      }
-      return setRoutingStatus(); // 1 or -1
-    }
-    else if(type == RouteRequest) {         // Type D: Route Request
-      parsePayload();
-      result = routePayload(mode, recipient, sender, ttl, 0);
-      if(result == 1) { // found a route!
-        sendAckBack(mode, source);
-        return result;          // Success
-      } else {
-        return result;          // No ACK
-      }
-    }
-    else if(type == Restart) {
-      if(recipient == localAddress) {
-        sendAckBack(mode, source);
-        Serial.println("Restarting device");
-        ESP.restart();
-      }
-    }
-    return NodeModeErr;
-  } 
-  
-  if(mode == MASTER_MODE) {
-    if(type == DirectPayload) {
-      result = parsePayload();
-      if(result == 1) {
-        Serial.println("Successfully parsed packet, now sending ack");
-        sendAckBack(mode, source);
-        return result;          // Success
-      }
-      return result;            // Parse ERR
-    } 
-    return MasterModeErr;
   }
-  
+  else if(mode == MASTER_MODE) {
+    switch(type) {
+      case DirectPayload: {
+        result = parsePayload();
+        if(result == Success) {
+          Serial.println("Successfully parsed packet, now sending ack");
+          sendAckBack(mode, source);
+          return result;          // Success
+        }
+        return result;            // Parse ERR
+      } 
+      default:
+        return MasterModeErr;
+    }
+  }
   // Checking the ackMode that was passed from waitForAck()
   // The address space in integers between 17 and 170.
   // Node 1 - 0x11 - 17
   // Node 2 - 0x22 - 34
   // Master Node - 0xAA - 170
   
-  if(mode > 0x10 && mode < 0xAB) {          // ACK Mode
+  else if(mode > 0x10 && mode < 0xAB) { // ACK Mode
     if(type == ACK) {
       return Success;
     } 
@@ -640,31 +650,17 @@ static int frameHandler(const int mode, const byte type, const byte router, cons
   return FrameHandlerErr;
 }
 
+// Send a broadcast to the network
 static int bcastRoutingStatus(const int mode) {
-  // Send a broadcast to the network
   int result = 0;
-  if(mode == 0) {
+  if(mode == SERVANT_MODE) {
     result = setRoutingStatus();
-    if(result == -1) {
+    if(result == Invalid) {
       return result;
     }
-    sendFrame(
-      mode,
-      RouteBroadcastServant,         // type: Type B
-      0xFF,             // router: BCAST
-      0xFF,             // recipient: BCAST
-      localAddress,     // sender
-      0x0F              // ttl
-    );
-  } else if(mode == 1) {   // Master Mode
-    sendFrame(
-      mode,
-      RouteBroadcastMaster,         // type: Type A
-      0xFF,             // router: BCAST
-      0xFF,             // recipient: BCAST
-      localAddress,     // sender
-      0x0F              // ttl
-    );
+    sendFrame(mode, RouteBroadcastServant, 0xFF, 0xFF, localAddress, 0x0F);
+  } else if(mode == MASTER_MODE) {
+    sendFrame(mode, RouteBroadcastMaster, 0xFF, 0xFF, localAddress, 0x0F);
   }
   return Success;
 }
@@ -745,6 +741,7 @@ static int findMaxRssi(const int minHopCount) {
   return (int)bestRoute;
 }
 
+ // Returns Success or Invalid
 static int setRoutingStatus() {
   // Update localHopCount and localNextHop
   deleteOldEntries();

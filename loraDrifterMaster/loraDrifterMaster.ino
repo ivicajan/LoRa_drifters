@@ -17,7 +17,7 @@ TinyGPSPlus gps;                      // decoder for GPS stream
 #define SSID     "DrifterMaster"      // Wifi ssid and password
 #define PASSWORD "Tracker1"
 Master m;                             // Master data
-Servant s[NUM_MAX_SERVANTS];              // Servants data array
+Servant s[NUM_MAX_SERVANTS];          // Servants data array
 String masterData = "";               // Strings for tabular data output to web page
 String servantsData = "";
 String diagnosticData = "";
@@ -28,7 +28,6 @@ int nSamples;                         // Counter for the number of samples gathe
 //int ledState = LOW;
 //int ledPin = 14;
 int gpsLastSecond = -1;
-String hour, minute, second, year, month, day, tTime, tDate;
 
 #ifdef USING_MESH
 byte routingTable[ROUTING_TABLE_SIZE] = "";
@@ -53,22 +52,25 @@ static String processor(const String& var) {
   else if(var == "MASTER") { return masterData; }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
-    return R"rawliteral(
-    <br><br>
-    <h4>Diagnostics</h4>
-    <table>
-      <tr>
-        <td><b>Sent</b></td>
-        <td><b>Rcvd</b></td>
-        <td><b>D01</b></td>
-        <td><b>D02</b></td>
-        <td><b>D03</b></td>
-        <td><b>D04</b></td>
-        <td><b>D05</b></td>
-        <td><b>D06</b></td>
-        <td><b>D07</b></td>
-      </tr>)rawliteral"
-      + diagnosticData; }
+    String diagnosticString =
+      R"rawliteral(
+      <br><br>
+      <h4>Diagnostics</h4>
+      <table>
+        <tr>
+          <td><b>Sent</b></td>
+          <td><b>Rcvd</b></td>
+        )rawliteral";
+    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
+      for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
+        if(s[ii].active) {
+          diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
+        }
+      }
+    }
+    xSemaphoreGive(servantSemaphore);
+    return diagnosticString += "</tr>" + diagnosticData;
+  }
 #endif // USING_MESH
   else {
     return String();
@@ -83,14 +85,11 @@ static void initLoRa() {
     while(1); // if failed, do nothing
   }
 #ifndef USING_MESH
-   // register the receive callback
-  LoRa.onReceive(onReceive);
-  // put the radio into receive mode
-  LoRa.receive();
+  LoRa.onReceive(onReceive); // register the receive callback
+  LoRa.receive(); // put the radio into receive mode
   delay(50);
 #endif // USING_MESH
-  // Enable CRC --> if packet is corrupted, packet gets dropped silently
-  LoRa.enableCrc();
+  LoRa.enableCrc(); // if packet is corrupted, packet gets dropped silently
 }
 
 static void writeData2Flash() {
@@ -103,7 +102,7 @@ static void writeData2Flash() {
     if(file.println(csvOutStr)) {
       csvOutStr = "";
       nSamples = 0;
-      Serial.println("Wrote data in file, current size: ");
+      Serial.print("Wrote data in file, current size: ");
       Serial.println(file.size());
       lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
     } else {
@@ -191,7 +190,7 @@ static void initWebServer() {
   server.begin();
 }
 
-void setup(){
+void setup() {
   initBoard();
   delay(500);
   initLoRa();
@@ -258,12 +257,23 @@ static void sendTask(void * pvParameters) {
 #endif // USING_MESH
     servantsData += "</tr>";
     if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
+      String tempClassColour = "";
       for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
+        const uint32_t lastUpdate = (millis() - s[ii].lastUpdateMasterTime) / 1000;
+        if(lastUpdate > 120) {
+          tempClassColour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
+        }
+        else if(lastUpdate > 60 && lastUpdate <= 119) {
+          tempClassColour = R"rawliteral(<td style="background-color:DarkOrange">)rawliteral";
+        }
+        else {
+          tempClassColour = R"rawliteral(<td style="background-color:White">)rawliteral";
+        }
         if(s[ii].active) {
           servantsData += "<tr>";
-          servantsData += "<td>" + String(s[ii].ID) + "</td>";
+          servantsData += "<td><b>" + String(s[ii].ID) + "</b></td>";
           servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
-          servantsData += "<td>" + String((millis() - s[ii].lastUpdateMasterTime) / 1000) + "</td>";
+          servantsData += tempClassColour + String(lastUpdate) + "</td>";
           servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
           servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
           servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
@@ -283,17 +293,17 @@ static void sendTask(void * pvParameters) {
     }
     xSemaphoreGive(servantSemaphore);
 #ifdef USING_MESH
-    diagnosticData = "";
-    diagnosticData += "<tr>";
+    diagnosticData = "<tr>";
     diagnosticData += "<td>" + String(messagesSent) + "</td>";
     diagnosticData += "<td>" + String(messagesReceived) + "</td>";
-    diagnosticData += "<td>" + String(node1Rx) + "</td>";
-    diagnosticData += "<td>" + String(node2Rx) + "</td>";
-    diagnosticData += "<td>" + String(node3Rx) + "</td>";
-    diagnosticData += "<td>" + String(node4Rx) + "</td>";
-    diagnosticData += "<td>" + String(node5Rx) + "</td>";
-    diagnosticData += "<td>" + String(node6Rx) + "</td>";
-    diagnosticData += "<td>" + String(node7Rx) + "</td>";
+    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
+      for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
+        if(s[ii].active) {
+          diagnosticData += "<td>" + String(getNodeRxCounter(ii)) + "</td>";
+        }
+      }
+    }
+    xSemaphoreGive(servantSemaphore);
     diagnosticData += "</tr>";
 #endif // USING_MESH
     // D. Write data to onboard flash
@@ -337,7 +347,7 @@ static void generateMaster() {
     // Update String to be written to file
     if((m.lng != 0.0) && (m.age < 1000)) {
       csvOutStr += tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "\n";
-      nSamples += 1;
+      nSamples++;
     } else {
       Serial.println("No GPS fix, not writing local data!");
     }
@@ -345,5 +355,5 @@ static void generateMaster() {
   }
 }
 
-// Loop does nothing as the loop functions are split into tasks
+// Loop does nothing as the loop functions are split into RTOS tasks
 void loop() {}

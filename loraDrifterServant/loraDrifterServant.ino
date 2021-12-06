@@ -1,6 +1,6 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-#define USING_IMU
+// #define USING_IMU
 #ifdef USING_IMU
 #include "mpu/imu.h"
 #endif // USING_IMU

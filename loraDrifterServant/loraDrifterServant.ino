@@ -44,8 +44,6 @@ int drifterTimeSlotSec = 20;      // seconds after start of each GPS minute
 TinyGPSPlus gps;
 
 Packet packet;
-TaskHandle_t ListenTask;
-TaskHandle_t SendTask;
 SemaphoreHandle_t loraSemaphore = NULL;
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -211,14 +209,12 @@ static void sendTask(void * params) {
       if(webServerOn) {
         Serial.println("Web server already started");
         webServerOn = false;
-        startWebServer(webServerOn);
-        delay(1000);
       } else {
-        webServerOn = true;
-        startWebServer(webServerOn);
         Serial.println("Web server started");
-        delay(1000);
+        webServerOn = true;
       }
+      startWebServer(webServerOn);
+      delay(1000);
     }
     if(!webServerOn) {
 #ifdef USING_MESH
@@ -320,19 +316,19 @@ void setup() {
   Serial.println("Initialization complete.");
 }
 
-static void fill_packet(Packet * packet) {
-  strcpy(packet->name, drifterName.c_str());
-  packet->drifterTimeSlotSec = drifterTimeSlotSec;
-  packet->hour = gps.time.hour();
-  packet->minute = gps.time.minute();
-  packet->second = gps.time.second();
-  packet->year = gps.date.year();
-  packet->month = gps.date.month();
-  packet->day = gps.date.day();
-  packet->lng = gps.location.lng();
-  packet->lat = gps.location.lat();
-  packet->nSamples = nSamples;
-  packet->age = gps.location.age();
+static void fill_packet() {
+  strcpy(packet.name, drifterName.c_str());
+  packet.drifterTimeSlotSec = drifterTimeSlotSec;
+  packet.hour = gps.time.hour();
+  packet.minute = gps.time.minute();
+  packet.second = gps.time.second();
+  packet.year = gps.date.year();
+  packet.month = gps.date.month();
+  packet.day = gps.date.day();
+  packet.lng = gps.location.lng();
+  packet.lat = gps.location.lat();
+  packet.nSamples = nSamples;
+  packet.age = gps.location.age();
 }
 
 static void generatePacket() {
@@ -346,7 +342,7 @@ static void generatePacket() {
   if(true) { // TODO: Delete this when in field
     Serial.print("New GPS record from: ");
     Serial.println(drifterName);
-    fill_packet(&packet);
+    fill_packet();
     gpsLastSecond = gps.time.second();
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
       Serial.println("GPS still valid");

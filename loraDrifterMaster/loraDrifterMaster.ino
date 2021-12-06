@@ -14,10 +14,10 @@ SemaphoreHandle_t loraSemaphore = NULL;
 // GLOBAL VARIABLES
 AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 TinyGPSPlus gps;                      // decoder for GPS stream
-const char* ssid = "DrifterMaster";   // Wifi ssid and password
-const char* password = "Tracker1";
+#define SSID     "DrifterMaster"      // Wifi ssid and password
+#define PASSWORD "Tracker1"
 Master m;                             // Master data
-Servant s[nServantsMax];              // Servants data array
+Servant s[NUM_MAX_SERVANTS];              // Servants data array
 String masterData = "";               // Strings for tabular data output to web page
 String servantsData = "";
 String diagnosticData = "";
@@ -28,7 +28,6 @@ int nSamples;                         // Counter for the number of samples gathe
 //int ledState = LOW;
 //int ledPin = 14;
 int gpsLastSecond = -1;
-const int webServerPin = BUTTON_PIN;
 String hour, minute, second, year, month, day, tTime, tDate;
 
 #ifdef USING_MESH
@@ -37,7 +36,6 @@ byte payload[24] = "";
 byte localAddress = 0xAA;
 byte localNextHopID = 0xAA;
 byte localHopCount = 0x00;
-
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
@@ -50,12 +48,9 @@ int node6Rx = 0;
 int node7Rx = 0;
 #endif // USING_MESH
 
-TaskHandle_t ListenTask;
-TaskHandle_t SendTask;
-
-String processor(const String& var) {
-  if(var == "SERVANTS") {    return servantsData;  }
-  else if(var == "MASTER") {      return masterData;  }
+static String processor(const String& var) {
+  if(var == "SERVANTS") {    return servantsData; }
+  else if(var == "MASTER") { return masterData; }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
     return R"rawliteral(
@@ -80,7 +75,25 @@ String processor(const String& var) {
   }
 }
 
-void writeData2Flash() {
+// Currently using factory only LoRa parameters
+static void initLoRa() {
+  LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
+  if(!LoRa.begin(LORA_FREQUENCY)) {
+    Serial.println("LoRa init failed. Check your connections.");
+    while(1); // if failed, do nothing
+  }
+#ifndef USING_MESH
+   // register the receive callback
+  LoRa.onReceive(onReceive);
+  // put the radio into receive mode
+  LoRa.receive();
+  delay(50);
+#endif // USING_MESH
+  // Enable CRC --> if packet is corrupted, packet gets dropped silently
+  LoRa.enableCrc();
+}
+
+static void writeData2Flash() {
   file = SPIFFS.open("/master.csv", FILE_APPEND);
   if(!file) {
     Serial.println("There was an error opening the file for writing");
@@ -101,18 +114,18 @@ void writeData2Flash() {
   file.close();
   delay(50);
 }
+
 #ifndef USING_MESH
-void onReceive(const int packetsize) {
+static void onReceive(const int packetsize) {
   // received a packet
   uint8_t buffer[sizeof(Packet)];
   for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
     buffer[ii] = LoRa.read();
   }
-  Packet * packet;
-  memset(&packet, 0, sizeof(packet));
-  packet = (Packet *)buffer;
+  Packet packet;
+  memcpy(&packet, buffer, sizeof(Packet));
   // Get ID and then send to class for decoding
-  const String name = String(packet->name);
+  const String name = String(packet.name);
   if(!strcmp(name.substring(0, 1).c_str(), "D")) {
     Serial.println("Drifter signal found!");
     // csvOutStr += recv; // Save all packets recevied (debugging purposes)
@@ -131,33 +144,8 @@ void onReceive(const int packetsize) {
 }
 #endif // USING_MESH
 
-// FUNCTION DEFINITIONS
-void setup(){
-  initBoard();
-  delay(500);
-
-  servantSemaphore = xSemaphoreCreateMutex();
-  loraSemaphore = xSemaphoreCreateMutex();
-
-  LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
-
-  if(!LoRa.begin(LORA_FREQUENCY)) {
-    Serial.println("LoRa init failed. Check your connections.");
-    while(1); // if failed, do nothing
-  }
-
-#ifndef USING_MESH
-   // register the receive callback
-  LoRa.onReceive(onReceive);
-  // put the radio into receive mode
-  LoRa.receive();
-  delay(50);
-#endif // USING_MESH
-
-  // Enable CRC --> if packet is corrupted, packet gets dropped silently
-  LoRa.enableCrc();
-
-  WiFi.softAP(ssid, password);
+static void initWebServer() {
+  WiFi.softAP(SSID, PASSWORD);
   Serial.println(WiFi.softAPIP());    // Print ESP32 Local IP Address
 
   // F. Web Server Callbacks setup
@@ -200,32 +188,22 @@ void setup(){
     request->send(200, "text/html", "<html><span>Sent restart packet!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
   });
 #endif // USING_MESH
-
   server.begin();
-  delay(50);
+}
 
-  //create a task that will be executed in the listenTask() function, with priority 1 and executed on core 1
-  xTaskCreatePinnedToCore(
-                    listenTask,       /* Task function. */
-                    "listenTask",     /* name of task. */
-                    10000,            /* Stack size of task */
-                    NULL,             /* parameter of the task */
-                    1,                /* priority of the task */
-                    &ListenTask,      /* Task handle to keep track of created task */
-                    1);               /* pin task to core 1 */
-  delay(500); 
-
-  //create a task that will be executed in the sendTask() function, with priority 1 and executed on core 0
-  xTaskCreatePinnedToCore(
-                    sendTask,        /* Task function. */
-                    "sendTask",      /* name of task. */
-                    10000,           /* Stack size of task */
-                    NULL,            /* parameter of the task */
-                    2,               /* priority of the task */
-                    &SendTask,       /* Task handle to keep track of created task */
-                    0);              /* pin task to core 0 */
+void setup(){
+  initBoard();
   delay(500);
-
+  initLoRa();
+  delay(50);
+  initWebServer();
+  delay(50);
+  servantSemaphore = xSemaphoreCreateMutex();
+  loraSemaphore = xSemaphoreCreateMutex();
+  xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 1, NULL, 1);
+  delay(500);
+  xTaskCreatePinnedToCore(sendTask, "sendTask", 10000, NULL, 2, NULL, 0);
+  delay(500);
   // G. SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
     // TODO: add retry
@@ -236,7 +214,7 @@ void setup(){
   Serial.println("Initialization complete.");
 }
 
-void listenTask(void * pvParameters) {
+static void listenTask(void * pvParameters) {
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
     if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
@@ -246,7 +224,7 @@ void listenTask(void * pvParameters) {
   }
 }
 
-void sendTask(void * pvParameters) {
+static void sendTask(void * pvParameters) {
   while(1) {
     generateMaster();
 #ifdef USING_MESH
@@ -280,7 +258,7 @@ void sendTask(void * pvParameters) {
 #endif // USING_MESH
     servantsData += "</tr>";
     if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-      for(int ii = 0; ii < nServantsMax; ii++) {
+      for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
         if(s[ii].active) {
           servantsData += "<tr>";
           servantsData += "<td>" + String(s[ii].ID) + "</td>";
@@ -325,9 +303,22 @@ void sendTask(void * pvParameters) {
   }
 }
 
-void generateMaster() {
+static void fill_master() {
+  m.lng = gps.location.lng();
+  m.lat = gps.location.lat();
+  // TODO: Need to add 8 hours onto gps time
+  m.year = gps.date.year();
+  m.month = gps.date.month();
+  m.day = gps.date.day();
+  m.hour = gps.time.hour();
+  m.minute = gps.time.minute();
+  m.second = gps.time.second();
+  m.age = gps.location.age();
+}
+
+static void generateMaster() {
   // Read GPS and run decoder
-  const unsigned long start = millis();
+  const uint32_t start = millis();
   do {
     while(Serial1.available() > 0) {
       gps.encode(Serial1.read());
@@ -335,17 +326,7 @@ void generateMaster() {
   } while(millis() - start < 500);
 
   if(gps.time.second() != gpsLastSecond) {
-    m.lng = gps.location.lng();
-    m.lat = gps.location.lat();
-    // TODO: Need to add 8 hours onto gps time
-    m.year = gps.date.year();
-    m.month = gps.date.month();
-    m.day = gps.date.day();
-    m.hour = gps.time.hour();
-    m.minute = gps.time.minute();
-    m.second = gps.time.second();
-    m.age = gps.location.age();
-
+    fill_master();
     const String tDate = String(m.year) + "-" + String(m.month) + "-" + String(m.day);
     const String tTime = String(m.hour) + ":" + String(m.minute) + ":" + String(m.second);
     masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
@@ -358,7 +339,7 @@ void generateMaster() {
       csvOutStr += tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "\n";
       nSamples += 1;
     } else {
-      Serial.println(" NO GPS FIX, not WRITING LOCAL DATA !");
+      Serial.println("No GPS fix, not writing local data!");
     }
     gpsLastSecond = gps.time.second();
   }

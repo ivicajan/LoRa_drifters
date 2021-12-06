@@ -16,9 +16,9 @@
 #ifdef MESH_MASTER_MODE
 class Master;
 extern Master m;
-#define nServantsMax              8       // Maximum number of servant drifters (just for setting array size)
+#define NUM_MAX_SERVANTS              8       // Maximum number of servant drifters (just for setting array size)
 class Servant;
-extern Servant s[nServantsMax];           // Servants data array
+extern Servant s[NUM_MAX_SERVANTS];           // Servants data array
 extern SemaphoreHandle_t servantSemaphore;
 #else
 struct Packet;
@@ -52,8 +52,8 @@ typedef enum {
   RouteBroadcastServant = 0x42,
   DirectPayload         = 0x43,
   RouteRequest          = 0x44,
-  ACK      = 0x45,
-  Restart  = 0x46
+  ACK                   = 0x45,
+  Restart               = 0x46
 } MessageType;
 
 typedef enum {
@@ -73,8 +73,7 @@ typedef enum {
   Success = 1,
 } ResultType;
 
-int parsePayload() {
-  Serial.println("Parsing payload!");
+static int parsePayload() {
 #ifdef MESH_MASTER_MODE
   Packet packet;
 #endif // MESH_MASTER_NODE
@@ -84,7 +83,7 @@ int parsePayload() {
     for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
       buffer[ii] = LoRa.read();
     }
-    packet = *(Packet *)buffer;
+    memcpy(&packet, buffer, sizeof(Packet));
 #ifdef MESH_MASTER_MODE
 // Get ID and then send to class for decoding
     const String name = String(packet.name);
@@ -114,10 +113,10 @@ int parsePayload() {
 }
 
 // To help compiler
-int setRoutingStatus();
-int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl);
+static int setRoutingStatus();
+static int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl);
 
-bool validateID(const byte nodeID) {
+static bool validateID(const byte nodeID) {
   switch(nodeID) {
     case 0x11:        // Node 1
     case 0x22:        // Node 2
@@ -135,17 +134,17 @@ bool validateID(const byte nodeID) {
   return false;
 }
 
-int idToIndex(const byte nodeID) {
+static int idToIndex(const byte nodeID) {
   if(nodeID == 0xAA) return 0;
   return (nodeID == 0) ? 0 : nodeID / 0x10;
 }
 
-byte indexToId(const int idx) {
+static byte indexToId(const int idx) {
   if(idx == 0) return 0xAA;
   return (idx == 0) ? 0x00 : (idx * 0x10) + idx;
 }
 
-void incNodeRxCounter(const int nodeID) {
+static void incNodeRxCounter(const int nodeID) {
   switch(nodeID) {
     case 0x11:
       node1Rx++;
@@ -178,7 +177,7 @@ void incNodeRxCounter(const int nodeID) {
   }
 }
 
-void printRoutingTable() {
+static void printRoutingTable() {
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte nodeID = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
     const byte hopCount = routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1];
@@ -213,7 +212,7 @@ void printRoutingTable() {
   }
 }
 
-int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID, const int Rssi, const float snr, const unsigned long currentTime) {
+static int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID, const int Rssi, const float snr, const unsigned long currentTime) {
   if(validateID(nodeID) && validateID(hopID)) { // validate node id and hop id
     Serial.print("Added 0x");
     Serial.print((int)nodeID, HEX);
@@ -250,7 +249,7 @@ boolean loop_runEvery(const unsigned long interval) {
   return false;
 }
 
-void deleteOldEntries() {
+static void deleteOldEntries() {
   // Reset when entry's time is older than DELETION_TIME
   const long int currentTime = millis();
   long int lastTime = 0;
@@ -274,7 +273,7 @@ void deleteOldEntries() {
   }
 }
 
-bool checkIfEmpty() {
+static bool checkIfEmpty() {
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte entry = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
     if(entry != 0x00) {
@@ -284,7 +283,7 @@ bool checkIfEmpty() {
   return true;
 }
 
-bool searchMaster() {
+static bool searchMaster() {
   //Checks if a nodeID matches the Master ID 0xAA.
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte entry = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
@@ -295,7 +294,7 @@ bool searchMaster() {
   return false;
 }
 
-int findMinHopCount() {
+static int findMinHopCount() {
   int minHopCount = 255;
   int currentHopCount = 0;
   
@@ -310,7 +309,7 @@ int findMinHopCount() {
 }
 
 
-bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, const byte router, const byte source, const byte recipient, 
+static bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, const byte router, const byte source, const byte recipient, 
                       const byte sender, const byte ttl, const byte sizePayload) {
   // Check if header values are valid
   if(sizeHeader != 0x08) {
@@ -387,7 +386,7 @@ bool checkFrameHeader(const int mode, const byte sizeHeader, const byte type, co
   return false;
 }
 
-void typeToPrintout(const byte type, const byte router) {
+static void typeToPrintout(const byte type, const byte router) {
   switch(type) {
     case RouteBroadcastServant:
       Serial.print("Sending broadcast packet to: 0x");
@@ -402,7 +401,7 @@ void typeToPrintout(const byte type, const byte router) {
   }
 }
 
-void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl) {
+static void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl) {
   // Send a complete header with a random delay
   messagesSent++;
   byte header[8] = "";
@@ -471,7 +470,7 @@ void sendFrame(const int mode, const byte type, const byte router, const byte re
 }
 
 // Send an ACK back to the source
-void sendAckBack(const int mode, const byte source) {
+static void sendAckBack(const int mode, const byte source) {
   delay(random(5));
   sendFrame(mode, ACK, source, source, localAddress,  0x0F);
 }
@@ -512,7 +511,7 @@ int listener(const int frameSize, const int mode) {
   return Failure;
 }
 
-bool waitForAck(const byte router) {
+static bool waitForAck(const byte router) {
   int maxloops = 0;
   int result = 0;
   const int interval = ARQ_TIME * localHopCount;
@@ -526,7 +525,7 @@ bool waitForAck(const byte router) {
   return (result == Success) ? true : false; // ACK received from router or not
 }
 
-int ackHandshake(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl, int resend) {
+static int ackHandshake(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl, int resend) {
   // If no ACK received, resend two more times.
   bool ack = false;
   if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
@@ -546,7 +545,7 @@ int ackHandshake(const int mode, const byte type, const byte router, const byte 
   return (!ack) ? Failure : Success;
 }
 
-int routePayload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend) {
+static int routePayload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend) {
   // Send the data based on routing status
   byte type = 0x00;
 
@@ -565,7 +564,7 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
   return Success;
 }
 
-int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl) {
+static int frameHandler(const int mode, const byte type, const byte router, const byte source, const byte recipient, const byte sender, const byte ttl) {
   //Process data frame
   int result = 0;
 
@@ -641,7 +640,7 @@ int frameHandler(const int mode, const byte type, const byte router, const byte 
   return FrameHandlerErr;
 }
 
-int bcastRoutingStatus(const int mode) {
+static int bcastRoutingStatus(const int mode) {
   // Send a broadcast to the network
   int result = 0;
   if(mode == 0) {
@@ -671,7 +670,7 @@ int bcastRoutingStatus(const int mode) {
 }
 
 #ifdef MESH_MASTER_MODE
-int getNodeRxCounter(const byte nodeID){
+static int getNodeRxCounter(const byte nodeID){
   switch(nodeID) {
       case 0x11:
         return node1Rx;
@@ -691,7 +690,7 @@ int getNodeRxCounter(const byte nodeID){
   return 0;
 }
 
-void printNodeInfo(){
+static void printNodeInfo(){
   const int nodeID = *(int *) (&payload[0]);
   const int hopCount = *(int *) (&payload[4]);
   const int nextHop = *(int *) (&payload[8]);
@@ -721,7 +720,7 @@ void printNodeInfo(){
 }
 #endif //MESH_MASTER_MODE
 
-int findMaxRssi(const int minHopCount) {
+static int findMaxRssi(const int minHopCount) {
   //To make sure the nextHop of that entry is not local
   int currentRssi = 0;
   int maxRssi = -10000000;
@@ -746,7 +745,7 @@ int findMaxRssi(const int minHopCount) {
   return (int)bestRoute;
 }
 
-int setRoutingStatus() {
+static int setRoutingStatus() {
   // Update localHopCount and localNextHop
   deleteOldEntries();
   if(!checkIfEmpty()) {

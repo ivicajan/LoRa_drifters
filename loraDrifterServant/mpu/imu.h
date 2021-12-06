@@ -185,7 +185,7 @@ static void update_ref_location() {
   }
 }
 
-float get_diff_dist(const float oringe, const float update_) {
+static float get_diff_dist(const float oringe, const float update_) {
   return 6372795 * PI / 180 * (update_ - oringe);
 }
 

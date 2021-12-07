@@ -38,13 +38,8 @@ byte localHopCount = 0x00;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
-int node1Rx = 0;
-int node2Rx = 0;
-int node3Rx = 0;
-int node4Rx = 0;
-int node5Rx = 0;
-int node6Rx = 0;
-int node7Rx = 0;
+
+int nodeRx[NUM_NODES]; // array of receiving message counts
 #endif // USING_MESH
 
 static String processor(const String& var) {
@@ -214,6 +209,7 @@ void setup() {
 }
 
 static void listenTask(void * pvParameters) {
+  memset(nodeRx, 0, sizeof(nodeRx)); // set received array to 0s
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
     if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
@@ -260,10 +256,10 @@ static void sendTask(void * pvParameters) {
       String tempClassColour = "";
       for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
         const uint32_t lastUpdate = (millis() - s[ii].lastUpdateMasterTime) / 1000;
-        if(lastUpdate > 120) {
+        if(lastUpdate > 120) { // 2 minutes and greater, display red colour
           tempClassColour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
         }
-        else if(lastUpdate > 60 && lastUpdate <= 119) {
+        else if(lastUpdate > 60 && lastUpdate <= 119) { // 1-2 minutes, display orange colour
           tempClassColour = R"rawliteral(<td style="background-color:DarkOrange">)rawliteral";
         }
         else {
@@ -299,7 +295,7 @@ static void sendTask(void * pvParameters) {
     if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
       for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
         if(s[ii].active) {
-          diagnosticData += "<td>" + String(getNodeRxCounter(ii)) + "</td>";
+          diagnosticData += "<td>" + String(nodeRx[ii]) + "</td>";
         }
       }
     }

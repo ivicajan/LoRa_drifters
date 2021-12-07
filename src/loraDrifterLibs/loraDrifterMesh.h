@@ -32,13 +32,7 @@ extern byte localHopCount;
 extern byte localNextHopID;
 extern byte localAddress;
 // DIAGNOSTICS
-extern int node1Rx;
-extern int node2Rx;
-extern int node3Rx;
-extern int node4Rx;
-extern int node5Rx;
-extern int node6Rx;
-extern int node7Rx;
+extern int nodeRx[NUM_NODES];
 extern int messagesSent;
 extern int messagesReceived;
 
@@ -143,36 +137,15 @@ static byte indexToId(const int idx) {
   return (idx == 0) ? 0x00 : (idx * 0x10) + idx;
 }
 
-static void incNodeRxCounter(const int nodeID) {
-  switch(nodeID) {
-    case 0x11:
-      node1Rx++;
-      break;
-    case 0x22:
-      node2Rx++;
-      break;
-    case 0x33:
-      node3Rx++;
-      break;
-    case 0x44:
-      node4Rx++;
-      break;
-    case 0x55:
-      node5Rx++;
-      break;
-    case 0x66:
-      node6Rx++;
-      break;
-    case 0x77:
-      node7Rx++;
-      break;
+static void incNodeRxCounter(const byte nodeID) {
 #ifndef MESH_MASTER_MODE
-    case 0xAA:
-      masterRx++;
-      break;
+  if(nodeID == 0xAA) {
+    masterRx++;
+  }
+  else 
 #endif // MESH_MASTER_MODE
-    default:
-      break;
+  if(nodeID != 0xAA) {
+    nodeRx[idToIndex(nodeID)]++;
   }
 }
 
@@ -666,34 +639,18 @@ static int bcastRoutingStatus(const int mode) {
 }
 
 #ifdef MESH_MASTER_MODE
-static int getNodeRxCounter(const byte nodeID){
-  switch(nodeID) {
-      case 0x11:
-        return node1Rx;
-      case 0x22:
-        return node2Rx;
-      case 0x33:
-        return node3Rx;
-      case 0x44:
-        return node4Rx;
-      case 0x55:
-        return node5Rx;
-      case 0x66:
-        return node6Rx;
-      case 0x77:
-        return node7Rx;
-  }
-  return 0;
+static int getNodeRxCounter(const byte nodeID) {
+  return nodeRx[idToIndex(nodeID)];
 }
 
-static void printNodeInfo(){
+static void printNodeInfo() {
   const int nodeID = *(int *) (&payload[0]);
   const int hopCount = *(int *) (&payload[4]);
   const int nextHop = *(int *) (&payload[8]);
   const int linkRssi = *(int *) (&payload[12]);
   const int attemptedPayloadTx = *(int *) (&payload[16]);
   incNodeRxCounter(nodeID);
-  const int nodeRx = getNodeRxCounter(nodeID);
+  const int nodeXRx = nodeRx[nodeID];// getNodeRxCounter(nodeID);
 
   Serial.print("    Received payload from Node ID 0x");
   Serial.print(nodeID, HEX);
@@ -712,7 +669,7 @@ static void printNodeInfo(){
   Serial.println(attemptedPayloadTx);
 
   Serial.print("        Total Payloads Received from this Node:            ");
-  Serial.println(nodeRx);
+  Serial.println(nodeXRx);
 }
 #endif //MESH_MASTER_MODE
 

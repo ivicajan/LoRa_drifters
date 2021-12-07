@@ -1,4 +1,4 @@
-#define USING_MESH
+// #define USING_MESH
 
 #ifdef USING_MESH
 #define MESH_MASTER_MODE
@@ -126,7 +126,7 @@ static void onReceive(const int packetsize) {
     const int id = name.substring(1, 3).toInt();
     if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
       s[id].ID = id;
-      s[id].decode(packet);
+      s[id].decode(&packet);
       s[id].rssi = LoRa.packetRssi();
       s[id].updateDistBear(m.lng, m.lat);
       s[id].active = true;
@@ -208,12 +208,58 @@ void setup() {
   Serial.println("Initialization complete.");
 }
 
+static void fill_master() {
+  m.lng = gps.location.lng();
+  m.lat = gps.location.lat();
+  // TODO: Need to add 8 hours onto gps time
+  m.year = gps.date.year();
+  m.month = gps.date.month();
+  m.day = gps.date.day();
+  m.hour = gps.time.hour();
+  m.minute = gps.time.minute();
+  m.second = gps.time.second();
+  m.age = gps.location.age();
+}
+
+static void generateMaster() {
+  // Read GPS and run decoder
+  const uint32_t start = millis();
+  do {
+    while(Serial1.available() > 0) {
+      gps.encode(Serial1.read());
+    }
+  } while(millis() - start < 500);
+
+  if(gps.time.second() != gpsLastSecond) {
+    fill_master();
+    const String tDate = String(m.year) + "-" + String(m.month) + "-" + String(m.day);
+    const String tTime = String(m.hour) + ":" + String(m.minute) + ":" + String(m.second);
+    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
+    masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
+    masterData += "<td>" + lastFileWrite + "</td>";
+    masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
+    masterData += "</tr>";
+    // Update String to be written to file
+    if((m.lng != 0.0) && (m.age < 1000)) {
+      csvOutStr += tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "\n";
+      nSamples++;
+    } else {
+      Serial.println("No GPS fix, not writing local data!");
+    }
+    gpsLastSecond = gps.time.second();
+  }
+}
+
 static void listenTask(void * pvParameters) {
-  memset(nodeRx, 0, sizeof(nodeRx)); // set received array to 0s
   disableCore0WDT(); // Disable watchdog to keep process alive
+#ifdef USING_MESH
+  memset(nodeRx, 0, sizeof(nodeRx)); // set received array to 0s
+#endif // USING_MESH
   while(1) {
     if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+#ifdef USING_MESH
       const int result = listener(LoRa.parsePacket(), MASTER_MODE);
+#endif // USING_MESH
     }
     xSemaphoreGive(loraSemaphore);
   }
@@ -230,8 +276,8 @@ static void sendTask(void * pvParameters) {
         bcastRoutingStatus(MASTER_MODE);
       }
       xSemaphoreGive(loraSemaphore);
-#endif // USING_MESH
     }
+#endif // USING_MESH
     servantsData = R"rawliteral(
       <br><br>
       <h4>Servants</h4>
@@ -306,48 +352,6 @@ static void sendTask(void * pvParameters) {
     if(nSamples > SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
       writeData2Flash();
     }
-  }
-}
-
-static void fill_master() {
-  m.lng = gps.location.lng();
-  m.lat = gps.location.lat();
-  // TODO: Need to add 8 hours onto gps time
-  m.year = gps.date.year();
-  m.month = gps.date.month();
-  m.day = gps.date.day();
-  m.hour = gps.time.hour();
-  m.minute = gps.time.minute();
-  m.second = gps.time.second();
-  m.age = gps.location.age();
-}
-
-static void generateMaster() {
-  // Read GPS and run decoder
-  const uint32_t start = millis();
-  do {
-    while(Serial1.available() > 0) {
-      gps.encode(Serial1.read());
-    }
-  } while(millis() - start < 500);
-
-  if(gps.time.second() != gpsLastSecond) {
-    fill_master();
-    const String tDate = String(m.year) + "-" + String(m.month) + "-" + String(m.day);
-    const String tTime = String(m.hour) + ":" + String(m.minute) + ":" + String(m.second);
-    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
-    masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
-    masterData += "<td>" + lastFileWrite + "</td>";
-    masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
-    masterData += "</tr>";
-    // Update String to be written to file
-    if((m.lng != 0.0) && (m.age < 1000)) {
-      csvOutStr += tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "\n";
-      nSamples++;
-    } else {
-      Serial.println("No GPS fix, not writing local data!");
-    }
-    gpsLastSecond = gps.time.second();
   }
 }
 

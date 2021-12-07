@@ -172,8 +172,10 @@ static void update_imu() {
 static void listenTask(void * params) {
   (void)params;
   while(1) {
+#ifdef USING_MESH
     vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
     const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
+#endif // USING_MESH
   }
 }
 

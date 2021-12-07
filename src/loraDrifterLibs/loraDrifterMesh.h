@@ -16,7 +16,6 @@
 #ifdef MESH_MASTER_MODE
 class Master;
 extern Master m;
-#define NUM_MAX_SERVANTS              8       // Maximum number of servant drifters (just for setting array size)
 class Servant;
 extern Servant s[NUM_MAX_SERVANTS];           // Servants data array
 extern SemaphoreHandle_t servantSemaphore;

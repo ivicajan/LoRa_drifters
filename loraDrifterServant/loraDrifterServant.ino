@@ -327,12 +327,19 @@ static void generatePacket() {
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
-      csvOutStr += tDate + "," + tTime + "," + tLocation + String(messagesReceived) + String(messagesSent) + "\n";
+      csvOutStr += tDate + "," + tTime + "," + tLocation 
+#ifdef USING_MESH
+      + String(messagesReceived) + String(messagesSent) 
+#endif // USING_MESH
+#ifdef USING_IMU
+      // TODO: add IMU data here
+#endif // USING_IMU
+      + "\n";
 #ifndef USING_MESH
-      // B. Send GPS data on LoRa if it is this units timeslot
+      // Send GPS data on LoRa if it is this units timeslot
       if(gps.time.second() == drifterTimeSlotSec) {
         LoRa.beginPacket();
-        LoRa.write((const uint8_t*)&packet, sizeof(packet));
+        LoRa.write((const uint8_t *)&packet, sizeof(packet));
         LoRa.endPacket();
         delay(50); // Don't send more than 1 packet
       }
@@ -481,7 +488,7 @@ static void startWebServer(const bool webServerOn) {
 // Loop does nothing as the loop functions are split into tasks
 void loop() {}
 
-static String processor(const String& var) {
+static String processor(const String & var) {
   if(var == "SERVANT") {
     String servantData =
       R"rawliteral(

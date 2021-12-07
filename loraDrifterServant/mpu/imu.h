@@ -254,8 +254,6 @@ void initIMU() {
     while(1) {
       Serial << "MPU connection failed. Please check your connection with `connection_check` example.\n";
       delay(1000);
-// #undef USING_IMU
-//       break;
     }
   } else Serial << "MPU is connected. \n";
 

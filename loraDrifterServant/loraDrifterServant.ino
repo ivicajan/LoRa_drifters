@@ -11,17 +11,11 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x55;
+byte localAddress = 0x66;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
-int node1Rx = 0;
-int node2Rx = 0;
-int node3Rx = 0;
-int node4Rx = 0;
-int node5Rx = 0;
-int node6Rx = 0;
-int node7Rx = 0;
+int nodeRx[NUM_NODES];
 int masterRx = 0;
 #endif // USING_MESH
 
@@ -39,8 +33,8 @@ int nSamples;                         // Counter for the number of samples gathe
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D05";       // ID send with packet
-int drifterTimeSlotSec = 20;      // seconds after start of each GPS minute
+String drifterName = "D06";       // ID send with packet
+int drifterTimeSlotSec = 28;      // seconds after start of each GPS minute
 TinyGPSPlus gps;
 
 Packet packet;
@@ -76,16 +70,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     </head>
     <body>
       <h2>LoRa Drifters</h2>
-      <h4>Servant Node</h4>
-      <table>
-        <tr>
-          <td><b>Filename</b></td>
-          <td><b>Download data</b></td>
-          <td><b>Last File Write GPS Time</b></td>
-          <td><b>Erase Data (NO WARNING)</b></td>
-          <td><b>Calibrate IMU</b></td>
-        </tr>
-        %SERVANT%
+      %SERVANT%
       </table>
       <br><br>
       <h4>Configuration</h4>
@@ -101,7 +86,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <td><label for="fname"><b>Drifter ID</b></label></td>
             <td>%DRIFTERID%</td>
             <td><input type="text" id="fname" name="drifterID"></td>
-            <td>Drifter IDs from D00 to D07</td>
+            <td>Drifter IDs from D00 to D11</td>
           </tr>
           <tr>
             <td><label for="lname"><b>LoRa Sending Second</b></label></td>
@@ -112,21 +97,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         </table>
         <input type="submit" value="Configure">
       </form>
-      <h4>Diagnostics</h4>
-      <table>
-        <tr>
-          <td><b>Sent</b></td>
-          <td><b>Recvd</b></td>
-          <td><b>node1</b></td>
-          <td><b>node2</b></td>
-          <td><b>node3</b></td>
-          <td><b>node4</b></td>
-          <td><b>node5</b></td>
-          <td><b>node6</b></td>
-          <td><b>node7</b></td>
-          <td><b>master</b></td>
-        </tr>
-        %DIAGNOSTICS%
+      %DIAGNOSTICS%
       </table>
       <br><br>
     </body>
@@ -464,16 +435,27 @@ void loop() {}
 
 static String processor(const String& var) {
   if(var == "SERVANT") {
-    String servantData = "";
-    servantData += "<td>" + csvFileName + "</td>";
+    String servantData =
+      R"rawliteral(
+          <h4>Servant Node</h4>
+      <table>
+        <tr>
+          <td><b>Filename</b></td>
+          <td><b>Download data</b></td>
+          <td><b>Last File Write GPS Time</b></td>
+          <td><b>Erase Data (NO WARNING)</b></td>)rawliteral";
+#ifdef USING_IMU
+      servantData += "<td><b>Calibrate IMU</b></td>";
+#endif // USING_IMU
+    servantData += "</tr>";
+    servantData += "<tr><td>" + csvFileName + "</td>";
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
     servantData += "<td>" + lastFileWrite + "</td>";
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
 #ifdef USING_IMU
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/calibrateIMU\"> CALIBRATE </a></td>";
 #endif // USING_IMU
-    servantData += "</tr>";
-    return servantData;
+    return servantData + "</tr>";
   }
   else if(var == "DRIFTERID") {
     return drifterName;
@@ -483,19 +465,35 @@ static String processor(const String& var) {
   }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
-    String diagnosticData = "";
-    diagnosticData += "<tr>";
-    diagnosticData += "<td>" + String(messagesSent) + "</td>";
-    diagnosticData += "<td>" + String(messagesReceived) + "</td>";
-    diagnosticData += "<td>" + String(node1Rx) + "</td>";
-    diagnosticData += "<td>" + String(node2Rx) + "</td>";
-    diagnosticData += "<td>" + String(node3Rx) + "</td>";
-    diagnosticData += "<td>" + String(node4Rx) + "</td>";
-    diagnosticData += "<td>" + String(node5Rx) + "</td>";
-    diagnosticData += "<td>" + String(node6Rx) + "</td>";
-    diagnosticData += "<td>" + String(node7Rx) + "</td>";
-    diagnosticData += "<td>" + String(masterRx) + "</td>";
-    return diagnosticData += "</tr>";
+    String diagnosticString =
+      R"rawliteral(
+      <br><br>
+      <h4>Diagnostics</h4>
+      <table>
+        <tr>
+          <td><b>Sent</b></td>
+          <td><b>Rcvd</b></td>
+        )rawliteral";
+      if(masterRx > 0) {
+        diagnosticString += "<td><b>Master</b></td>";
+      }
+      for(int ii = 0; ii < NUM_NODES; ii++) {
+        if(nodeRx[ii] > 0) {
+          diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
+        }
+      }
+      diagnosticString += "<tr>";
+      diagnosticString += "<td>" + String(messagesSent) + "</td>";
+      diagnosticString += "<td>" + String(messagesReceived) + "</td>";
+      if(masterRx > 0) {
+        diagnosticString += "<td>" + String(masterRx) + "</td>";
+      }
+      for(int ii = 0; ii < NUM_NODES; ii++) {
+        if(nodeRx[ii] > 0) {
+          diagnosticString += "<td>" + String(nodeRx[ii]) + "</td>";
+        }
+      }
+      return diagnosticString;
   }
 #endif // USING_MESH
   else {

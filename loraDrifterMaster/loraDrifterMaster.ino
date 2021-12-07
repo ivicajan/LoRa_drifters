@@ -57,7 +57,7 @@ static String processor(const String& var) {
           <td><b>Rcvd</b></td>
         )rawliteral";
     if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-      for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
+      for(int ii = 0; ii < NUM_NODES; ii++) {
         if(s[ii].active) {
           diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
         }
@@ -293,7 +293,7 @@ static void sendTask(void * pvParameters) {
     diagnosticData += "<td>" + String(messagesSent) + "</td>";
     diagnosticData += "<td>" + String(messagesReceived) + "</td>";
     if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-      for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
+      for(int ii = 0; ii < NUM_NODES; ii++) {
         if(s[ii].active) {
           diagnosticData += "<td>" + String(nodeRx[ii]) + "</td>";
         }

@@ -56,7 +56,7 @@
 #define SAMPLES_BEFORE_WRITE        300    // Number of samples to store in memory before file write
 #define NUM_MAX_SERVANTS            8      // Maximum number of servant drifters (just for setting array size)
 
-#define DEBUG_MODE
+#define DEBUG_MODE                         // Additional printouts to serial port
 #define IGNORE_GPS_INSIDE                  // For testing indoors, so we dont just send on GPS time
 
 AXP20X_Class PMU;
@@ -109,24 +109,20 @@ bool initPMU() {
     if(PMU.begin(Wire, AXP192_SLAVE_ADDRESS) == AXP_FAIL) {
         return false;
     }
-    /*
-    * The charging indicator can be turned on or off
-    **/
-    PMU.setChgLEDMode(AXP20X_LED_OFF);
+    PMU.setChgLEDMode(AXP20X_LED_OFF); //The charging indicator can be turned on or off
 
     /*
-    * The default ESP32 power supply has been turned on,
-    * no need to set, please do not set it, if it is turned off,
-    * it will not be able to program
-    *
-    *   PMU.setDCDC1Voltage(3300);
-    *   PMU.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
-    *
-    **/
+     * The default ESP32 power supply has been turned on,
+     * no need to set, please do not set it, if it is turned off,
+     * it will not be able to program
+     **/
+
+    // PMU.setDCDC1Voltage(3300);
+    // PMU.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
 
     /*
-    *  Turn off unused power sources to save power
-    **/
+     *  Turn off unused power sources to save power
+     **/
 
     PMU.setPowerOutPut(AXP192_DCDC1, AXP202_OFF);
     PMU.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
@@ -135,8 +131,8 @@ bool initPMU() {
     PMU.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
 
     /*
-        * Set the power of LoRa and GPS module to 3.3V
-        **/
+     * Set the power of LoRa and GPS module to 3.3V
+     **/
     PMU.setLDO2Voltage(3300);   //LoRa VDD
     PMU.setLDO3Voltage(3300);   //GPS  VDD
     PMU.setDCDC1Voltage(3300);  //3.3V Pin next to 21 and 22 is controlled by DCDC1
@@ -162,7 +158,6 @@ bool initPMU() {
                     AXP202_BATT_CONNECT_IRQ,
                     AXP202_ON);
     PMU.clearIRQ();
-
     return true;
 }
 

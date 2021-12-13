@@ -60,7 +60,7 @@ typedef enum {
   Invalid         = -1,
 } ErrorType;
 
-// This is backwards
+// This is C++ notation, not C
 typedef enum {
   Failure = 0,
   Success = 1,
@@ -514,7 +514,7 @@ static int ackHandshake(const int mode, const byte type, const byte router, cons
   xSemaphoreGive(loraSemaphore);
 
   while(!ack && resend < 2) {
-    xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE);
+    xSemaphoreTake(loraSemaphore, portMAX_DELAY);
     sendFrame(mode, type, router, recipient, sender, ttl);
     ack = waitForAck(router);
     xSemaphoreGive(loraSemaphore);
@@ -527,7 +527,7 @@ static int routePayload(const int mode, const byte recipient, const byte sender,
   // Send the data based on routing status
   byte type = 0x00;
   // Check first if the localNextHopID is the Master ID
-  type = (recipient == localNextHopID) ? DirectPayload : RouteRequest; // Type C: Direct Master PL, Type D: Route Request
+  type = (recipient == localNextHopID) ? DirectPayload : RouteRequest;
   const byte router = localNextHopID;
   int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
   Serial.print("Route payload ACK handshake result with router (0x");

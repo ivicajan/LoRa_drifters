@@ -112,7 +112,7 @@ static void writeData2Flash() {
     Serial.println("There was an error opening the file for appending, creating a new one");
     file = SPIFFS.open(csvFileName, FILE_WRITE);
   }
-  if(!file) {
+  if(!file) { // this shouldn't occur
       Serial.println("There was an error opening the file for writing");
       lastFileWrite = "FAILED OPEN";
       ESP.restart();

@@ -1,4 +1,4 @@
-// #define USING_MESH
+#define USING_MESH
 
 #ifdef USING_MESH
 #define MESH_MASTER_MODE

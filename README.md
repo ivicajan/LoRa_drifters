@@ -41,10 +41,10 @@ network allows for a greater transmission range of messages with the cost of les
 
 Configurable parameters for mesh network:
 <ul>
-    <li>`RS_BCAST_TIME 6000`: Time intervals, broadcast for every 6000ms</li>
-    <li>`PL_TX_TIME 10000`: Receive pay load for every 10000ms</li>
-    <li>`DELETION_TIME 62000`: Reset the routing table if entry's time is older than 62000ms</li>
-    <li>`ARQ_TIME 2000`: Automatic Repeat Request for every 2000ms</li>
+    <li><code>RS_BCAST_TIME 6000</code>: Time intervals, broadcast for every 6000ms</li>
+    <li><code>PL_TX_TIME 10000</code>: Receive pay load for every 10000ms</li>
+    <li><code>DELETION_TIME 62000</code>: Reset the routing table if entry's time is older than 62000ms</li>
+    <li><code>ARQ_TIME 2000`:</code>Automatic Repeat Request for every 2000ms</li>
 <ul>
 
 ## IMU (optional)

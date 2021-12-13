@@ -1,3 +1,5 @@
+#define USING_MESH
+
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // #define USING_IMU

@@ -12,8 +12,6 @@ SemaphoreHandle_t loraSemaphore = NULL;
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // GLOBAL VARIABLES
-AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
-TinyGPSPlus gps;                      // decoder for GPS stream
 #define SSID     "DrifterMaster"      // Wifi ssid and password
 #define PASSWORD "Tracker1"
 Master m;                             // Master data
@@ -25,8 +23,6 @@ String csvOutStr = "";                // Buffer for output file
 String lastFileWrite = "";
 File file;                            // Data file for the SPIFFS output
 int nSamples;                         // Counter for the number of samples gathered
-//int ledState = LOW;
-//int ledPin = 14;
 int gpsLastSecond = -1;
 
 #ifdef USING_MESH
@@ -38,13 +34,16 @@ byte localHopCount = 0x00;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
-
 int nodeRx[NUM_NODES]; // array of receiving message counts
 #endif // USING_MESH
 
-static String processor(const String& var) {
-  if(var == "SERVANTS") {    return servantsData; }
-  else if(var == "MASTER") { return masterData; }
+static String processor(const String & var) {
+  if(var == "SERVANTS") {
+    return servantsData;
+  }
+  else if(var == "MASTER") {
+    return masterData;
+  }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
     String diagnosticString =
@@ -56,11 +55,10 @@ static String processor(const String& var) {
           <td><b>Sent</b></td>
           <td><b>Rcvd</b></td>
         )rawliteral";
-    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-      for(int ii = 0; ii < NUM_NODES; ii++) {
-        if(s[ii].active) {
-          diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
-        }
+    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+    for(int ii = 0; ii < NUM_NODES; ii++) {
+      if(s[ii].active) {
+        diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
       }
     }
     xSemaphoreGive(servantSemaphore);
@@ -90,17 +88,19 @@ static void initLoRa() {
 static void writeData2Flash() {
   file = SPIFFS.open("/master.csv", FILE_APPEND);
   if(!file) {
-    Serial.println("There was an error opening the file for writing");
+    Serial.println("There was an error opening the file for writing, restarting");
     lastFileWrite = "FAILED OPEN";
     ESP.restart();
-  } else {
+  }
+  else {
     if(file.println(csvOutStr)) {
       csvOutStr = "";
       nSamples = 0;
       Serial.print("Wrote data in file, current size: ");
       Serial.println(file.size());
       lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
-    } else {
+    }
+    else {
       lastFileWrite = "FAILED WRITE, RESTARTING";
       ESP.restart();
     }
@@ -111,9 +111,11 @@ static void writeData2Flash() {
 
 #ifndef USING_MESH
 static void onReceive(const int packetsize) {
-  // received a packet
+  if(!packetsize) {
+    return;
+  }
   uint8_t buffer[sizeof(Packet)];
-  for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
+  for(size_t ii = 0; ii < sizeof(Packet); ii++) {
     buffer[ii] = LoRa.read();
   }
   Packet packet;
@@ -121,16 +123,17 @@ static void onReceive(const int packetsize) {
   // Get ID and then send to class for decoding
   const String name = String(packet.name);
   if(!strcmp(name.substring(0, 1).c_str(), "D")) {
-    Serial.println("Drifter signal found!");
+    Serial.print("Drifter ");
+    Serial.print(name);
+    Serial.println(" signal found!");
     // csvOutStr += recv; // Save all packets recevied (debugging purposes)
     const int id = name.substring(1, 3).toInt();
-    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-      s[id].ID = id;
-      s[id].decode(&packet);
-      s[id].rssi = LoRa.packetRssi();
-      s[id].updateDistBear(m.lng, m.lat);
-      s[id].active = true;
-    }
+    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+    s[id].ID = id;
+    s[id].decode(&packet);
+    s[id].rssi = LoRa.packetRssi();
+    s[id].updateDistBear(m.lng, m.lat);
+    s[id].active = true;
     xSemaphoreGive(servantSemaphore);
     Serial.println("RX from LoRa - decoding completed");
   }
@@ -250,31 +253,36 @@ static void generateMaster() {
   }
 }
 
-static void listenTask(void * pvParameters) {
+static void listenTask(void * params) {
+  (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
 #ifdef USING_MESH
   memset(nodeRx, 0, sizeof(nodeRx)); // set received array to 0s
 #endif // USING_MESH
   while(1) {
-    if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
+    xSemaphoreTake(loraSemaphore, portMAX_DELAY); // when using portMAX_DELAY - we don't need to check if result == pdPASS
 #ifdef USING_MESH
-      const int result = listener(LoRa.parsePacket(), MASTER_MODE);
+    const int result = listener(LoRa.parsePacket(), MASTER_MODE);
+#else
+    // onReceive(LoRa.parsePacket());
 #endif // USING_MESH
-    }
     xSemaphoreGive(loraSemaphore);
   }
 }
 
-static void sendTask(void * pvParameters) {
+static void sendTask(void * params) {
+  (void)params;
   while(1) {
     generateMaster();
 #ifdef USING_MESH
-    // if(gps.time.second() == RS_BCAST_TIME) {
-    if(loop_runEvery(RS_BCAST_TIME)) { // TODO: delete this for field usage
-      if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
-        Serial.println("Route broadcast");
-        bcastRoutingStatus(MASTER_MODE);
-      }
+#ifdef IGNORE_GPS_INSIDE
+    if(loop_runEvery(RS_BCAST_TIME)) {
+#else 
+    if(gps.time.second() == RS_BCAST_TIME) {
+#endif // IGNORE_GPS_INSIDE
+      xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+      Serial.println("Route broadcast");
+      bcastRoutingStatus(MASTER_MODE);
       xSemaphoreGive(loraSemaphore);
     }
 #endif // USING_MESH
@@ -298,39 +306,41 @@ static void sendTask(void * pvParameters) {
     servantsData += "<td><b>Restart</b></td>";
 #endif // USING_MESH
     servantsData += "</tr>";
-    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-      String tempClassColour = "";
-      for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
-        const uint32_t lastUpdate = (millis() - s[ii].lastUpdateMasterTime) / 1000;
-        if(lastUpdate > 120) { // 2 minutes and greater, display red colour
-          tempClassColour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
-        }
-        else if(lastUpdate > 60 && lastUpdate <= 119) { // 1-2 minutes, display orange colour
-          tempClassColour = R"rawliteral(<td style="background-color:DarkOrange">)rawliteral";
-        }
-        else {
-          tempClassColour = R"rawliteral(<td style="background-color:White">)rawliteral";
-        }
-        if(s[ii].active) {
-          servantsData += "<tr>";
-          servantsData += "<td><b>" + String(s[ii].ID) + "</b></td>";
-          servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
-          servantsData += tempClassColour + String(lastUpdate) + "</td>";
-          servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
-          servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
-          servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
-          servantsData += "<td>" + String(s[ii].dist) + "</td>";
-          servantsData += "<td>" + String(s[ii].bear) + "</td>";
-          servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
-          servantsData += "<td>" + String(s[ii].rssi) + "</td>";
+    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+    String tempClassColour = "";
+    for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
+      const uint32_t lastUpdate = (millis() - s[ii].lastUpdateMasterTime) / 1000;
+      if(lastUpdate > 180 && lastUpdate <= 239) { // 3 minutes and greater, display grey colour
+        tempClassColour = R"rawliteral(<td style="background-color:LightGrey">)rawliteral";
+      }
+      else if(lastUpdate > 120 && lastUpdate <= 179) { // 2 minutes and greater, display red colour
+        tempClassColour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
+      }
+      else if(lastUpdate > 60 && lastUpdate <= 119) { // 1-2 minutes, display orange colour
+        tempClassColour = R"rawliteral(<td style="background-color:DarkOrange">)rawliteral";
+      }
+      else {
+        tempClassColour = R"rawliteral(<td style="background-color:White">)rawliteral";
+      }
+      if(s[ii].active) {
+        servantsData += "<tr>";
+        servantsData += "<td><b>" + String(s[ii].ID) + "</b></td>";
+        servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
+        servantsData += tempClassColour + String(lastUpdate) + "</td>";
+        servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
+        servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
+        servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
+        servantsData += "<td>" + String(s[ii].dist) + "</td>";
+        servantsData += "<td>" + String(s[ii].bear) + "</td>";
+        servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
+        servantsData += "<td>" + String(s[ii].rssi) + "</td>";
 #ifdef USING_MESH
-          servantsData += R"rawliteral(
-            <td><form action="/restartDrifter" method="get"><button type="submit" name="drifterID" value=
-          )rawliteral";
-          servantsData += String(s[ii].ID) + ">Restart</button></form></td>";
+        servantsData += R"rawliteral(
+          <td><form action="/restartDrifter" method="get"><button type="submit" name="drifterID" value=
+        )rawliteral";
+        servantsData += String(s[ii].ID) + ">Restart</button></form></td>";
 #endif // USING_MESH
-          servantsData += "</tr></table>";
-        }
+        servantsData += "</tr></table>";
       }
     }
     xSemaphoreGive(servantSemaphore);
@@ -338,11 +348,10 @@ static void sendTask(void * pvParameters) {
     diagnosticData = "<tr>";
     diagnosticData += "<td>" + String(messagesSent) + "</td>";
     diagnosticData += "<td>" + String(messagesReceived) + "</td>";
-    if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-      for(int ii = 0; ii < NUM_NODES; ii++) {
-        if(s[ii].active) {
-          diagnosticData += "<td>" + String(nodeRx[ii]) + "</td>";
-        }
+    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+    for(int ii = 0; ii < NUM_NODES; ii++) {
+      if(s[ii].active) {
+        diagnosticData += "<td>" + String(nodeRx[ii]) + "</td>";
       }
     }
     xSemaphoreGive(servantSemaphore);

@@ -84,14 +84,13 @@ static int parsePayload() {
       Serial.println("Drifter signal found!");
       // csvOutStr += recv; // Save all packets recevied (debugging purposes)
       const int id = name.substring(1, 3).toInt();
-      if(xSemaphoreTake(servantSemaphore, portMAX_DELAY) == pdPASS) {
-        s[id].ID = id;
-        s[id].decode(&packet);
-        s[id].rssi = LoRa.packetRssi();
-        s[id].updateDistBear(m.lng, m.lat);
-        s[id].active = true;
-        Serial.println("RX from LoRa - decoding completed");
-      }
+      xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+      s[id].ID = id;
+      s[id].decode(&packet);
+      s[id].rssi = LoRa.packetRssi();
+      s[id].updateDistBear(m.lng, m.lat);
+      s[id].active = true;
+      Serial.println("RX from LoRa - decoding completed");
       xSemaphoreGive(servantSemaphore);
     }
     else {
@@ -509,17 +508,15 @@ static bool waitForAck(const byte router) {
 static int ackHandshake(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl, int resend) {
   // If no ACK received, resend two more times.
   bool ack = false;
-  if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
-    sendFrame(mode, type, router, recipient, sender, ttl);
-    ack = waitForAck(router);
-  }
+  xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+  sendFrame(mode, type, router, recipient, sender, ttl);
+  ack = waitForAck(router);
   xSemaphoreGive(loraSemaphore);
 
   while(!ack && resend < 2) {
-    if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
-      sendFrame(mode, type, router, recipient, sender, ttl);
-      ack = waitForAck(router);
-    }
+    xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE);
+    sendFrame(mode, type, router, recipient, sender, ttl);
+    ack = waitForAck(router);
     xSemaphoreGive(loraSemaphore);
     resend++;
   }

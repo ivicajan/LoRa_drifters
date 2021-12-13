@@ -19,7 +19,6 @@
 
 // D. Power management on the TTGo T-beam
 #include "axp20x.h"         // I need it for the new ones
-AXP20X_Class PMU;
 
 // E. Defines for TTGO T Beam V1.1 with LoRa
 #define GPS_RX_PIN                  34
@@ -54,10 +53,15 @@ AXP20X_Class PMU;
 #define LED_OFF                     HIGH
 #define WEB_SERVER_PIN              BUTTON_PIN
 #define ROUTING_TABLE_SIZE          153
-#define SAMPLES_BEFORE_WRITE        300      // Number of samples to store in memory before file write
-#define NUM_MAX_SERVANTS            8       // Maximum number of servant drifters (just for setting array size)
+#define SAMPLES_BEFORE_WRITE        300    // Number of samples to store in memory before file write
+#define NUM_MAX_SERVANTS            8      // Maximum number of servant drifters (just for setting array size)
 
 #define DEBUG_MODE
+#define IGNORE_GPS_INSIDE                  // For testing indoors, so we dont just send on GPS time
+
+AXP20X_Class PMU;
+TinyGPSPlus gps;                      // decoder for GPS stream
+AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 
 // 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 = 38 bytes
 #pragma pack(1) // Fixes padding issues

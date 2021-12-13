@@ -29,7 +29,6 @@ int masterRx = 0;
 // GLOBAL VARIABLES
 String csvOutStr = "";                 // Buffer for output file
 String lastFileWrite = "";
-AsyncWebServer server(80);
 bool webServerOn = false;
 String csvFileName = "";
 File file;                            // Data file for the SPIFFS output
@@ -39,7 +38,6 @@ int gpsLastSecond = -1;
 String tTime = "";
 String drifterName = "D06";       // ID send with packet
 int drifterTimeSlotSec = 28;      // seconds after start of each GPS minute
-TinyGPSPlus gps;
 
 Packet packet;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -169,15 +167,16 @@ static void update_imu() {
 }
 #endif // USING_IMU
 
+#ifdef USING_MESH
 static void listenTask(void * params) {
   (void)params;
+  disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
-#ifdef USING_MESH
     vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
     const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
-#endif // USING_MESH
   }
 }
+#endif // USING_MESH
 
 static void sendTask(void * params) {
   (void)params;
@@ -206,9 +205,8 @@ static void sendTask(void * params) {
       }
       if(loop_runEvery(RS_BCAST_TIME)) {
         Serial.println("Route broadcast");
-        if(xSemaphoreTake(loraSemaphore, portMAX_DELAY) == pdTRUE) {
-          result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
-        }
+        xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+        result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
         xSemaphoreGive(loraSemaphore);
       }
 #else
@@ -233,7 +231,7 @@ static void sendTask(void * params) {
 // Init the LoRa communications with/without default factory settings
 static void initLoRa(bool default_params = false) {
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
-  if(!default_params) {
+  if(default_params) {
     /* LoRa paramters - https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
 
     // LoRa.setFrequency(LORA_FREQUENCY);
@@ -286,8 +284,10 @@ void setup() {
   readConfigFile();
   loraSemaphore = xSemaphoreCreateMutex();
   // Create listen and send RTOS tasks
+#ifdef USING_MESH
   xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 1, NULL, 0);
   delay(500);
+#endif //USING_MESH
   xTaskCreatePinnedToCore(sendTask, "sendTask", 10000, NULL, 2, NULL, 1);
   delay(500);
   Serial.println("Initialization complete.");
@@ -315,13 +315,20 @@ static void generatePacket() {
       gps.encode(Serial1.read());
     }
   } while(millis() - start < 400);
-  // if(gps.time.second() != gpsLastSecond) {
-  if(true) { // TODO: Delete this when in field
+#ifdef IGNORE_GPS_INSIDE
+  if(true) {
+#else 
+  if(gps.time.second() != gpsLastSecond) {
+#endif // IGNORE_GPS_INSIDE
     Serial.print("New GPS record from: ");
     Serial.println(drifterName);
     fill_packet();
     gpsLastSecond = gps.time.second();
+#ifdef IGNORE_GPS_INSIDE
+    if(true) {
+#else 
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
+#endif // IGNORE_GPS_INSIDE
       Serial.println("GPS still valid");
       nSamples += 1;
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
@@ -337,7 +344,11 @@ static void generatePacket() {
       + "\n";
 #ifndef USING_MESH
       // Send GPS data on LoRa if it is this units timeslot
-      if(gps.time.second() == drifterTimeSlotSec) {
+#ifdef IGNORE_GPS_INSIDE
+    if(true) {
+#else 
+    if(gps.time.second() == drifterTimeSlotSec) {
+#endif // IGNORE_GPS_INSIDE
         LoRa.beginPacket();
         LoRa.write((const uint8_t *)&packet, sizeof(packet));
         LoRa.endPacket();
@@ -368,13 +379,12 @@ static bool calibrateIMU() {
     }
     if(idx == sizeIMUCals) {
       // TODO: Add a semaphore here as we are changing IMU vals potentially in 2 places
-      // if(xSemaphoreTake(IMUSemaphore, portMAX_DELAY) == pdTRUE) {
-        memcpy(U_INS, &localCalVals[0], 3); // TODO: check if we pass U_INS by reference
-        memcpy(X_INS, &localCalVals[3], 5);
-        memcpy(Y_GPS, &localCalVals[8], 3);
-        memcpy(P, &localCalVals[11], 64); // is this 8 x 8?
+      // xSemaphoreTake(IMUSemaphore, portMAX_DELAY);
+      memcpy(U_INS, &localCalVals[0], 3); // TODO: check if we pass U_INS by reference
+      memcpy(X_INS, &localCalVals[3], 5);
+      memcpy(Y_GPS, &localCalVals[8], 3);
+      memcpy(P, &localCalVals[11], 64); // is this 8 x 8?
       // updateIMUCals(); // this doesn't exist
-    // }
     // xSemaphoreGive(IMUSemaphore);
       return true;
     }

@@ -45,7 +45,7 @@ Configurable parameters for mesh network:
     <li><code>PL_TX_TIME 10000</code>: Receive pay load for every 10000ms</li>
     <li><code>DELETION_TIME 62000</code>: Reset the routing table if entry's time is older than 62000ms</li>
     <li><code>ARQ_TIME 2000`:</code>Automatic Repeat Request for every 2000ms</li>
-<ul>
+</ul>
 
 ## IMU (optional)
 The Servant drifters may or may not have IMUs installed so using the macro `USING_IMU`, allows for a

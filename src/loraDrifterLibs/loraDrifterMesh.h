@@ -94,7 +94,7 @@ static int parsePayload() {
       const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
       const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
       const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
-      csvOutStr += "D" + String(id) + "," + tDate + "," + tTime + "," + tLocation;
+      csvOutStr += "D" + String(id) + "," + tDate + "," + tTime + "," + tLocation  + '\n';;
       xSemaphoreGive(servantSemaphore);
     }
     else {

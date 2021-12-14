@@ -197,12 +197,15 @@ static void sendTask(void * params) {
     if(!webServerOn) {
 #ifdef USING_MESH
       int result = 0;
-      // if(gps.time.second() == drifterTimeSlotSec) {
 #ifdef USING_IMU
       update_imu();
 #endif // USING_IMU
+      generatePacket();
+#ifdef IGNORE_GPS_INSIDE
       if(runEvery(PL_TX_TIME)) {
-        generatePacket();
+#else
+      if(gps.time.second() == drifterTimeSlotSec) {
+#endif //IGNORE_GPS_INSIDE
         result = routePayload(SERVANT_MODE, 0xAA, localAddress, 0x0F, 0);
       }
       if(loop_runEvery(RS_BCAST_TIME)) {
@@ -211,8 +214,6 @@ static void sendTask(void * params) {
         result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
         xSemaphoreGive(loraSemaphore);
       }
-#else
-      generatePacket();
 #endif // USING_MESH
       delay(10);
       // Write data to onboard flash if nSamples is large enough
@@ -341,7 +342,6 @@ static void generatePacket() {
 #else 
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
 #endif // IGNORE_GPS_INSIDE
-      Serial.println("GPS still valid");
       nSamples++;
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);

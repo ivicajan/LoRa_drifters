@@ -194,7 +194,7 @@ static void sendTask(void * params) {
       startWebServer(webServerOn);
       delay(1000);
     }
-    if(!webServerOn) {
+  if(!webServerOn) {
 #ifdef USING_MESH
       int result = 0;
 #ifdef USING_IMU
@@ -348,7 +348,7 @@ static void generatePacket() {
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
       csvOutStr += tDate + "," + tTime + "," + tLocation 
 #ifdef USING_MESH
-      + "," + String(messagesReceived) + "," + String(messagesSent) + "," + nodeHopsToString() + String(masterRx) // Diagnostics
+      + "," + String(messagesSent) + "," + String(messagesReceived) + "," + String(masterRx) + nodeHopsToString() // Diagnostics
 #endif // USING_MESH
 #ifdef USING_IMU
       // TODO: add IMU data here

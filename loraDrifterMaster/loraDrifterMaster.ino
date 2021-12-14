@@ -344,9 +344,10 @@ static void sendTask(void * params) {
         )rawliteral";
         servantsData += String(s[ii].ID) + ">Restart</button></form></td>";
 #endif // USING_MESH
-        servantsData += "</tr></table>";
+        servantsData += "</tr>";
       }
     }
+    servantsData += "</table>";
     xSemaphoreGive(servantSemaphore);
 #ifdef USING_MESH
     diagnosticData = "<tr>";

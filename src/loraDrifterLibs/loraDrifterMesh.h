@@ -14,6 +14,7 @@
 #define MASTER_MODE               1
 
 #ifdef MESH_MASTER_MODE
+extern String csvOutStr;
 class Master;
 extern Master m;
 class Servant;
@@ -82,7 +83,6 @@ static int parsePayload() {
     Serial.println(name);
     if(!strcmp(name.substring(0, 1).c_str(), "D")) {
       Serial.println("Drifter signal found!");
-      // csvOutStr += recv; // Save all packets recevied (debugging purposes)
       const int id = name.substring(1, 3).toInt();
       xSemaphoreTake(servantSemaphore, portMAX_DELAY);
       s[id].ID = id;
@@ -91,6 +91,10 @@ static int parsePayload() {
       s[id].updateDistBear(m.lng, m.lat);
       s[id].active = true;
       Serial.println("RX from LoRa - decoding completed");
+      const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
+      const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
+      const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
+      csvOutStr += "D" + String(id) + "," + tDate + "," + tTime + "," + tLocation;
       xSemaphoreGive(servantSemaphore);
     }
     else {
@@ -116,6 +120,8 @@ static bool validateID(const byte nodeID) {
     case 0x55:        // Node 5
     case 0x66:        // Node 6
     case 0x77:        // Node 7
+    case 0x88:        // Node 8
+    case 0x99:        // Node 9
     case 0xAA:        // Master Node
     case 0xFF:        // BCAST
       return true;

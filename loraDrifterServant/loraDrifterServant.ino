@@ -310,6 +310,16 @@ static void fill_packet() {
   packet.age = gps.location.age();
 }
 
+#ifdef USING_MESH
+static String nodeHopsToString() {
+  String outStr = "";
+  for(size_t idx = 0; idx < NUM_NODES; idx++) {
+    outStr += String(nodeRx[idx]) + ",";
+  }
+  return outStr;
+}
+#endif // USING_MESH
+
 static void generatePacket() {
   const uint32_t start = millis();
   do {
@@ -332,13 +342,13 @@ static void generatePacket() {
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
 #endif // IGNORE_GPS_INSIDE
       Serial.println("GPS still valid");
-      nSamples += 1;
+      nSamples++;
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
       csvOutStr += tDate + "," + tTime + "," + tLocation 
 #ifdef USING_MESH
-      + String(messagesReceived) + String(messagesSent) 
+      + "," + String(messagesReceived) + "," + String(messagesSent) + "," + nodeHopsToString() + String(masterRx) // Diagnostics
 #endif // USING_MESH
 #ifdef USING_IMU
       // TODO: add IMU data here

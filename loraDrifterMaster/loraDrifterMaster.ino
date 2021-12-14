@@ -134,6 +134,10 @@ static void onReceive(const int packetsize) {
     s[id].rssi = LoRa.packetRssi();
     s[id].updateDistBear(m.lng, m.lat);
     s[id].active = true;
+    const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
+    const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
+    const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
+    csvOutStr += tDate + "," + tTime + "," + tLocation;
     xSemaphoreGive(servantSemaphore);
     Serial.println("RX from LoRa - decoding completed");
   }
@@ -244,7 +248,7 @@ static void generateMaster() {
     masterData += "</tr>";
     // Update String to be written to file
     if((m.lng != 0.0) && (m.age < 1000)) {
-      csvOutStr += tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "\n";
+      csvOutStr += "Master," + tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "\n";
       nSamples++;
     } else {
       Serial.println("No GPS fix, not writing local data!");

@@ -57,7 +57,7 @@
 #define NUM_MAX_SERVANTS            8      // Maximum number of servant drifters (just for setting array size)
 
 #define DEBUG_MODE                         // Additional printouts to serial port
-#define IGNORE_GPS_INSIDE                  // For testing indoors, so we dont just send on GPS time
+// #define IGNORE_GPS_INSIDE                  // For testing indoors, so we dont just send on GPS time
 
 AXP20X_Class PMU;
 TinyGPSPlus gps;                      // decoder for GPS stream

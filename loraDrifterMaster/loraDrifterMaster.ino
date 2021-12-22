@@ -282,7 +282,7 @@ static void sendTask(void * params) {
 #ifdef IGNORE_GPS_INSIDE
     if(loop_runEvery(RS_BCAST_TIME)) {
 #else 
-    if(gps.time.second() == RS_BCAST_TIME) {
+    if(gps.time.second() > RS_BCAST_TIME / 1000) {
 #endif // IGNORE_GPS_INSIDE
       xSemaphoreTake(loraSemaphore, portMAX_DELAY);
       Serial.println("Route broadcast");

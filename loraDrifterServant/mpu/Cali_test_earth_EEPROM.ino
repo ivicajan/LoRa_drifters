@@ -29,7 +29,7 @@
 #include <TinyGPS++.h>
 #include <EEPROM.h>
 
-//#define debug 1;
+//#define DEBUG 1;
 
 using namespace BLA;
 MPU9250 mpu;
@@ -79,7 +79,7 @@ void setup() {
   mpu.verbose(false);
 
   EEPROM.begin(50);
-#ifdef debug
+#ifdef DEBUG
   float lms[6] = {1.0015, -0.0123, 1.0038, 0.0041, 0.9730, -0.01071};
   //float lms[6] = {22, 11, 1, 10, 44, 33};
   for (int i = 0; i < 6 * sizeof(float); i += sizeof(float)) {

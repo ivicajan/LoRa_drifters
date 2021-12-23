@@ -22,8 +22,8 @@
               "o" :return compared data before and after calibration, 
                    a/y/z and abs acc.
               "c" :Do calibration.
-
 */
+
 #include "MPU9250.h"
 #include "BasicLinearAlgebra.h"
 #include <TinyGPS++.h>
@@ -42,7 +42,7 @@ float ae[3] = {0, 0, 0};
 float ve[3] = {0, 0, 0};
 float pe[3] = {0, 0, 0};
 char print_ = 'a';
-int calibration[1] = {2};
+int calibration = 2;
 int count = 0;
 float fix[20] = {};
 float m_ = 1, b_ = 0;
@@ -54,41 +54,36 @@ void setup() {
   Serial.begin(115200);
   Wire.begin();
   delay(2000);
-
-  if (!mpu.setup(0x68)) {  // change to your own address
-    while (1) {
+  if(!mpu.setup(0x68)) {  // change to your own address
+    while(1) {
       Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
       delay(5000);
     }
   }
-
   // calibrate anytime you want to
   Serial.println("Accel Gyro calibration will start in 5sec.");
   Serial.println("Please leave the device still on the flat plane.");
   mpu.verbose(true);
   delay(5000);
   mpu.calibrateAccelGyro();
-
   Serial.println("Mag calibration will start in 5sec.");
   Serial.println("Please Wave device in a figure eight until done.");
   //delay(5000);
   //mpu.calibrateMag();
   mpu.setMagBias(24.68, 418.01, -487.37);
-
   print_calibration();
   mpu.verbose(false);
-
   EEPROM.begin(50);
 #ifdef DEBUG
   float lms[6] = {1.0015, -0.0123, 1.0038, 0.0041, 0.9730, -0.01071};
   //float lms[6] = {22, 11, 1, 10, 44, 33};
-  for (int i = 0; i < 6 * sizeof(float); i += sizeof(float)) {
+  for(int i = 0; i < 6 * sizeof(float); i += sizeof(float)) {
     EEPROM.writeFloat(i, lms[i / sizeof(float)]);
     Serial.println(lms[i / sizeof(float)]);
   }
   EEPROM.commit();
 #endif
-  for (int i = 0; i < 6 * sizeof(float); i += sizeof(float)) {
+  for(int i = 0; i < 6 * sizeof(float); i += sizeof(float)) {
     lms_mb[i / sizeof(float)] = EEPROM.readFloat(i);
     Serial.println(EEPROM.readFloat(i), 6);
   }
@@ -104,10 +99,12 @@ void loop() {
       a[1] = lms_mb[2] * mpu.getAccY() + lms_mb[3];
       a[2] = lms_mb[4] * mpu.getAccZ() + lms_mb[5];
       measure_imu_data();
-      for(int i = 0; i < 3; i++) v[i] += a[i] * time_ / 1000 * 9.81;
-      for(int i = 0; i < 3; i++) p[i] += v[i] * time_ / 1000 * 0.5;
-      for(int i = 0; i < 3; i++) ve[i] += ae[i] * time_ / 1000 * 9.81;
-      for(int i = 0; i < 3; i++) pe[i] += ve[i] * time_ / 1000 * 0.5;
+      for(int i = 0; i < 3; i++) {
+        v[i] += a[i] * time_ / 1000 * 9.81;
+        p[i] += v[i] * time_ / 1000 * 0.5;
+        ve[i] += ae[i] * time_ / 1000 * 9.81;
+        pe[i] += ve[i] * time_ / 1000 * 0.5;
+      }
       //Check stational for IMU
       fix[0] = abs(get_sqre(ae, 3) - 1);
       for(int i = 0; i < 20; i++) fix[i + 1] = fix[i];
@@ -116,8 +113,10 @@ void loop() {
         if(fix[i] <= error) stationary += 1;
       }
       if(stationary >= 15) {
-        for(int i = 0; i < 3; i++) v[i] = 0;
-        for(int i = 0; i < 3; i++) ve[i] = 0;
+        for(int i = 0; i < 3; i++) {
+          v[i] = 0;
+          ve[i] = 0;
+        }
         for(int i = 0; i < 20; i++) fix[i] = 1;
       }
       //Physical reset button
@@ -126,9 +125,9 @@ void loop() {
       //if (analogRead(32) >= 200) for (int i = 0; i < 6; i++) p[i] = 0;
       prev_ms = millis();
       print_data(print_);
-      //Serial.println(calibration[0]);
-      if(calibration[0] == 1) { //Run Calibration
-        int n = 50;
+      //Serial.println(calibration);
+      if(calibration == 1) { //Run Calibration
+        const int n = 50;
         float accx[6 * n] = {};
         float accy[6 * n] = {};
         float accz[6 * n] = {};
@@ -141,8 +140,7 @@ void loop() {
               if(c == 'k') break;
             }
           }
-
-          for(int i = j * 50; i < (j * 50 + n); i++) { //Get n samples of acceleration
+          for(int i = j * 50; i < j * 50 + n; i++) { //Get n samples of acceleration
             if(mpu.update()) {
               accx[i] = mpu.getAccX();
               accy[i] = mpu.getAccY();
@@ -157,7 +155,6 @@ void loop() {
           }
           Serial << "Flip IMU to next axis\n";
         }
-
         Serial << "get all data done \n";
         //Write into matrix, contains m & b for x, y, z;
         LMS_para(accx, 6 * n);
@@ -184,32 +181,43 @@ void loop() {
           Serial.print(lms_mb[i * 2 + 1], 5);
         }
         Serial << '\n';
-        calibration[0] = 0;
+        calibration = 0;
       }
-
       if(Serial.available()) {
         const char c = Serial.read();
         delay(200);
-
-        if(c == 'c') {
+        switch(c) {
+        case 'c':
           Serial << "Run Calibration: ----------------------\n";
-          calibration[0] = 1;
-        } else if (c == 'r') {
+          calibration = 1;
+          break;
+        case 'r':
           Serial << "Reset position\n";
-          for (int i = 0; i < 3; i++) {
+          for(int i = 0; i < 3; i++) {
             p[i] = 0;
             v[i] = 0;
             pe[i] = 0;
             ve[i] = 0;
           }
-        } else if (c == 'a' | c == 'v' | c == 'p' | c == 'o' | c == 'A' | c == 'V' | c == 'P')print_ = c;
+          break;
+        case 'a':
+        case 'v':
+        case 'p':
+        case 'o':
+        case 'A':
+        case 'V':
+        case 'P':
+          print_ = c;
+        default:
+          break;
+        }
       }
     }
   }
 }
 
 
-void print_data(char print_) {
+void print_data(const char print_) {
   switch(print_) {
     case 'a':
       Serial << "Ax: " << a[0]
@@ -283,7 +291,7 @@ void LMS_para(float x[], int n) {
     sumy2 += y[i] * y[i];
   }
   Serial << "Loop done\n";
-  const float denom = (n * sumx2 - sumx * sumx);
+  const float denom = n * sumx2 - sumx * sumx;
   if(denom == 0) {
     // singular matrix. can't solve the problem.
     Serial.println("No solution\n");
@@ -292,7 +300,7 @@ void LMS_para(float x[], int n) {
   } else {
     m_ = (n * sumxy - sumx * sumy) / denom;
     b_ = (sumy * sumx2 - sumx * sumxy) / denom;
-    Serial << "Solution get, m= " << m_ << " b= " << b_ << '\n' ;
+    Serial << "Solution get, m = " << m_ << " b = " << b_ << '\n' ;
   }
 }
 
@@ -306,16 +314,16 @@ float get_sqre(float x[], int n) {
 
 //Rotate frame to earth frame
 void measure_imu_data() {
-  float acc_the = mpu.getRoll() / 180.f * PI;
-  float acc_fin = mpu.getPitch() / 180.f * PI;
-  float acc_psi = mpu.getYaw() / 180.f * PI;
+  const float acc_the = mpu.getRoll() / 180.f * PI;
+  const float acc_fin = mpu.getPitch() / 180.f * PI;
+  const float acc_psi = mpu.getYaw() / 180.f * PI;
 
   //rotate from x-axis
-  float acc_y__ = a[1] * cos(acc_the) - a[2] * sin(acc_the);
-  float acc_z__ = a[2] * cos(acc_the) + a[1] * sin(acc_the);
+  const float acc_y__ = a[1] * cos(acc_the) - a[2] * sin(acc_the);
+  const float acc_z__ = a[2] * cos(acc_the) + a[1] * sin(acc_the);
   //rotate from y-axis
-  float acc_x_ = a[0] * cos(acc_fin) - acc_z__ * sin(acc_fin);
-  float acc_z_ = acc_z__ * cos(acc_fin) + a[0] * sin(acc_fin);
+  const float acc_x_ = a[0] * cos(acc_fin) - acc_z__ * sin(acc_fin);
+  const float acc_z_ = acc_z__ * cos(acc_fin) + a[0] * sin(acc_fin);
   //rotate from z-axis
   ae[0] = acc_x_ * cos(acc_psi) + acc_y__ * sin(acc_psi);
   ae[1] = acc_y__ * cos(acc_psi) - acc_x_ * sin(acc_psi);

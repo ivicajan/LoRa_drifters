@@ -92,64 +92,58 @@ void setup() {
     lms_mb[i / sizeof(float)] = EEPROM.readFloat(i);
     Serial.println(EEPROM.readFloat(i), 6);
   }
-
 }
 
-
 void loop() {
-  if (mpu.update()) {
+  if(mpu.update()) {
     static uint32_t prev_ms = millis();
-    if (millis() > prev_ms + 100) {
+    if(millis() > prev_ms + 100) {
       float time_ = (millis() - prev_ms);
       a_org[0] = mpu.getAccX(); a_org[1] = mpu.getAccY(); a_org[2] = mpu.getAccZ();
       a[0] = lms_mb[0] * mpu.getAccX() + lms_mb[1];
       a[1] = lms_mb[2] * mpu.getAccY() + lms_mb[3];
       a[2] = lms_mb[4] * mpu.getAccZ() + lms_mb[5];
       measure_imu_data();
-      for (int i = 0; i < 3; i++) v[i] += a[i] * time_ / 1000 * 9.81;
-      for (int i = 0; i < 3; i++) p[i] += v[i] * time_ / 1000 * 0.5;
-      for (int i = 0; i < 3; i++) ve[i] += ae[i] * time_ / 1000 * 9.81;
-      for (int i = 0; i < 3; i++) pe[i] += ve[i] * time_ / 1000 * 0.5;
+      for(int i = 0; i < 3; i++) v[i] += a[i] * time_ / 1000 * 9.81;
+      for(int i = 0; i < 3; i++) p[i] += v[i] * time_ / 1000 * 0.5;
+      for(int i = 0; i < 3; i++) ve[i] += ae[i] * time_ / 1000 * 9.81;
+      for(int i = 0; i < 3; i++) pe[i] += ve[i] * time_ / 1000 * 0.5;
       //Check stational for IMU
       fix[0] = abs(get_sqre(ae, 3) - 1);
-      for (int i = 0; i < 20; i++) fix[i + 1] = fix[i];
+      for(int i = 0; i < 20; i++) fix[i + 1] = fix[i];
       int stationary = 0;
-      for (int i = 0; i < 15; i++) {
-        if (fix[i] <= error) stationary += 1;
+      for(int i = 0; i < 15; i++) {
+        if(fix[i] <= error) stationary += 1;
       }
-      if (stationary >= 15) {
-        for (int i = 0; i < 3; i++) v[i] = 0;
-        for (int i = 0; i < 3; i++) ve[i] = 0;
-        for (int i = 0; i < 20; i++) fix[i] = 1;
+      if(stationary >= 15) {
+        for(int i = 0; i < 3; i++) v[i] = 0;
+        for(int i = 0; i < 3; i++) ve[i] = 0;
+        for(int i = 0; i < 20; i++) fix[i] = 1;
       }
       //Physical reset button
       //      Serial << "Read: " << digitalRead(32)
       //             << " ReadA: " << analogRead(32)<< '\n';
       //if (analogRead(32) >= 200) for (int i = 0; i < 6; i++) p[i] = 0;
       prev_ms = millis();
-
       print_data(print_);
-
       //Serial.println(calibration[0]);
-
-      //Run Calibration
-      if (calibration[0] == 1) {
+      if(calibration[0] == 1) { //Run Calibration
         int n = 50;
         float accx[6 * n] = {};
         float accy[6 * n] = {};
         float accz[6 * n] = {};
         Serial.println(" Get 100 samples \n");
-        for (int j = 0; j < 6; j++) {
+        for(int j = 0; j < 6; j++) {
           Serial << "Press k to cuntinue\n";
-          while (1) {
-            if (Serial.available()) {
-              char c = Serial.read();
-              if (c == 'k') break;
+          while(1) {
+            if(Serial.available()) {
+              const char c = Serial.read();
+              if(c == 'k') break;
             }
           }
 
-          for (int i = (j * 50); i < (j * 50 + n); i++) { //Get n samples of acceleration
-            if (mpu.update()) {
+          for(int i = j * 50; i < (j * 50 + n); i++) { //Get n samples of acceleration
+            if(mpu.update()) {
               accx[i] = mpu.getAccX();
               accy[i] = mpu.getAccY();
               accz[i] = mpu.getAccZ();
@@ -175,7 +169,7 @@ void loop() {
         //Write data into Flash
         //EEPROM.begin(24);
         int count_lms = 0;
-        for (int i = 0; i < (6 * sizeof(float)); i += sizeof(float)) {
+        for(int i = 0; i < 6 * sizeof(float); i += sizeof(float)) {
           EEPROM.writeFloat(i, lms_mb[i / sizeof(float)]);
           //Serial.println(lms_mb[i]);
           Serial.println(EEPROM.readFloat(i / sizeof(float)));
@@ -183,7 +177,7 @@ void loop() {
         EEPROM.commit();
         Serial.println("Store flash done.");
         Serial << "para:";
-        for (int i = 0; i < 3; i++) {
+        for(int i = 0; i < 3; i++) {
           Serial << " m" << i + 1 << ": ";
           Serial.print(lms_mb[i * 2], 5);
           Serial << " b" << i + 2 << ": ";
@@ -193,11 +187,11 @@ void loop() {
         calibration[0] = 0;
       }
 
-      if (Serial.available()) {
-        char c = Serial.read();
+      if(Serial.available()) {
+        const char c = Serial.read();
         delay(200);
 
-        if (c == 'c') {
+        if(c == 'c') {
           Serial << "Run Calibration: ----------------------\n";
           calibration[0] = 1;
         } else if (c == 'r') {
@@ -216,46 +210,54 @@ void loop() {
 
 
 void print_data(char print_) {
-  if (print_ == 'a') {
-    Serial << "Ax: " << a[0]
-           << " Ay: " << a[1]
-           << " Az_e: " << a[2] << " ";
-    Serial.println(get_sqre(ae, 3), 6);
-  } else if (print_ == 'v') {
-    Serial << "Vx: " << v[0]
-           << " Vy: " << v[1]
-           //<< " Vz: " << v[2]
-           << '\n';
-  } else if (print_ == 'p') {
-    Serial << "Px: " << p[0]
-           << " Py: " << p[1]
-           //<< " Pz: " << p[2]
-           << '\n';
-  }
-  else if (print_ == 'o') {
-    Serial << "[x,y,z] Before: ["
-           << a_org[0] << ',' << a_org[1] << ',' << a_org[2]
-           << "] ";
-    Serial.print(get_sqre(a_org, 3), 6);
-    Serial << "After: ["
-           << a[0] << ',' << a[1] << ',' << a[2]
-           << "] " ;
-    Serial.println(get_sqre(a, 3), 6);
-  } else if (print_ == 'A') {
-    Serial << "Ax_e: " << ae[0]
-           << " Ay_e: " << ae[1]
-           << " Az_e: " << ae[2] << " ";
-    Serial.println(get_sqre(ae, 3), 6);
-  } else if (print_ == 'V') {
-    Serial << "Vex: " << ve[0]
-           << " Vey: " << ve[1]
-           //<< " Vez: " << ve[2]
-           << '\n';
-  } else if (print_ == 'P') {
-    Serial << "Pex: " << pe[0]
-           << " Pey: " << pe[1]
-           //<< " Pez: " << pe[2]
-           << '\n';
+  switch(print_) {
+    case 'a':
+      Serial << "Ax: " << a[0]
+             << " Ay: " << a[1]
+             << " Az_e: " << a[2] << " ";
+      Serial.println(get_sqre(ae, 3), 6);
+      break;
+    case 'v':
+      Serial << "Vx: " << v[0]
+             << " Vy: " << v[1]
+            //  << " Vz: " << v[2]
+             << '\n';
+      break;
+    case 'p':
+      Serial << "Px: " << p[0]
+             << " Py: " << p[1]
+            //  << " Pz: " << p[2]
+             << '\n';
+      break;
+    case 'o':
+      Serial << "[x,y,z] Before: ["
+             << a_org[0] << ',' << a_org[1] << ',' << a_org[2]
+             << "] ";
+      Serial.print(get_sqre(a_org, 3), 6);
+      Serial << "After: ["
+             << a[0] << ',' << a[1] << ',' << a[2] << "] " ;
+      Serial.println(get_sqre(a, 3), 6);
+      break;
+    case 'A':
+      Serial << "Ax_e: " << ae[0]
+             << " Ay_e: " << ae[1]
+             << " Az_e: " << ae[2] << " ";
+      Serial.println(get_sqre(ae, 3), 6);
+      break;
+    case 'V':
+      Serial << "Vex: " << ve[0]
+             << " Vey: " << ve[1]
+             //<< " Vez: " << ve[2]
+             << '\n';
+      break;
+    case 'P':
+      Serial << "Pex: " << pe[0]
+             << " Pey: " << pe[1]
+             // << " Pez: " << pe[2]
+             << '\n';
+      break;
+    default:
+        break;
   }
 }
 
@@ -264,9 +266,9 @@ void LMS_para(float x[], int n) {
   float y[n] = {};
   Serial << "Create y array, -1, 0, 1\n";
   //Sum loop
-  for (int i = 0; i < n; i++) {
+  for(int i = 0; i < n; i++) {
     //Create y array, -1, 0, 1
-    if (x[i] < -0.5) {
+    if(x[i] < -0.5) {
       y[i] = -1;
     } else if (x[i] > 0.5) {
       y[i] = 1;
@@ -281,8 +283,8 @@ void LMS_para(float x[], int n) {
     sumy2 += y[i] * y[i];
   }
   Serial << "Loop done\n";
-  float denom = (n * sumx2 - sumx * sumx);
-  if (denom == 0) {
+  const float denom = (n * sumx2 - sumx * sumx);
+  if(denom == 0) {
     // singular matrix. can't solve the problem.
     Serial.println("No solution\n");
     m_ = 1;
@@ -325,36 +327,22 @@ void measure_imu_data() {
 #endif
 }
 
-
-
 void print_calibration() {
-  Serial.println("< calibration parameters >");
-  Serial.println("accel bias [g]: ");
-  Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-  Serial.print(", ");
-  Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-  Serial.print(", ");
-  Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
-  Serial.println();
-  Serial.println("gyro bias [deg/s]: ");
-  Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-  Serial.print(", ");
-  Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-  Serial.print(", ");
-  Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
-  Serial.println();
-  Serial.println("mag bias [mG]: ");
-  Serial.print(mpu.getMagBiasX());
-  Serial.print(", ");
-  Serial.print(mpu.getMagBiasY());
-  Serial.print(", ");
-  Serial.print(mpu.getMagBiasZ());
-  Serial.println();
-  Serial.println("mag scale []: ");
-  Serial.print(mpu.getMagScaleX());
-  Serial.print(", ");
-  Serial.print(mpu.getMagScaleY());
-  Serial.print(", ");
-  Serial.print(mpu.getMagScaleZ());
-  Serial.println();
+  Serial << "< calibration parameters >\n";
+  Serial << "accel bias [g]: \n";
+  Serial << mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY << ", ";
+  Serial << mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY << ", ";
+  Serial << mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY << '\n';
+  Serial << "gyro bias [deg/s]: \n";
+  Serial << mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY << ", ";
+  Serial << mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY << ", ";
+  Serial << mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY << '\n';
+  Serial << "mag bias [mG]: \n";
+  Serial << mpu.getMagBiasX() << ", ";
+  Serial << mpu.getMagBiasY() << ", ";
+  Serial << mpu.getMagBiasZ() << '\n';
+  Serial << "mag scale []: \n";
+  Serial << mpu.getMagScaleX() << ", ";
+  Serial << mpu.getMagScaleY() << ", ";
+  Serial << mpu.getMagScaleZ() << '\n';
 }

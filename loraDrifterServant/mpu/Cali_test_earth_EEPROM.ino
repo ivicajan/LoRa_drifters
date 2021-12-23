@@ -216,8 +216,7 @@ void loop() {
   }
 }
 
-
-void print_data(const char print_) {
+static void print_data(const char print_) {
   switch(print_) {
     case 'a':
       Serial << "Ax: " << a[0]
@@ -269,7 +268,7 @@ void print_data(const char print_) {
   }
 }
 
-void LMS_para(float x[], int n) {
+static void LMS_para(float x[], int n) {
   float sumx = 0, sumx2 = 0, sumxy = 0, sumy = 0, sumy2 = 0;
   float y[n] = {};
   Serial << "Create y array, -1, 0, 1\n";
@@ -304,7 +303,7 @@ void LMS_para(float x[], int n) {
   }
 }
 
-float get_sqre(float x[], int n) {
+static float get_sqre(float x[], int n) {
   float sqar = 0;
   for (int i = 0; i < n; i++) {
     sqar += x[i] * x[i];
@@ -313,7 +312,7 @@ float get_sqre(float x[], int n) {
 }
 
 //Rotate frame to earth frame
-void measure_imu_data() {
+static void measure_imu_data() {
   const float acc_the = mpu.getRoll() / 180.f * PI;
   const float acc_fin = mpu.getPitch() / 180.f * PI;
   const float acc_psi = mpu.getYaw() / 180.f * PI;
@@ -332,10 +331,10 @@ void measure_imu_data() {
   Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
          << " pitch: " << float(mpu.getPitch() / 180.f * PI)
          << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
-#endif
+#endif //DEBUG
 }
 
-void print_calibration() {
+static void print_calibration() {
   Serial << "< calibration parameters >\n";
   Serial << "accel bias [g]: \n";
   Serial << mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY << ", ";

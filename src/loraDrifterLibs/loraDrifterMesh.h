@@ -7,10 +7,10 @@
 #define DELETION_TIME             (62000)   // Reset the routing table if entry's time is older than 62s
 #define ARQ_TIME                  (2000)    // Automatic Repeat Request for every 2s
 
-#define NUM_NODES                 (10)
+#define NUM_NODES                 (11)
 #define ROUTING_TABLE_ENTRY_SIZE  (19)
 #define MASTER_LOCAL_ID           (0xBB)
-#define ROUTING_TABLE_SIZE        (MASTER_LOCAL_ID)
+#define ROUTING_TABLE_SIZE        (MASTER_LOCAL_ID + 0x11)
 
 #define SERVANT_MODE              (0)
 #define MASTER_MODE               (1)
@@ -368,10 +368,10 @@ static bool checkFrameHeader(const int mode, const byte sizeHeader, const byte t
 static void typeToPrintout(const byte type, const byte router) {
   switch(type) {
     case RouteBroadcastServant:
-      Serial.print("Sending slave broadcast packet: ");
+      Serial.print("Sending slave broadcast packet: 0x");
       break;
     case RouteBroadcastMaster:
-      Serial.print("Sending master broadcast packet: ");
+      Serial.print("Sending master broadcast packet: 0x");
       break;
     case DirectPayload:
       Serial.print("Sending direct payload packet to: 0x");

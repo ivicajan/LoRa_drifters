@@ -18,7 +18,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x55;
+byte localAddress = 0xAA;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
@@ -39,8 +39,8 @@ int nSamples;                         // Counter for the number of samples gathe
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D05";       // ID send with packet
-int drifterTimeSlotSec = 20;      // seconds after start of each GPS minute
+String drifterName = "D10";       // ID send with packet
+int drifterTimeSlotSec = 40;      // seconds after start of each GPS minute
 
 Packet packet;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -91,7 +91,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <td><label for="fname"><b>Drifter ID</b></label></td>
             <td>%DRIFTERID%</td>
             <td><input type="text" id="fname" name="drifterID"></td>
-            <td>Drifter IDs from D00 to D11</td>
+            <td>Drifter IDs from D01 to D10</td>
           </tr>
           <tr>
             <td><label for="lname"><b>LoRa Sending Second</b></label></td>

@@ -2,13 +2,14 @@
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// #define USING_IMU
+#define USING_IMU
 #ifdef USING_IMU
 #include "mpu/imu.h"
 extern BLA::Matrix<3> U_INS;
 extern BLA::Matrix<5> X_INS;
 extern BLA::Matrix<3> Y_GPS;
 extern BLA::Matrix<8, 8> P;
+extern bool calibrate_imu;
 #endif // USING_IMU
 
 #ifdef USING_MESH
@@ -379,64 +380,16 @@ static void generatePacket() {
   }
 }
 
-#ifdef USING_IMU
 static bool calibrateIMU() {
-  file = SPIFFS.open("imuCalibrations.txt", FILE_READ);
-  if(!file) {
-    Serial.println("There was an error opening the file for appending, creating a new one");
-    file = SPIFFS.open("imuCalibrations.txt", FILE_WRITE);
-  }
-  else {
-    const int sizeIMUCals = 75; // 3 + 5 + 3 + 64
-    float localCalVals[sizeIMUCals];
-    size_t idx = 0;
-    while(file.available()) {
-      const String tmp = file.readStringUntil('\n');
-      localCalVals[idx] = tmp.toFloat();
-      idx++;
-    }
-    if(idx == sizeIMUCals) {
-      // TODO: Add a semaphore here as we are changing IMU vals potentially in 2 places
-      // xSemaphoreTake(IMUSemaphore, portMAX_DELAY);
-      memcpy(U_INS, &localCalVals[0], 3); // TODO: check if we pass U_INS by reference
-      memcpy(X_INS, &localCalVals[3], 5);
-      memcpy(Y_GPS, &localCalVals[8], 3);
-      memcpy(P, &localCalVals[11], 64); // is this 8 x 8?
-      // updateIMUCals(); // this doesn't exist
-    // xSemaphoreGive(IMUSemaphore);
-      return true;
-    }
-    else {
-      Serial.println("File is not the correct size");
-      return false;
-    }
-  }
-  if(!file) { // this should be reached unless SPIFFS are not working
-      Serial.println("There was an error opening the file for writing");
-      lastFileWrite = "FAILED OPEN";
-      ESP.restart();
-  }
-  else {
-    file = SPIFFS.open("imuCalibrations.txt", FILE_WRITE);
-    // TODO: run calibration
-    for(size_t idx = 0; idx < sizeof(U_INS); idx++) {
-      file.println(String(U_INS[idx]));
-    }
-    for(size_t idx = 0; idx < sizeof(X_INS); idx++) {
-      file.println(String(X_INS[idx]));
-    }
-    for(size_t idx = 0; idx < sizeof(Y_GPS); idx++) {
-      file.println(String(Y_GPS[idx]));
-    }
-    for(size_t idx = 0; idx < sizeof(P); idx++) {
-      file.println(String(P[idx]));
-    }
-    file.close();
+  if(calibrate_imu == false) {
+    calibrate_imu = true;
     return true;
   }
-  return false;
+  else {
+    calibrate_imu = false;
+    return false;
+  }
 }
-#endif // USING_IMU
 
 static void startWebServer(const bool webServerOn) {
   if(!webServerOn) {

@@ -21,24 +21,24 @@
 #ifndef IMU_H
 #define IMU_H
 
+#define DEBUG_MODE
+
 #include "MPU9250.h"
 #include "BasicLinearAlgebra.h"
 #include <TinyGPS++.h>
-
-#define DEBUG_MODE
-#define CALIBRATION_IMU
-
-#ifdef CALIBRATION_IMU
 #include <EEPROM.h>
-float lms_mb[6] = {1, 0, 1, 0, 1, 0};
+
 #define ACC_CALI_PARA_ADDR 0
 #define MAG_CALI_PARA_ADDR 25
+
+float lms_mb[6] = {1, 0, 1, 0, 1, 0};
+bool calibrate_imu = false;
+
 /***  do not modify  ***/
 template< typename T, size_t NumberOfSize >
 size_t MenuItemsSize(T (&) [NumberOfSize]) {
   return NumberOfSize;
 }
-#endif //CALIBRATION_IMU
 
 using namespace BLA;
 MPU9250 mpu;
@@ -98,9 +98,9 @@ static void Initial_Kalman() {
   big_diag.Fill(1);
 
   //Setup initial Guess:
-  const float P_0_[8] = {10, 10, 10, 10, 90 * PI / 180, 5, 5, 25 * PI / 180};
-  const float R_[3] = {0.1, 0.1, 0.1 * PI / 180};
-  const float Q_[3] = {1, 1, 1 * PI / 180};
+  const float P_0_[8] = {10.f, 10.f, 10.f, 10.f, 90.f * PI / 180.f, 5.f, 5.f, 25 * PI / 180.f};
+  const float R_[3] = {0.1f, 0.1f, 0.1f * PI / 180.f};
+  const float Q_[3] = {1.f, 1.f, 1.f * PI / 180.f};
   for(int ii = 0; ii < 8; ii++) {
     P_0(ii, ii) = P_0_[ii];
   }
@@ -222,8 +222,9 @@ void measure_gps_data() {
     //          gps.location.lng(),
     //          Yaw[0]
     //         };
-  } else {
-    Serial.println(F("Location: INVALID"));
+  }
+  else {
+    Serial << "Location: INVALID";
   }
 #ifdef DEBUG_MODE
   Serial << "Lat: " <<  Y_GPS(0)
@@ -246,32 +247,45 @@ void measure_imu_data() {
   const float acc_psi = mpu.getYaw() / 180.f * PI;
 
   //Set Max Acc
-  if(acc_x___ >= 2) acc_x___ = 2;
-  if(acc_y___ >= 2) acc_y___ = 2;
-  if(acc_z___ >= 2) acc_z___ = 2;
+  if(acc_x___ >= 2) {
+    acc_x___ = 2;
+  }
+  if(acc_y___ >= 2) {
+    acc_y___ = 2;
+  }
+  if(acc_z___ >= 2) {
+    acc_z___ = 2;
+  }
 
   //rotate from x-axis
-  float acc_y__ = acc_y___ * cos(acc_the) - acc_z___ * sin(acc_the);
-  float acc_z__ = acc_z___ * cos(acc_the) + acc_y___ * sin(acc_the);
+  const float acc_y__ = acc_y___ * cos(acc_the) - acc_z___ * sin(acc_the);
+  const float acc_z__ = acc_z___ * cos(acc_the) + acc_y___ * sin(acc_the);
   //rotate from y-axis
-  float acc_x_ = acc_x___ * cos(acc_fin) - acc_z__ * sin(acc_fin);
-  float acc_z_ = acc_z__ * cos(acc_fin) + acc_x___ * sin(acc_fin);
+  const float acc_x_ = acc_x___ * cos(acc_fin) - acc_z__ * sin(acc_fin);
+  const float acc_z_ = acc_z__ * cos(acc_fin) + acc_x___ * sin(acc_fin);
   //rotate from z-axis
   acc(0) = acc_x_ * cos(acc_psi) + acc_y__ * sin(acc_psi);
   acc(1) = acc_y__ * cos(acc_psi) - acc_x_ * sin(acc_psi);
   acc(3) = acc_z_;
   Yaw[1] = Yaw[0];
   Yaw[0] = acc_psi;
-#ifdef CALIBRATION_IMU
-  for(int ii = 0; ii < 3; ii++) {
-    acc(ii) = lms_mb[2 * ii] * acc(ii) + lms_mb[2 * ii + 1];
+  if(calibrate_imu) {
+    for(int ii = 0; ii < 3; ii++) {
+      acc(ii) = lms_mb[2 * ii] * acc(ii) + lms_mb[2 * ii + 1];
+    }
   }
-#endif //CALIBRATION_IMU
 #ifdef DEBUG_MODE
   Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
          << " pitch: " << float(mpu.getPitch() / 180.f * PI)
          << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
 #endif
+}
+
+void read_imu_cali_para(const int address, float * data, const int size) {
+  for(int ii = 0; ii < size * sizeof(float); ii += sizeof(float)) {
+    data[ii / sizeof(float) + address] = EEPROM.readFloat(ii);
+    Serial.println(EEPROM.readFloat(ii), 6);
+  }
 }
 
 void initIMU() {
@@ -284,7 +298,10 @@ void initIMU() {
       Serial << "MPU connection failed. Please check your connection with `connection_check` example.\n";
       delay(1000);
     }
-  } else Serial << "MPU is connected. \n";
+  } 
+  else {
+    Serial << "MPU is connected. \n";
+  }
 
   // MPU calibrate anytime you want to
   Serial << "Accel Gyro calibration will start in 5sec.\n";
@@ -292,17 +309,16 @@ void initIMU() {
   mpu.verbose(true);
   delay(5000);
   mpu.calibrateAccelGyro();
-  mpu.setMagBias(-89.91, 446.60, -375.83);  //Set by Observation
+  mpu.setMagBias(-89.91f, 446.60f, -375.83f);  //Set by Observation
   mpu.verbose(false);
 
-#ifdef CALIBRATION_IMU
-  EEPROM.begin(50);
-  read_imu_cali_para(ACC_cali_para_addr, lms_mb, MenuItemsSize(lms_mb));
-  float mag_bias_[3] = {};
-  read_imu_cali_para(Mag_cali_para_addr, mag_bias_, MenuItemsSize(mag_bias_));
-  mpu.setMagBias(mag_bias_[0], mag_bias_[1], mag_bias_[2]);  //Set by Observation
-#endif
-
+  if(calibrate_imu) {
+    EEPROM.begin(50);
+    read_imu_cali_para(ACC_CALI_PARA_ADDR, lms_mb, MenuItemsSize(lms_mb));
+    float mag_bias_[3] = {};
+    read_imu_cali_para(MAG_CALI_PARA_ADDR, mag_bias_, MenuItemsSize(mag_bias_));
+    mpu.setMagBias(mag_bias_[0], mag_bias_[1], mag_bias_[2]);  //Set by Observation
+  }
   //Initial Kalman and GPS
   Initial_Kalman(); //Initial parameters
 
@@ -322,22 +338,21 @@ void initIMU() {
 }
 
 /*-----------------------------Calibration functions---------------------*/
-#ifdef CALIBRATION_IMU
-void LMS_para(float x[], int n, float * m_, float * b_) {
-  float sumx = 0, sumx2 = 0, sumxy = 0, sumy = 0, sumy2 = 0;
+static void LMS_para(const float x[], const int n, float * m_, float * b_) {
+  float sumx = 0.f, sumx2 = 0.f, sumxy = 0.f, sumy = 0.f, sumy2 = 0.f;
   float y[n] = {};
   Serial << "Create y array, -1, 0, 1\n";
   //Sum loop
   for(int ii = 0; ii < n; ii++) {
     //Create y array, -1, 0, 1
-    if(x[ii] < -0.5) {
-      y[ii] = -1;
+    if(x[ii] < -0.5f) {
+      y[ii] = -1.f;
     }
-    else if (x[ii] > 0.5) {
-      y[ii] = 1;
+    else if(x[ii] > 0.5f) {
+      y[ii] = 1.f;
     }
     else {
-      y[ii] = 0;
+      y[ii] = 0.f;
     }
     Serial << x[ii] << "," << y[ii] << "  ";
     sumx += x[ii];
@@ -348,35 +363,44 @@ void LMS_para(float x[], int n, float * m_, float * b_) {
   }
   Serial << "Loop done\n";
   const float denom = (n * sumx2 - sumx * sumx);
-  if(denom == 0) {
+  if(denom == 0.f) {
     // singular matrix. can't solve the problem.
     Serial << "No solution\n";
-    *m_ = 1;
-    *b_ = 0;
+    *m_ = 1.f;
+    *b_ = 0.f;
   }
   else {
     *m_ = (n * sumxy - sumx * sumy) / denom;
     *b_ = (sumy * sumx2 - sumx * sumxy) / denom;
-    Serial << "Solution get, m= " << *m_ << " b= " << *b_ << '\n' ;
+    Serial << "Solution: m = " << *m_ << " b = " << *b_ << '\n' ;
   }
 }
 
-float get_sqre(BLA::Matrix<3> x, int n) {
-  float sqar = 0;
+static float get_sqre(BLA::Matrix<3> x, const int n) {
+  float sqar = 0.f;
   for(int ii = 0; ii < n; ii++) {
     sqar += x(ii) * x(ii);
   }
   return sqrt(sqar);
 }
 
-void calibration_mag() {
+static void write_imu_cali_para(const int address, const float * data, const int size) {
+  for(int ii = 0; ii < (size * sizeof(float)); ii += sizeof(float)) {
+    EEPROM.writeFloat(ii + address, data[ii / sizeof(float)]);
+    //Serial.println(lms_mb[i]);
+    Serial.println(EEPROM.readFloat(ii));
+  }
+  EEPROM.commit();
+}
+
+static void calibration_mag() {
   Serial.println("Mag calibration will start in 5sec.");
   Serial.println("Please Wave device in a figure eight until done.");
   delay(5000);
   mpu.calibrateMag();
 }
 
-void calibration_imu() {
+static void calibration_imu() {
   int n = 50;
   //  float accx[6 * n] = {};
   //  float accy[6 * n] = {};
@@ -394,16 +418,15 @@ void calibration_imu() {
         }
       }
     }
-
-    for (int i = (j * 50); i < (j * 50 + n); i++) { //Get n samples of acceleration
-      if (mpu.update()) {
-        acc_cal_temp[0][i] = mpu.getAccX();
-        acc_cal_temp[1][i] = mpu.getAccY();
-        acc_cal_temp[2][i] = mpu.getAccZ();
-        Serial << "Count: " << i
-               << " x: " << acc_cal_temp[0][i]
-               << " y: " << acc_cal_temp[1][i]
-               << " z: " << acc_cal_temp[2][i]
+    for(int ii = jj * 50; ii < (jj * 50 + n); ii++) { //Get n samples of acceleration
+      if(mpu.update()) {
+        acc_cal_temp[0][ii] = mpu.getAccX();
+        acc_cal_temp[1][ii] = mpu.getAccY();
+        acc_cal_temp[2][ii] = mpu.getAccZ();
+        Serial << "Count: " << ii
+               << " x: " << acc_cal_temp[0][ii]
+               << " y: " << acc_cal_temp[1][ii]
+               << " z: " << acc_cal_temp[2][ii]
                << '\n';
         delay(50);
       }
@@ -415,7 +438,7 @@ void calibration_imu() {
   //Write into matrix, contains m & b for x, y, z;
   for(int ii = 0; ii < 3; ii++) {
     float acc_temp[6 * n] = {};
-    for(int jj = 0; j < 6 * n; jj++) {
+    for(int jj = 0; jj < 6 * n; jj++) {
       acc_temp[jj] = acc_cal_temp[ii][jj];
     }
     LMS_para(acc_temp, 6 * n, &lms_mb[ii * 2], &lms_mb[ii * 2 + 1]);
@@ -439,24 +462,33 @@ void calibration_imu() {
   Serial.println("Stored all data into flash.");
 }
 
-void read_imu_cali_para(int address, float * data, int size) {
-  for(int ii = 0; ii < size * sizeof(float); ii += sizeof(float)) {
-    data[ii / sizeof(float) + address] = EEPROM.readFloat(ii);
-    Serial.println(EEPROM.readFloat(ii), 6);
+static void print_data(const char print_) {
+  if(print_ == 'a' || print_ == 'v' || print_ == 'p' || print_ == 'o' || print_ == 'A' || print_ == 'V' || print_ == 'P') {
+    if(print_ == 'a') {
+      Serial << "Ax: " << acc(0)
+            << " Ay: " << acc(1)
+            << " Az_e: " << acc(2) << " ";
+      Serial.println(get_sqre(acc, 3), 6);
+    }
+    else if(print_ == 'v') {
+      Serial << "Vx: " << X_INS(0)
+            << " Vy: " << X_INS(1)
+            //<< " Vz: " << v[2]
+            << '\n';
+    }
+    else if(print_ == 'p') {
+      Serial << "Px: " << X_INS(2)
+            << " Py: " << X_INS(3)
+            //<< " Pz: " << p[2]
+            << '\n';
+    }
   }
-}
-
-void write_imu_cali_para(int address, float * data, int size) {
-  for(int ii = 0; ii < (size * sizeof(float)); ii += sizeof(float)) {
-    EEPROM.writeFloat(ii + address, data[ii / sizeof(float)]);
-    //Serial.println(lms_mb[i]);
-    Serial.println(EEPROM.readFloat(ii));
+  else {
+    return;
   }
-  EEPROM.commit();
 }
 
 void read_Serial_input() {
-  int print_;
   if(Serial.available()) {
     const char c = Serial.read();
     delay(200);
@@ -472,32 +504,24 @@ void read_Serial_input() {
           X_INS(ii) = 0;
         }
         break;
-      case 'd':
-#ifndef DEBUG_MODE
-#define DEBUG_MODE 1
-#endif
-#ifdef DEBUG_MODE
-#undef DEBUG_MODE
-#endif
-        break;
       default:
-        print_ = c;
         break;
     }
+    print_data(c);
   }
-  print_data(print_);
 }
+
 void check_stable_imu() {
   const float error = 0.01f;
   float fix[20] = {};
   fix[0] = abs(get_sqre(acc, 3) - 1);
-  for(int ii = 0; ii < 20; ii++) {
-    fix[ii + 1] = fix[ii];
+  for(int ii = 1; ii < 20; ii++) {
+    memcpy(&fix[ii], &fix[ii - 1], sizeof(float));
   }
   int stationary = 0;
   for(int ii = 0; ii < 15; ii++) {
     if(fix[ii] <= error) {
-      stationary += 1;
+      stationary++;
     }
   }
   if(stationary >= 15) {
@@ -505,37 +529,8 @@ void check_stable_imu() {
       X_INS(ii);
     }
     for(int ii = 0; ii < 20; ii++) {
-      fix[ii] = 1;
+      fix[ii] = 1.f;
     }
   }
 }
-
-void print_data(const char print_) {
-  if(print_ == 'a' || print_ == 'v' || print_ == 'p' || print_ == 'o' || print_ == 'A' || print_ == 'V' || print_ == 'P') {
-    continue;
-  }
-  else {
-    return;
-  }
-  if(print_ == 'a') {
-    Serial << "Ax: " << acc(0)
-           << " Ay: " << acc(1)
-           << " Az_e: " << acc(2) << " ";
-    Serial.println(get_sqre(acc, 3), 6);
-  }
-  else if (print_ == 'v') {
-    Serial << "Vx: " << X_INS(0)
-           << " Vy: " << X_INS(1)
-           //<< " Vz: " << v[2]
-           << '\n';
-  }
-  else if (print_ == 'p') {
-    Serial << "Px: " << X_INS(2)
-           << " Py: " << X_INS(3)
-           //<< " Pz: " << p[2]
-           << '\n';
-  }
-}
-#endif //CALIBRATION_IMU
-
 #endif //IMU_H

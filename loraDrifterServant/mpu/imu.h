@@ -218,10 +218,10 @@ void measure_gps_data() {
              get_diff_dist(Lng_o, gps.location.lng()),
              Yaw[0]
             };
-    Y_GPS = {gps.location.lat(),
-             gps.location.lng(),
-             Yaw[0]
-            };
+    // Y_GPS = {gps.location.lat(),
+    //          gps.location.lng(),
+    //          Yaw[0]
+    //         };
   } else {
     Serial.println(F("Location: INVALID"));
   }

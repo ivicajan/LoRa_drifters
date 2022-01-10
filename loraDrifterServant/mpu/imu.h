@@ -281,7 +281,7 @@ void measure_imu_data() {
 #endif
 }
 
-void read_imu_cali_para(const int address, float * data, const int size) {
+static void read_imu_cali_para(const int address, float * data, const int size) {
   for(int ii = 0; ii < size * sizeof(float); ii += sizeof(float)) {
     data[ii / sizeof(float) + address] = EEPROM.readFloat(ii);
     Serial.println(EEPROM.readFloat(ii), 6);

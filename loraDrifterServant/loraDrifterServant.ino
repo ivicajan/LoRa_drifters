@@ -2,7 +2,7 @@
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-#define USING_IMU
+// #define USING_IMU
 #ifdef USING_IMU
 #include "mpu/imu.h"
 extern BLA::Matrix<3> U_INS;
@@ -18,7 +18,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x66;
+byte localAddress = 0x55;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
@@ -39,8 +39,8 @@ int nSamples;                         // Counter for the number of samples gathe
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D06";       // ID send with packet
-int drifterTimeSlotSec = 28;      // seconds after start of each GPS minute
+String drifterName = "D05";       // ID send with packet
+int drifterTimeSlotSec = 20;      // seconds after start of each GPS minute
 
 Packet packet;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -380,6 +380,7 @@ static void generatePacket() {
   }
 }
 
+#ifdef USING_IMU
 static bool calibrateIMU() {
   if(calibrate_imu == false) {
     calibrate_imu = true;
@@ -390,6 +391,7 @@ static bool calibrateIMU() {
     return false;
   }
 }
+#endif //USING_IMU
 
 static void startWebServer(const bool webServerOn) {
   if(!webServerOn) {
@@ -481,7 +483,7 @@ static String processor(const String & var) {
           <td><b>Last File Write GPS Time</b></td>
           <td><b>Erase Data (NO WARNING)</b></td>)rawliteral";
 #ifdef USING_IMU
-      servantData += "<td><b>Calibrate IMU</b></td>";
+    servantData += "<td><b>Calibrate IMU</b></td>";
 #endif // USING_IMU
     servantData += "</tr>";
     servantData += "<tr><td>" + csvFileName + "</td>";

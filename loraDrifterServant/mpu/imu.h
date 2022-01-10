@@ -34,12 +34,6 @@
 float lms_mb[6] = {1, 0, 1, 0, 1, 0};
 bool calibrate_imu = false;
 
-/***  do not modify  ***/
-template< typename T, size_t NumberOfSize >
-size_t MenuItemsSize(T (&) [NumberOfSize]) {
-  return NumberOfSize;
-}
-
 using namespace BLA;
 MPU9250 mpu;
 #define SAMPLE_PERIOD_ms 50
@@ -239,22 +233,22 @@ void measure_gps_data() {
 
 //Process Acceleration data to earth frame
 void measure_imu_data() {
-  float acc_x___ = mpu.getAccX() / 1.02; //get from mpu
+  float acc_x___ = mpu.getAccX() / 1.02f; //get from mpu
   float acc_y___ = mpu.getAccY();
-  float acc_z___ = mpu.getAccZ() / 1.045;
+  float acc_z___ = mpu.getAccZ() / 1.045f;
   const float acc_the = mpu.getRoll() / 180.f * PI;
   const float acc_fin = mpu.getPitch() / 180.f * PI;
   const float acc_psi = mpu.getYaw() / 180.f * PI;
 
   //Set Max Acc
-  if(acc_x___ >= 2) {
-    acc_x___ = 2;
+  if(acc_x___ >= 2.f) {
+    acc_x___ = 2.f;
   }
-  if(acc_y___ >= 2) {
-    acc_y___ = 2;
+  if(acc_y___ >= 2.f) {
+    acc_y___ = 2.f;
   }
-  if(acc_z___ >= 2) {
-    acc_z___ = 2;
+  if(acc_z___ >= 2.f) {
+    acc_z___ = 2.f;
   }
 
   //rotate from x-axis
@@ -282,7 +276,7 @@ void measure_imu_data() {
 }
 
 static void read_imu_cali_para(const int address, float * data, const int size) {
-  for(int ii = 0; ii < size * sizeof(float); ii += sizeof(float)) {
+  for(int ii = 0; ii < size; ii += sizeof(float)) {
     data[ii / sizeof(float) + address] = EEPROM.readFloat(ii);
     Serial.println(EEPROM.readFloat(ii), 6);
   }
@@ -314,9 +308,9 @@ void initIMU() {
 
   if(calibrate_imu) {
     EEPROM.begin(50);
-    read_imu_cali_para(ACC_CALI_PARA_ADDR, lms_mb, MenuItemsSize(lms_mb));
+    read_imu_cali_para(ACC_CALI_PARA_ADDR, lms_mb, sizeof(lms_mb));
     float mag_bias_[3] = {};
-    read_imu_cali_para(MAG_CALI_PARA_ADDR, mag_bias_, MenuItemsSize(mag_bias_));
+    read_imu_cali_para(MAG_CALI_PARA_ADDR, mag_bias_, sizeof(mag_bias_));
     mpu.setMagBias(mag_bias_[0], mag_bias_[1], mag_bias_[2]);  //Set by Observation
   }
   //Initial Kalman and GPS
@@ -385,7 +379,7 @@ static float get_sqre(BLA::Matrix<3> x, const int n) {
 }
 
 static void write_imu_cali_para(const int address, const float * data, const int size) {
-  for(int ii = 0; ii < (size * sizeof(float)); ii += sizeof(float)) {
+  for(int ii = 0; ii < size; ii += sizeof(float)) {
     EEPROM.writeFloat(ii + address, data[ii / sizeof(float)]);
     //Serial.println(lms_mb[i]);
     Serial.println(EEPROM.readFloat(ii));
@@ -446,7 +440,7 @@ static void calibration_imu() {
   //Write data into Flash
   //EEPROM.begin(24);
   int count_lms = 0;
-  write_imu_cali_para(ACC_CALI_PARA_ADDR, lms_mb, MenuItemsSize(lms_mb));
+  write_imu_cali_para(ACC_CALI_PARA_ADDR, lms_mb, sizeof(lms_mb));
   Serial.println("Store acc para done.");
   Serial << "para:";
   for(int ii = 0; ii < 3; ii++) {
@@ -458,7 +452,7 @@ static void calibration_imu() {
   Serial << '\n';
   calibration_mag();
   const float mag_bias_[3] = {mpu.getMagBias(0), mpu.getMagBias(1), mpu.getMagBias(2)};
-  write_imu_cali_para(MAG_CALI_PARA_ADDR, mag_bias_, MenuItemsSize(mag_bias_));
+  write_imu_cali_para(MAG_CALI_PARA_ADDR, mag_bias_, sizeof(mag_bias_));
   Serial.println("Stored all data into flash.");
 }
 

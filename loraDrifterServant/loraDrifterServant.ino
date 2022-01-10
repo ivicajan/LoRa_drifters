@@ -321,7 +321,7 @@ static void fill_packet() {
 #ifdef USING_MESH
 static String nodeHopsToString() {
   String outStr = "";
-  for(size_t idx = 0; idx < NUM_NODES - 1; idx++) {
+  for(size_t idx = 0; idx < NUM_NODES; idx++) {
     outStr += String(nodeRx[idx]) + ",";
   }
   return outStr;
@@ -355,7 +355,7 @@ static void generatePacket() {
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
       csvOutStr += tDate + "," + tTime + "," + tLocation 
 #ifdef USING_MESH
-      + "," + String(messagesSent) + "," + String(messagesReceived) + "," + String(masterRx) + nodeHopsToString() // Diagnostics
+      + "," + String(messagesSent) + "," + String(messagesReceived) + "," + String(masterRx) + "," + nodeHopsToString() // Diagnostics
 #endif // USING_MESH
 #ifdef USING_IMU
       // TODO: add IMU data here

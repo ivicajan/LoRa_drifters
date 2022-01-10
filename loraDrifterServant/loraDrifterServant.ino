@@ -314,7 +314,7 @@ static void fill_packet() {
 #ifdef USING_MESH
 static String nodeHopsToString() {
   String outStr = "";
-  for(size_t idx = 0; idx < NUM_NODES; idx++) {
+  for(size_t idx = 0; idx < NUM_NODES - 1; idx++) {
     outStr += String(nodeRx[idx]) + ",";
   }
   return outStr;
@@ -365,7 +365,7 @@ static void generatePacket() {
         LoRa.write((const uint8_t *)&packet, sizeof(packet));
         LoRa.endPacket();
         delay(50); // Don't send more than 1 packet
-      }
+    }
 #endif // USING_MESH
     } else {
       Serial.println("No GPS fix, not sending or writing");

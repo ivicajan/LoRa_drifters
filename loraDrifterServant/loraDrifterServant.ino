@@ -136,13 +136,15 @@ static void writeData2Flash() {
 
 #ifdef USING_IMU
 static void update_imu() {
+  int reset__ = 0;
   if(mpu.update()) {
     static uint32_t prev_ms = millis();
     static uint32_t imu_ms = millis(); //For reset
     if(millis() > prev_ms + SAMPLE_PERIOD_ms) {
-      if(millis() > imu_ms + 20000) {
+      if((millis() > imu_ms + 20000) && (reset__ != 1)){
         update_ref_location(); // Reset data after 20 secs
         imu_ms = millis();
+        reset__ = 1;
       }
       while(Serial1.available() > 0) {
         gps.encode(Serial1.read());
@@ -153,6 +155,10 @@ static void update_imu() {
       if(mpu.update()) {
         measure_imu_data();
       }
+#ifdef CALIBRATION_IMU
+      read_Serial_input();
+      //check_stable_imu();
+#endif //CALIBRATION_IMU
       //Ouput current location in lat and lng
       float lat, lng;
       get_current_location(&lat, &lng);

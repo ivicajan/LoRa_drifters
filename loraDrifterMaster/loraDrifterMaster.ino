@@ -5,6 +5,8 @@
 #endif // USING_MESH
 
 #define MASTER_NODE
+#define WIFI_SSID         ("DrifterMaster")      // Wifi ssid and password
+#define WIFI_PASSWORD     ("Tracker1")
 
 SemaphoreHandle_t servantSemaphore = NULL;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -12,8 +14,6 @@ SemaphoreHandle_t loraSemaphore = NULL;
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // GLOBAL VARIABLES
-#define SSID     "DrifterMaster"      // Wifi ssid and password
-#define PASSWORD "Tracker1"
 Master m;                             // Master data
 Servant s[NUM_MAX_SERVANTS];          // Servants data array
 String masterData = "";               // Strings for tabular data output to web page
@@ -28,8 +28,8 @@ int gpsLastSecond = -1;
 #ifdef USING_MESH
 byte routingTable[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
-byte localAddress = 0xAA;
-byte localNextHopID = 0xAA;
+byte localAddress = MASTER_LOCAL_ID;
+byte localNextHopID = MASTER_LOCAL_ID;
 byte localHopCount = 0x00;
 // Diagnostics
 int messagesSent = 0;
@@ -146,7 +146,7 @@ static void onReceive(const int packetsize) {
 #endif // USING_MESH
 
 static void initWebServer() {
-  WiFi.softAP(SSID, PASSWORD);
+  WiFi.softAP(WIFI_SSID, WIFI_PASSWORD);
   Serial.println(WiFi.softAPIP());    // Print ESP32 Local IP Address
 
   // F. Web Server Callbacks setup

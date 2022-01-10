@@ -1,7 +1,7 @@
 #ifndef LORADRIFTERMASTER_H
 #define LORADRIFTERMASTER_H
 
-#define nSamplesFileWrite 300      // Number of samples to store in memory before file write
+#define nSamplesFileWrite (300)      // Number of samples to store in memory before file write
 
 // G. Classes for Master and Servant Data
 class Servant {

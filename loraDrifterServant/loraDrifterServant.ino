@@ -213,7 +213,7 @@ static void sendTask(void * params) {
 #else
       if(gps.time.second() == drifterTimeSlotSec) {
 #endif //IGNORE_GPS_INSIDE
-        result = routePayload(SERVANT_MODE, 0xAA, localAddress, 0x0F, 0);
+        result = routePayload(SERVANT_MODE, MASTER_LOCAL_ID, localAddress, 0x0F, 0);
       }
       if(loop_runEvery(RS_BCAST_TIME)) {
         Serial.println("Route broadcast");

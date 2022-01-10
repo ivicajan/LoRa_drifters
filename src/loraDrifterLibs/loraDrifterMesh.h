@@ -2,16 +2,18 @@
 #define LORADRIFTERMESH_H
 
 // Timing Parameters
-#define RS_BCAST_TIME             17000   // Time intervals, broadcast for every 17s
-#define PL_TX_TIME                12000   // Receive pay load for every 12s
-#define DELETION_TIME             62000   // Reset the routing table if entry's time is older than 62s
-#define ARQ_TIME                  2000    // Automatic Repeat Request for every 2s
+#define RS_BCAST_TIME             (17000)   // Time intervals, broadcast for every 17s
+#define PL_TX_TIME                (12000)   // Receive pay load for every 12s
+#define DELETION_TIME             (62000)   // Reset the routing table if entry's time is older than 62s
+#define ARQ_TIME                  (2000)    // Automatic Repeat Request for every 2s
 
-#define NUM_NODES                 8
-#define ROUTING_TABLE_ENTRY_SIZE  19
+#define NUM_NODES                 (10)
+#define ROUTING_TABLE_ENTRY_SIZE  (19)
+#define MASTER_LOCAL_ID           (0xBB)
+#define ROUTING_TABLE_SIZE        (MASTER_LOCAL_ID)
 
-#define SERVANT_MODE              0
-#define MASTER_MODE               1
+#define SERVANT_MODE              (0)
+#define MASTER_MODE               (1)
 
 #ifdef MESH_MASTER_MODE
 extern String csvOutStr;
@@ -26,7 +28,7 @@ extern Packet packet;
 extern SemaphoreHandle_t loraSemaphore;
 #endif //MESH_MASTER_MODE
 
-extern byte routingTable[0x99];
+extern byte routingTable[ROUTING_TABLE_SIZE];
 extern byte payload[24];
 extern byte localHopCount;
 extern byte localNextHopID;
@@ -61,7 +63,7 @@ typedef enum {
   Invalid         = -1,
 } ErrorType;
 
-// This is C++ notation, not C
+// Note: This is C++ notation, not C
 typedef enum {
   Failure = 0,
   Success = 1,
@@ -113,42 +115,43 @@ static int frameHandler(const int mode, const byte type, const byte router, cons
 
 static bool validateID(const byte nodeID) {
   switch(nodeID) {
-    case 0x11:        // Node 1
-    case 0x22:        // Node 2
-    case 0x33:        // Node 3
-    case 0x44:        // Node 4
-    case 0x55:        // Node 5
-    case 0x66:        // Node 6
-    case 0x77:        // Node 7
-    case 0x88:        // Node 8
-    case 0x99:        // Node 9
-    case 0xAA:        // Master Node
-    case 0xFF:        // BCAST
+    case 0x11:            // Node 1
+    case 0x22:            // Node 2
+    case 0x33:            // Node 3
+    case 0x44:            // Node 4
+    case 0x55:            // Node 5
+    case 0x66:            // Node 6
+    case 0x77:            // Node 7
+    case 0x88:            // Node 8
+    case 0x99:            // Node 9
+    case 0xAA:            // Node 10
+    case MASTER_LOCAL_ID: // Master Node
+    case 0xFF:            // BCAST
       return true;
-    default:        // Invalid ID
+    default:              // Invalid ID
       return false;
   }
   return false;
 }
 
 static int idToIndex(const byte nodeID) {
-  if(nodeID == 0xAA) return 0;
+  if(nodeID == MASTER_LOCAL_ID) return 0;
   return (nodeID == 0) ? 0 : nodeID / 0x10;
 }
 
 static byte indexToId(const int idx) {
-  if(idx == 0) return 0xAA;
-  return (idx == 0) ? 0x00 : (idx * 0x10) + idx;
+  if(idx == 0) return MASTER_LOCAL_ID;
+  return idx * 0x10 + idx;
 }
 
 static void incNodeRxCounter(const byte nodeID) {
 #ifndef MESH_MASTER_MODE
-  if(nodeID == 0xAA) {
+  if(nodeID == MASTER_LOCAL_ID) {
     masterRx++;
   }
   else 
 #endif // MESH_MASTER_MODE
-  if(nodeID != 0xAA) {
+  if(nodeID != MASTER_LOCAL_ID) {
     nodeRx[idToIndex(nodeID)]++;
   }
 }
@@ -260,10 +263,10 @@ static bool checkIfEmpty() {
 }
 
 static bool searchMaster() {
-  //Checks if a nodeID matches the Master ID 0xAA.
+  //Checks if a nodeID matches the Master ID MASTER_LOCAL_ID.
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte entry = routingTable[idx * ROUTING_TABLE_ENTRY_SIZE];
-    if(entry == 0xAA) {
+    if(entry == MASTER_LOCAL_ID) {
       return true;
     }
   }
@@ -327,7 +330,7 @@ static bool checkFrameHeader(const int mode, const byte sizeHeader, const byte t
       Serial.println("checkFrameHeader: invalid type for Node Mode");
       return false;
     }
-    if(type == RouteBroadcastMaster && sender != 0xAA) {
+    if(type == RouteBroadcastMaster && sender != MASTER_LOCAL_ID) {
       Serial.println("checkFrameHeader: Invalid Type && sender ID");
       return false;
     }
@@ -350,7 +353,7 @@ static bool checkFrameHeader(const int mode, const byte sizeHeader, const byte t
     }
     return true;
   }
-  if(mode > 0x10 && mode < 0xAB) {
+  if(mode > 0x10 && mode < 0xBC) {
     if(type != ACK) {
       return false;
     }
@@ -435,7 +438,8 @@ static void sendFrame(const int mode, const byte type, const byte router, const 
         Serial.println("Not valid for this mode");
         break;
       }
-  } else if(mode == MASTER_MODE) {
+  }
+  else if(mode == MASTER_MODE) {
     switch(type) {
       case RouteBroadcastMaster:
       case ACK:
@@ -450,7 +454,8 @@ static void sendFrame(const int mode, const byte type, const byte router, const 
         Serial.println("Not valid for this mode");
         break;
     }
-  } else {
+  }
+  else {
     Serial.println("Not a valid mode");
   }
 }
@@ -556,7 +561,7 @@ static int frameHandler(const int mode, const byte type, const byte router, cons
         const int rssi = LoRa.packetRssi();
         const float snr = LoRa.packetSnr();
         const unsigned long time = millis();
-        result = insertRoutingTable(sender, 0x01, 0xAA, rssi, snr, time);
+        result = insertRoutingTable(sender, 0x01, MASTER_LOCAL_ID, rssi, snr, time);
         if(result != Success) {
           return result;
         }
@@ -614,9 +619,9 @@ static int frameHandler(const int mode, const byte type, const byte router, cons
   // The address space in integers between 17 and 170.
   // Node 1 - 0x11 - 17
   // Node 2 - 0x22 - 34
-  // Master Node - 0xAA - 170
+  // Master Node - MASTER_LOCAL_ID - 184
   
-  else if(mode > 0x10 && mode < 0xAB) { // ACK Mode
+  else if(mode > 0x10 && mode < 0xBC) { // ACK Mode
     if(type == ACK) {
       return Success;
     } 
@@ -725,7 +730,7 @@ static int setRoutingStatus() {
       }
     } else {
       // master is inside the routing table
-      localNextHopID = 0xAA;
+      localNextHopID = MASTER_LOCAL_ID;
       localHopCount = 0x01;
       return Success;
     } 

@@ -96,6 +96,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <body>
     <h2>LoRa Drifters</h2>
     <h4>Master Node</h4>
+    <h5>Battery %BATTERYPERCENT%</h5>
     <table>
       <tr>
         <td><b>GPS Time</b></td>

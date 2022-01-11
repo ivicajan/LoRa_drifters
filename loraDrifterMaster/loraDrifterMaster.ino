@@ -45,6 +45,9 @@ static String processor(const String & var) {
   else if(var == "MASTER") {
     return masterData;
   }
+  else if(var == "BATTERYPERCENT") {
+    return String(getBatteryPercentage(), 1) + '%';
+  }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
     String diagnosticString =

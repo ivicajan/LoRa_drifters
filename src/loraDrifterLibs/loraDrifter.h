@@ -102,6 +102,18 @@ class Master {
 #include "loraDrifterMesh.h"
 #endif //USING_MESH
 
+#define BATT_MAX_BATTERY_VOLTAGE (4.2f)
+#define BATT_MID_BATTERY_VOLTAGE (3.7f)
+#define BATT_MIN_BATTERY_VOLTAGE (3.2f)
+
+#define BATT_MID_CONVERSION      (BATT_MID_BATTERY_VOLTAGE / BATT_MAX_BATTERY_VOLTAGE)
+#define BATT_MIN_CONVERSION      (BATT_MIN_BATTERY_VOLTAGE / BATT_MAX_BATTERY_VOLTAGE)
+#define BATT_CONVERSION          (1000.f * (BATT_MID_CONVERSION - BATT_MIN_CONVERSION) / 50.f)
+
+float getBatteryPercentage() {
+    return (PMU.getBattVoltage() * BATT_CONVERSION) / 100.f;
+}
+
 bool initPMU() {
     Wire.begin(I2C_SDA, I2C_SCL);
     delay(50);

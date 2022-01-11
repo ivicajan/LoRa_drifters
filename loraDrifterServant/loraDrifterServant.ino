@@ -18,7 +18,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0x33;
+byte localAddress = 0xAA;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
@@ -184,7 +184,9 @@ static void listenTask(void * params) {
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
     vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
+    xSemaphoreTake(loraSemaphore, portMAX_DELAY);
     const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
+    xSemaphoreGive(loraSemaphore);
   }
 }
 #endif // USING_MESH

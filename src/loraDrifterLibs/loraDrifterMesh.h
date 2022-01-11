@@ -19,6 +19,10 @@
 
 #ifdef MESH_MASTER_MODE
 extern String csvOutStr;
+extern String messageLog;
+#define MAX_NUM_LOGS              (30)
+int numLogs = 0;
+extern TinyGPSPlus gps;
 class Master;
 extern Master m;
 class Servant;
@@ -496,13 +500,25 @@ int listener(const int frameSize, const int mode) {
       Serial.print("Received DirectPayload packet from: 0x");
       Serial.println((int)sender, HEX);
       Serial.print("Routed from: 0x");
-      Serial.println((int)router, HEX);
+      Serial.println((int)source, HEX);
+#ifdef MESH_MASTER_MODE
+      if(numLogs == MAX_NUM_LOGS) {
+        messageLog = "";
+      }
+      String temp = "";
+      if(sender != source) {
+        temp = " routed by D" + String(idToIndex(source));
+      }
+      const String tDate = String(gps.date.year()) + "-" + String(gps.date.month()) + "-" + String(gps.date.day());
+      const String tTime = String(gps.time.hour()) + ":" + String(gps.time.minute()) + ":" + String(gps.time.second());
+      messageLog += "<tr><td>" + tDate + " " + tTime  + "</td><td>Received packet from D" + String(idToIndex(sender)) + temp + "</td></tr>";
+#endif //MESH_MASTER_MODE
     }
     else if(type == RouteRequest) { // this is a hop
       Serial.print("Received RouteRequest packet from: 0x");
       Serial.println((int)sender, HEX);
       Serial.print("Routed from: 0x");
-      Serial.println((int)router, HEX);
+      Serial.println((int)source, HEX);
     }
     return frameHandler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
   }

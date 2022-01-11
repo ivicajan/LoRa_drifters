@@ -31,6 +31,7 @@ byte payload[24] = "";
 byte localAddress = MASTER_LOCAL_ID;
 byte localNextHopID = MASTER_LOCAL_ID;
 byte localHopCount = 0x00;
+String messageLog = "";
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
@@ -63,6 +64,19 @@ static String processor(const String & var) {
     }
     xSemaphoreGive(servantSemaphore);
     return diagnosticString += "</tr>" + diagnosticData;
+  }
+  else if(var == "MESSAGELOG") {
+    String outputLog =
+      R"rawliteral(
+      <br><br>
+      <h4>Message Log</h4>
+      <table>
+        <tr>
+          <td><b>Timestamp</b></td>
+          <td><b>Log</b></td>
+        </tr>
+        )rawliteral";
+    return outputLog += messageLog;
   }
 #endif // USING_MESH
   else {

@@ -110,6 +110,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     </table>
     %SERVANTS%
     %DIAGNOSTICS%
+    </table>
+    %MESSAGELOG%
+    </table>
   </body>
 </html>
 )rawliteral";

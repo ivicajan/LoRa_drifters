@@ -15,7 +15,7 @@
 #define SERVANT_MODE              (0)
 #define MASTER_MODE               (1)
 
-#define DEBUG_HOP
+// #define DEBUG_HOP
 
 #ifdef MESH_MASTER_MODE
 extern String csvOutStr;

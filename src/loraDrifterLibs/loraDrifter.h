@@ -62,11 +62,11 @@ AXP20X_Class PMU;
 TinyGPSPlus gps;                      // decoder for GPS stream
 AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 
-// 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 = 38 bytes
+// 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 + 4 = 42 bytes
 #pragma pack(1) // Fixes padding issues
 struct Packet {
-  char name[3];             // D01
-  int drifterTimeSlotSec;   // 15
+  char name[3];             // e.g. D01
+  int drifterTimeSlotSec;   // e.g. 15
   uint16_t year;
   uint8_t month;
   uint8_t day;
@@ -77,6 +77,7 @@ struct Packet {
   double lat;
   uint32_t age;
   int nSamples;
+  float battPercent;
 };
 
 class Master {

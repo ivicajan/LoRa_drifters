@@ -22,6 +22,7 @@ class Servant {
     double lat = 0.0;
     uint32_t age = 0;
     int nSamples = 0;
+    float battPercent = 0.f;
     int dist = 0;
     float bear = 0.f;
     int rssi = 0;
@@ -47,6 +48,7 @@ void Servant::decode(Packet * packet) {
     lat = packet->lat;
     age = packet->age;
     nSamples = packet->nSamples;
+    battPercent = packet->battPercent;
 // #ifdef DEBUG_MODE
 //     Serial.println(drifterTimeSlotSec);
 //     Serial.println(lastUpdateMasterTime);
@@ -96,7 +98,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <body>
     <h2>LoRa Drifters</h2>
     <h4>Master Node</h4>
-    <h5>Battery %BATTERYPERCENT%</h5>
+    <h5>Battery %BATTERYPERCENT% %%</h5>
     <table>
       <tr>
         <td><b>GPS Time</b></td>

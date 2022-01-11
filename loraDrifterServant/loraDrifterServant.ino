@@ -18,7 +18,7 @@ byte payload[24] = "";
 int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
-byte localAddress = 0xAA;
+byte localAddress = 0x33;
 // Diagnostics
 int messagesSent = 0;
 int messagesReceived = 0;
@@ -39,8 +39,8 @@ int nSamples;                         // Counter for the number of samples gathe
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D10";       // ID send with packet
-int drifterTimeSlotSec = 40;      // seconds after start of each GPS minute
+String drifterName = "D03";       // ID send with packet
+int drifterTimeSlotSec = 25;      // seconds after start of each GPS minute
 
 Packet packet;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -75,6 +75,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     </head>
     <body>
       <h2>LoRa Drifters</h2>
+      <h4>Servant Node</h4>
+      <h5>Battery %BATTERYPERCENT%</h5>
       %SERVANT%
       </table>
       <br><br>
@@ -316,6 +318,7 @@ static void fill_packet() {
   packet.lat = gps.location.lat();
   packet.nSamples = nSamples;
   packet.age = gps.location.age();
+  packet.battPercent = getBatteryPercentage();
 }
 
 #ifdef USING_MESH
@@ -353,7 +356,7 @@ static void generatePacket() {
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
-      csvOutStr += tDate + "," + tTime + "," + tLocation 
+      csvOutStr += tDate + "," + tTime + "," + tLocation + "," + String(packet.battPercent, 2)
 #ifdef USING_MESH
       + "," + String(messagesSent) + "," + String(messagesReceived) + "," + String(masterRx) + "," + nodeHopsToString() // Diagnostics
 #endif // USING_MESH
@@ -475,7 +478,6 @@ static String processor(const String & var) {
   if(var == "SERVANT") {
     String servantData =
       R"rawliteral(
-          <h4>Servant Node</h4>
       <table>
         <tr>
           <td><b>Filename</b></td>
@@ -494,6 +496,9 @@ static String processor(const String & var) {
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/calibrateIMU\"> CALIBRATE </a></td>";
 #endif // USING_IMU
     return servantData + "</tr>";
+  }
+  else if(var == "BATTERYPERCENT") {
+    return String(getBatteryPercentage(), 2);
   }
   else if(var == "DRIFTERID") {
     return drifterName;

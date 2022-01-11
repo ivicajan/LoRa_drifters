@@ -46,7 +46,7 @@ static String processor(const String & var) {
     return masterData;
   }
   else if(var == "BATTERYPERCENT") {
-    return String(getBatteryPercentage(), 1) + '%';
+    return String(getBatteryPercentage(), 2);
   }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
@@ -235,7 +235,7 @@ void setup() {
 static void fill_master() {
   m.lng = gps.location.lng();
   m.lat = gps.location.lat();
-  // TODO: Need to add 8 hours onto gps time
+  // TODO: Need to add 8 hours onto gps time  
   m.year = gps.date.year();
   m.month = gps.date.month();
   m.day = gps.date.day();
@@ -265,7 +265,7 @@ static void generateMaster() {
     masterData += "</tr>";
     // Update String to be written to file
     if((m.lng != 0.0) && (m.age < 1000)) {
-      csvOutStr += "Master," + tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + '\n';
+      csvOutStr += "Master," + tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "," + String(getBatteryPercentage(), 2) + '\n';
       nSamples++;
     } else {
       Serial.println("No GPS fix, not writing local data!");
@@ -316,6 +316,7 @@ static void sendTask(void * params) {
           <td><b>Lora Update Plan [s]</b></td>
           <td><b>Last Update [s]</b></td>
           <td><b>Time</b></td>
+          <td><b>Batt [%%]</b></td>
           <td><b>Lon</b></td>
           <td><b>Lat</b></td>
           <td><b>Dist [m]</b></td>
@@ -349,6 +350,7 @@ static void sendTask(void * params) {
         servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
         servantsData += tempClassColour + String(lastUpdate) + "</td>";
         servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
+        servantsData += "<td>" + String(s[ii].battPercent, 2) + "</td>";
         servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
         servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
         servantsData += "<td>" + String(s[ii].dist) + "</td>";

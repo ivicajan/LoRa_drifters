@@ -56,7 +56,7 @@
 #define NUM_MAX_SERVANTS            (11)     // Maximum number of servant drifters (just for setting array size)
 
 #define DEBUG_MODE                         // Additional printouts to serial port
-#define IGNORE_GPS_INSIDE                  // For testing indoors, so we dont just send on GPS time
+// #define IGNORE_GPS_INSIDE                  // For testing indoors, so we dont just send on GPS time
 
 AXP20X_Class PMU;
 TinyGPSPlus gps;                      // decoder for GPS stream
@@ -97,7 +97,7 @@ class Master {
 
 #ifdef MASTER_NODE
 #include "../../loraDrifterMaster.h"
-#endif // MASTER_MODE
+#endif // MASTER_NODE
 
 #ifdef USING_MESH
 #include "loraDrifterMesh.h"
@@ -112,7 +112,12 @@ class Master {
 #define BATT_CONVERSION          (1000.f * (BATT_MID_CONVERSION - BATT_MIN_CONVERSION) / 50.f)
 
 float getBatteryPercentage() {
+    // TODO: master display (with gps on) segfaults when running this conversion
+#ifndef MASTER_NODE
     return (PMU.getBattVoltage() * BATT_CONVERSION) / 100.f;
+#else
+    return 100.f;
+#endif //MASTER_NODE
 }
 
 bool initPMU() {

@@ -490,7 +490,7 @@ int listener(const int frameSize, const int mode) {
   const byte sender = LoRa.read();
   const byte ttl = LoRa.read();
   const byte sizePayload = LoRa.read();
-
+  
   const bool validHeader = checkFrameHeader(mode, sizeHeader,type, router, source, recipient, sender, ttl, sizePayload);
   if(validHeader) {
     messagesReceived++;
@@ -512,6 +512,7 @@ int listener(const int frameSize, const int mode) {
       const String tDate = String(gps.date.year()) + "-" + String(gps.date.month()) + "-" + String(gps.date.day());
       const String tTime = String(gps.time.hour()) + ":" + String(gps.time.minute()) + ":" + String(gps.time.second());
       messageLog += "<tr><td>" + tDate + " " + tTime  + "</td><td>Received packet from D" + String(idToIndex(sender)) + temp + "</td></tr>";
+      numLogs++;
 #endif //MESH_MASTER_MODE
     }
     else if(type == RouteRequest) { // this is a hop

@@ -299,7 +299,7 @@ static void sendTask(void * params) {
 #ifdef IGNORE_GPS_INSIDE
     if(loop_runEvery(RS_BCAST_TIME)) {
 #else 
-    if(gps.time.second() > RS_BCAST_TIME / 1000) {
+    if(gps.time.second() == RS_BCAST_TIME / 1000) {
 #endif // IGNORE_GPS_INSIDE
       xSemaphoreTake(loraSemaphore, portMAX_DELAY);
       Serial.println("Route broadcast");
@@ -332,14 +332,14 @@ static void sendTask(void * params) {
     String tempClassColour = "";
     for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
       const uint32_t lastUpdate = (millis() - s[ii].lastUpdateMasterTime) / 1000;
-      if(lastUpdate > 180 && lastUpdate <= 239) { // 3 minutes and greater, display grey colour
-        tempClassColour = R"rawliteral(<td style="background-color:LightGrey">)rawliteral";
-      }
-      else if(lastUpdate > 120 && lastUpdate <= 179) { // 2 minutes and greater, display red colour
+      if(lastUpdate >= 180) { // 3 minutes and greater
         tempClassColour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
       }
-      else if(lastUpdate > 60 && lastUpdate <= 119) { // 1-2 minutes, display orange colour
+      else if(lastUpdate >= 120 && lastUpdate <= 179) { // 2-3 minutes
         tempClassColour = R"rawliteral(<td style="background-color:DarkOrange">)rawliteral";
+      }
+      else if(lastUpdate > 60 && lastUpdate <= 119) { // 1-2 minutes
+        tempClassColour = R"rawliteral(<td style="background-color:LightGrey">)rawliteral";
       }
       else {
         tempClassColour = R"rawliteral(<td style="background-color:White">)rawliteral";

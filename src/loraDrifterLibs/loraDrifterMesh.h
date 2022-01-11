@@ -15,6 +15,8 @@
 #define SERVANT_MODE              (0)
 #define MASTER_MODE               (1)
 
+#define DEBUG_HOP
+
 #ifdef MESH_MASTER_MODE
 extern String csvOutStr;
 class Master;
@@ -193,6 +195,11 @@ static void printRoutingTable() {
 
 static int insertRoutingTable(const byte nodeID, const byte hopCount, const byte hopID, const int Rssi, const float snr, const unsigned long currentTime) {
   if(validateID(nodeID) && validateID(hopID)) { // validate node id and hop id
+#ifdef DEBUG_HOP
+    if(nodeID == MASTER_LOCAL_ID) {
+      return InvalidNodeID;
+    }
+#endif // DEBUG_HOP
     Serial.print("Added 0x");
     Serial.print((int)nodeID, HEX);
     Serial.println(" to routing table");

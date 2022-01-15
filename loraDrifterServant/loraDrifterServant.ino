@@ -184,9 +184,10 @@ static void listenTask(void * params) {
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
     vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
-    xSemaphoreTake(loraSemaphore, portMAX_DELAY);
-    const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
-    xSemaphoreGive(loraSemaphore);
+    // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+    const int frameSize = LoRa.parsePacket();
+    // xSemaphoreGive(loraSemaphore);
+    const int result = listener(frameSize, SERVANT_MODE);
   }
 }
 #endif // USING_MESH
@@ -218,12 +219,12 @@ static void sendTask(void * params) {
       if(gps.time.second() == drifterTimeSlotSec) {
 #endif //IGNORE_GPS_INSIDE
         result = routePayload(SERVANT_MODE, MASTER_LOCAL_ID, localAddress, 0x0F, 0);
+        delay(50);
       }
       if(loop_runEvery(RS_BCAST_TIME)) {
         Serial.println("Route broadcast");
-        xSemaphoreTake(loraSemaphore, portMAX_DELAY);
         result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
-        xSemaphoreGive(loraSemaphore);
+        delay(50);
       }
 #endif // USING_MESH
       delay(10);

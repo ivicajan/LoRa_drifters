@@ -305,6 +305,7 @@ static void sendTask(void * params) {
       Serial.println("Route broadcast");
       bcastRoutingStatus(MASTER_MODE);
       xSemaphoreGive(loraSemaphore);
+      delay(50);
     }
 #endif // USING_MESH
     servantsData = R"rawliteral(

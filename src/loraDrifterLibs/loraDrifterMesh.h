@@ -512,8 +512,9 @@ int listener(const int frameSize, const int mode) {
       Serial.print("Routed from: 0x");
       Serial.println((int)source, HEX);
 #ifdef MESH_MASTER_MODE
-      if(numLogs == MAX_NUM_LOGS) {
+      if(numLogs >= MAX_NUM_LOGS) {
         messageLog = "";
+        numLogs = 0;
       }
       String temp = "";
       if(sender != source) {
@@ -677,7 +678,8 @@ static int bcastRoutingStatus(const int mode) {
       return result;
     }
     sendFrame(mode, RouteBroadcastServant, 0xFF, 0xFF, localAddress, 0x0F);
-  } else if(mode == MASTER_MODE) {
+  }
+  else if(mode == MASTER_MODE) {
     sendFrame(mode, RouteBroadcastMaster, 0xFF, 0xFF, localAddress, 0x0F);
   }
   return Success;
@@ -725,8 +727,8 @@ static int findMaxRssi(const int minHopCount) {
   byte bestRoute = 0x00;
 
   for(int ii = 0; ii < NUM_NODES; ii++) {
-    byte hopCount = routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 1];
-    byte nextHopID = routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 2];
+    const byte hopCount = routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 1];
+    const byte nextHopID = routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 2];
 
     // maintain the currentRssi as maxRssi.
     if((hopCount == minHopCount) && (nextHopID != localAddress)) {

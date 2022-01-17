@@ -12,20 +12,6 @@ extern BLA::Matrix<8, 8> P;
 extern bool calibrate_imu;
 #endif // USING_IMU
 
-#ifdef USING_MESH
-byte routingTable[ROUTING_TABLE_SIZE] = "";
-byte payload[24] = "";
-int localLinkRssi = 0;
-byte localHopCount = 0x00;
-byte localNextHopID = 0x00;
-byte localAddress = 0xAA;
-// Diagnostics
-int messagesSent = 0;
-int messagesReceived = 0;
-int nodeRx[NUM_NODES];
-int masterRx = 0;
-#endif // USING_MESH
-
 #define SSID     "DrifterServant"   // Wifi ssid and password
 #define PASSWORD "Tracker1"
 
@@ -39,11 +25,25 @@ int nSamples;                         // Counter for the number of samples gathe
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D03";       // ID send with packet
-int drifterTimeSlotSec = 25;      // seconds after start of each GPS minute
+String drifterName = "D07";       // ID send with packet
+int drifterTimeSlotSec = 35;      // seconds after start of each GPS minute
 
 Packet packet;
 SemaphoreHandle_t loraSemaphore = NULL;
+
+#ifdef USING_MESH
+byte routingTable[ROUTING_TABLE_SIZE] = "";
+byte payload[24] = "";
+int localLinkRssi = 0;
+byte localHopCount = 0x00;
+byte localNextHopID = 0x00;
+byte localAddress = indexToId(drifterName.substring(1, 3).toInt());
+// Diagnostics
+int messagesSent = 0;
+int messagesReceived = 0;
+int nodeRx[NUM_NODES];
+int masterRx = 0;
+#endif // USING_MESH
 
 const char index_html[] PROGMEM = R"rawliteral(
   <!DOCTYPE HTML>
@@ -121,14 +121,16 @@ static void writeData2Flash() {
       Serial.println("There was an error opening the file for writing");
       lastFileWrite = "FAILED OPEN";
       ESP.restart();
-  } else {
+  }
+  else {
     if(file.println(csvOutStr)) {
       Serial.print("Wrote data in file, current size: ");
       Serial.println(file.size());
       csvOutStr = "";
       nSamples = 0;
       lastFileWrite = tTime;
-    } else {
+    }
+    else {
       lastFileWrite = "FAILED WRITE, RESTARTING";
       ESP.restart();
     }
@@ -167,11 +169,11 @@ static void update_imu() {
       get_current_location(&lat, &lng);
       Serial << "Lat: " << lat << " Lng: " << lng << "\n";
 
-  #ifdef DEBUG_MODE
+#ifdef DEBUG_MODE
       Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
               << " pitch: " << float(mpu.getPitch() / 180.f * PI)
               << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
-  #endif // DEBUG_MODE
+#endif // DEBUG_MODE
       prev_ms = millis();
     }
   }
@@ -184,10 +186,7 @@ static void listenTask(void * params) {
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
     vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
-    // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
-    const int frameSize = LoRa.parsePacket();
-    // xSemaphoreGive(loraSemaphore);
-    const int result = listener(frameSize, SERVANT_MODE);
+    const int result = listener(LoRa.parsePacket(), SERVANT_MODE);
   }
 }
 #endif // USING_MESH
@@ -271,16 +270,20 @@ static void readConfigFile() {
   file = SPIFFS.open("/config.txt", FILE_READ);
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
-  } else {
+  }
+  else {
     String inData = file.readStringUntil('\n');
     int comma = inData.indexOf(",");
     drifterName = inData.substring(0, comma);
+#ifdef USING_MESH
+    localAddress = indexToId(drifterName.substring(1, 3).toInt());
+#endif //USING_MESH
     drifterTimeSlotSec = inData.substring(comma + 1).toInt();
     Serial.println(inData);
     file.close();
   }
   delay(50);
-  csvFileName = "/svt" + String(drifterName)+".csv";
+  csvFileName = "/svt" + String(drifterName) + ".csv";
 }
 
 void setup() {
@@ -405,7 +408,8 @@ static void startWebServer(const bool webServerOn) {
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
     btStop();
-  } else {
+  }
+  else {
     WiFi.softAP(SSID, PASSWORD);
     Serial.println(WiFi.softAPIP());  // Print ESP32 Local IP Address
 

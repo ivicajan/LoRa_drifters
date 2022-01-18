@@ -10,6 +10,9 @@ extern BLA::Matrix<5> X_INS;
 extern BLA::Matrix<3> Y_GPS;
 extern BLA::Matrix<8, 8> P;
 extern bool calibrate_imu;
+String csvIMUFileName = "";
+File imu_file;
+String csvIMUOutStr = "";
 #endif // USING_IMU
 
 #define SSID     "DrifterServant"   // Wifi ssid and password
@@ -137,6 +140,29 @@ static void writeData2Flash() {
   }
   file.close();
   delay(50);
+#ifdef USING_IMU
+  imu_file = SPIFFS.open(csvIMUFileName, FILE_APPEND);
+  if(!imu_file) {
+    Serial.println("There was an error opening the imu file for appending, creating a new one");
+    imu_file = SPIFFS.open(csvIMUFileName, FILE_WRITE);
+  }
+  if(!imu_file) { // this shouldn't occur
+      Serial.println("There was an error opening the imu file for writing");
+      ESP.restart();
+  }
+  else {
+    if(imu_file.println(csvIMUOutStr)) {
+      Serial.print("Wrote data in imu file, current size: ");
+      Serial.println(imu_file.size());
+      csvIMUOutStr = "";
+    }
+    else {
+      ESP.restart();
+    }
+  }
+  imu_file.close();
+  delay(50);
+#endif //USING_IMU
 }
 
 #ifdef USING_IMU
@@ -284,6 +310,9 @@ static void readConfigFile() {
   }
   delay(50);
   csvFileName = "/svt" + String(drifterName) + ".csv";
+#ifdef USING_IMU
+  csvIMUFileName = "/svt" + String(drifterName) + "_IMU.csv";
+#endif //USING_IMU
 }
 
 void setup() {
@@ -366,15 +395,12 @@ static void generatePacket() {
 #ifdef USING_MESH
       + "," + String(messagesSent) + "," + String(messagesReceived) + "," + String(masterRx) + "," + nodeHopsToString() // Diagnostics
 #endif // USING_MESH
-#ifdef USING_IMU
-      // TODO: add IMU data here
-#endif // USING_IMU
       + "\n";
 #ifndef USING_MESH
-      // Send GPS data on LoRa if it is this units timeslot
 #ifdef IGNORE_GPS_INSIDE
     if(true) {
 #else 
+    // Send GPS data on LoRa if it is this units timeslot
     if(gps.time.second() == drifterTimeSlotSec) {
 #endif // IGNORE_GPS_INSIDE
         LoRa.beginPacket();
@@ -430,11 +456,15 @@ static void startWebServer(const bool webServerOn) {
         }
       }
       csvFileName = "/svt" + String(drifterName) + ".csv";
+#ifdef USING_IMU
+      csvIMUFileName = "/svt" + String(drifterName) + "_IMU.csv";
+#endif //USING_IMU
       file = SPIFFS.open("/config.txt", FILE_WRITE);
       if(!file) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
-      } else {
+      }
+      else {
         file.print(drifterName + "," + String(drifterTimeSlotSec));
         file.close();
         request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
@@ -463,6 +493,28 @@ static void startWebServer(const bool webServerOn) {
       request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
     });
 #ifdef USING_IMU
+    server.on("/getServantIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
+      writeData2Flash();
+      request->send(SPIFFS, csvIMUFileName, "text/plain", true);
+    });
+
+    server.on("/deleteServantIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
+      SPIFFS.remove(csvIMUFileName);
+      file = SPIFFS.open(csvIMUFileName, FILE_WRITE);
+      if(!file) {
+        Serial.println("There was an error opening the file for writing");
+        return;
+      }
+      if(file.println("#FILE ERASED at " + lastFileWrite)) {
+        Serial.println("File was created");
+      } else {
+        Serial.println("File creation failed");
+      }
+      file.close();
+      lastFileWrite = "";
+      request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+    });
+
     server.on("/calibrateIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
       if(calibrateIMU()) {
         request->send(200, "text/html",
@@ -493,6 +545,8 @@ static String processor(const String & var) {
           <td><b>Erase Data (NO WARNING)</b></td>)rawliteral";
 #ifdef USING_IMU
     servantData += "<td><b>Calibrate IMU</b></td>";
+    servantData += "<td><b>Download IMU Data</b></td>";
+    servantData += "<td><b>Erase IMU Data</b></td>";
 #endif // USING_IMU
     servantData += "</tr>";
     servantData += "<tr><td>" + csvFileName + "</td>";
@@ -501,6 +555,8 @@ static String processor(const String & var) {
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
 #ifdef USING_IMU
     servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/calibrateIMU\"> CALIBRATE </a></td>";
+    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServantIMU\"> GET IMU </a></td>";
+    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServantIMU\"> ERASE IMU </a></td>";
 #endif // USING_IMU
     return servantData + "</tr>";
   }

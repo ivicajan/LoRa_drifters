@@ -145,18 +145,23 @@ static void onReceive(const int packetsize) {
     Serial.println(" signal found!");
     // csvOutStr += recv; // Save all packets recevied (debugging purposes)
     const int id = name.substring(1, 3).toInt();
-    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
-    s[id].ID = id;
-    s[id].decode(&packet);
-    s[id].rssi = LoRa.packetRssi();
-    s[id].updateDistBear(m.lng, m.lat);
-    s[id].active = true;
-    const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
-    const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
-    const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
-    csvOutStr += tDate + "," + tTime + "," + tLocation + '\n';
-    xSemaphoreGive(servantSemaphore);
-    Serial.println("RX from LoRa - decoding completed");
+    if(id < 1 || id > 10) {
+      Serial.println("ID not in between 1 and 10");
+    }
+    else {
+      xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+      s[id].ID = id;
+      s[id].decode(&packet);
+      s[id].rssi = LoRa.packetRssi();
+      s[id].updateDistBear(m.lng, m.lat);
+      s[id].active = true;
+      const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
+      const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
+      const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
+      csvOutStr += tDate + "," + tTime + "," + tLocation + '\n';
+      xSemaphoreGive(servantSemaphore);
+      Serial.println("RX from LoRa - decoding completed");
+    }
   }
   delay(50);
 }

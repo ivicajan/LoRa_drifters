@@ -359,8 +359,11 @@ static void fill_packet() {
 #ifdef USING_MESH
 static String nodeHopsToString() {
   String outStr = "";
-  for(size_t idx = 0; idx < NUM_NODES; idx++) {
-    outStr += String(nodeRx[idx]) + ",";
+  for(size_t idx = 1; idx < NUM_NODES; idx++) {
+    outStr += String(nodeRx[idx]);
+    if(idx != NUM_NODES - 1) {
+      outStr += ",";
+    }
   }
   return outStr;
 }
@@ -390,6 +393,23 @@ static void generatePacket() {
       nSamples++;
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
       tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
+#ifdef USING_IMU
+      csvIMUOutStr += tDate + "," + tTime + ",";
+      for(int ii = 0; ii < 5; ii++) {
+        csvIMUOutStr += String(X_INS(ii))+ ",";
+      }
+      for(int ii = 0; ii < 3; ii++) {
+        csvIMUOutStr += String(Y_GPS(ii))+ ",";
+      }
+      for(int ii = 0; ii < 3; ii++) {
+        csvIMUOutStr += String(U_INS(ii))+ ",";
+      }
+      for(int ii = 0; ii < 8; ii++) {
+        for(int jj = 0; jj < 8; jj++) {
+          csvIMUOutStr += String(P(ii, jj))+ ",";
+        }
+      }
+#endif //USING_IMU
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
       csvOutStr += tDate + "," + tTime + "," + tLocation + "," + String(packet.battPercent, 2)
 #ifdef USING_MESH

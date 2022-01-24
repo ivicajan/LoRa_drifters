@@ -55,7 +55,7 @@
 #define SAMPLES_BEFORE_WRITE        (300)    // Number of samples to store in memory before file write
 #define NUM_MAX_SERVANTS            (11)     // Maximum number of servant drifters (just for setting array size)
 
-#define DEBUG_MODE                         // Additional printouts to serial port
+// #define DEBUG_MODE                         // Additional printouts to serial port
 // #define IGNORE_GPS_INSIDE                  // For testing indoors, so we dont just send on GPS time
 
 AXP20X_Class PMU;

@@ -21,7 +21,7 @@
 #ifndef IMU_H
 #define IMU_H
 
-#define DEBUG_MODE
+// #define DEBUG_MODE
 
 #include "MPU9250.h"
 #include "BasicLinearAlgebra.h"
@@ -128,7 +128,7 @@ static void Initial_Kalman() {
 
          << "A_E" << A_E << "\n"
          << "B_E" << B_E << "\n";
-#endif
+#endif // DEBUG_MODE
 }
 
 void Update_Kalman() {
@@ -184,7 +184,7 @@ void Update_Kalman() {
         << "P: " <<  P << "\n"
         << "Yaw" << Yaw[0] << " C_" << C_ << "\n"
         << "----------------------------------------------------\n";
-#endif
+#endif // DEBUG_MODE
 }
 
 void update_ref_location() {
@@ -220,15 +220,15 @@ void measure_gps_data() {
   else {
     Serial << "Location: INVALID";
   }
-#ifdef DEBUG_MODE
-  Serial << "Lat: " <<  Y_GPS(0)
-         << " Lon: " << Y_GPS(1)
-         << " angle: " << Y_GPS(2) << "\n";
-#endif
+// #ifdef DEBUG_MODE
+//   Serial << "Lat: " <<  Y_GPS(0)
+//          << " Lon: " << Y_GPS(1)
+//          << " angle: " << Y_GPS(2) << "\n";
+// #endif // DEBUG_MODE
   //#ifdef DEBUG_MODE
   //  Serial << "Lat: " <<  gps.location.lat()
   //         << " Lon: " << gps.location.lng() << "\n";
-  //#endif
+  //#endif // DEBUG_MODE
 }
 
 //Process Acceleration data to earth frame
@@ -272,7 +272,7 @@ void measure_imu_data() {
   Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
          << " pitch: " << float(mpu.getPitch() / 180.f * PI)
          << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
-#endif
+#endif // DEBUG_MODE
 }
 
 static void read_imu_cali_para(const int address, float * data, const int size) {

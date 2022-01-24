@@ -3,6 +3,7 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // #define USING_IMU
+
 #ifdef USING_IMU
 #include "mpu/imu.h"
 extern BLA::Matrix<3> U_INS;
@@ -140,7 +141,10 @@ static void writeData2Flash() {
   }
   file.close();
   delay(50);
+}
+
 #ifdef USING_IMU
+static void writeIMUData2Flash() {
   imu_file = SPIFFS.open(csvIMUFileName, FILE_APPEND);
   if(!imu_file) {
     Serial.println("There was an error opening the imu file for appending, creating a new one");
@@ -162,10 +166,8 @@ static void writeData2Flash() {
   }
   imu_file.close();
   delay(50);
-#endif //USING_IMU
 }
 
-#ifdef USING_IMU
 static void update_imu() {
   int reset__ = 0;
   if(mpu.update()) {
@@ -177,7 +179,7 @@ static void update_imu() {
         imu_ms = millis();
         reset__ = 1;
       }
-      while(Serial1.available() > 0) {
+      if(Serial1.available() > 0) { // only need 1 measurement here
         gps.encode(Serial1.read());
         measure_gps_data();
       }
@@ -186,14 +188,14 @@ static void update_imu() {
       if(mpu.update()) {
         measure_imu_data();
       }
-#ifdef CALIBRATION_IMU
-      read_Serial_input();
-      //check_stable_imu();
-#endif //CALIBRATION_IMU
+// #ifdef CALIBRATION_IMU
+      // read_Serial_input();
+      // check_stable_imu();
+// #endif //CALIBRATION_IMU
       //Ouput current location in lat and lng
-      float lat, lng;
-      get_current_location(&lat, &lng);
-      Serial << "Lat: " << lat << " Lng: " << lng << "\n";
+      // float lat, lng;
+      // get_current_location(&lat, &lng);
+      // Serial << "Lat: " << lat << " Lng: " << lng << "\n";
 
 #ifdef DEBUG_MODE
       Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
@@ -219,6 +221,7 @@ static void listenTask(void * params) {
 
 static void sendTask(void * params) {
   (void)params;
+  disableCore1WDT(); // Disable watchdog to keep process alive
   while(1) {
     if(digitalRead(BUTTON_PIN) == LOW) { //Check for button press
       if(webServerOn) {
@@ -257,8 +260,12 @@ static void sendTask(void * params) {
       if(nSamples >= SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
         Serial.println("Dump data into the memory");
         writeData2Flash();
+#ifdef USING_IMU
+        writeIMUData2Flash();
+#endif // USING_IMU
       }
-    } else {
+    }
+    else {
       Serial.println("Web server is ON, not GPS data or saving during the time");
       delay(40);
       digitalWrite(BOARD_LED, LED_OFF);
@@ -298,8 +305,8 @@ static void readConfigFile() {
     Serial.println("Failed to open config.txt configuration file");
   }
   else {
-    String inData = file.readStringUntil('\n');
-    int comma = inData.indexOf(",");
+    const String inData = file.readStringUntil('\n');
+    const int comma = inData.indexOf(",");
     drifterName = inData.substring(0, comma);
 #ifdef USING_MESH
     localAddress = indexToId(drifterName.substring(1, 3).toInt());
@@ -406,9 +413,10 @@ static void generatePacket() {
       }
       for(int ii = 0; ii < 8; ii++) {
         for(int jj = 0; jj < 8; jj++) {
-          csvIMUOutStr += String(P(ii, jj))+ ",";
+          csvIMUOutStr += String(P(ii, jj)) + ",";
         }
       }
+      csvIMUOutStr += "\n";
 #endif //USING_IMU
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
       csvOutStr += tDate + "," + tTime + "," + tLocation + "," + String(packet.battPercent, 2)
@@ -429,7 +437,8 @@ static void generatePacket() {
         delay(50); // Don't send more than 1 packet
     }
 #endif // USING_MESH
-    } else {
+    }
+    else {
       Serial.println("No GPS fix, not sending or writing");
     }
   }
@@ -514,7 +523,7 @@ static void startWebServer(const bool webServerOn) {
     });
 #ifdef USING_IMU
     server.on("/getServantIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
-      writeData2Flash();
+      writeIMUData2Flash();
       request->send(SPIFFS, csvIMUFileName, "text/plain", true);
     });
 

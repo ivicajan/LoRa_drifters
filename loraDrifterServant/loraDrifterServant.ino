@@ -2,7 +2,7 @@
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// #define USING_IMU
+#define USING_IMU
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
@@ -29,8 +29,8 @@ int nSamples;                         // Counter for the number of samples gathe
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D07";       // ID send with packet
-int drifterTimeSlotSec = 35;      // seconds after start of each GPS minute
+String drifterName = "D01";       // ID send with packet
+int drifterTimeSlotSec = 5;      // seconds after start of each GPS minute
 
 Packet packet;
 SemaphoreHandle_t loraSemaphore = NULL;

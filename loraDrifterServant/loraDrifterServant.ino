@@ -2,7 +2,7 @@
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-#define USING_IMU
+// #define USING_IMU
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
@@ -405,17 +405,17 @@ static void generatePacket() {
       for(int ii = 0; ii < 5; ii++) {
         csvIMUOutStr += String(X_INS(ii))+ ",";
       }
-      for(int ii = 0; ii < 3; ii++) {
-        csvIMUOutStr += String(Y_GPS(ii))+ ",";
-      }
-      for(int ii = 0; ii < 3; ii++) {
-        csvIMUOutStr += String(U_INS(ii))+ ",";
-      }
-      for(int ii = 0; ii < 8; ii++) {
-        for(int jj = 0; jj < 8; jj++) {
-          csvIMUOutStr += String(P(ii, jj)) + ",";
-        }
-      }
+    //   for(int ii = 0; ii < 3; ii++) {
+    //     csvIMUOutStr += String(Y_GPS(ii))+ ",";
+    //   }
+    //   for(int ii = 0; ii < 3; ii++) {
+    //     csvIMUOutStr += String(U_INS(ii))+ ",";
+    //   }
+    //   for(int ii = 0; ii < 8; ii++) {
+    //     for(int jj = 0; jj < 8; jj++) {
+    //       csvIMUOutStr += String(P(ii, jj)) + ",";
+    //     }
+    //   }
       csvIMUOutStr += "\n";
 #endif //USING_IMU
       const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);

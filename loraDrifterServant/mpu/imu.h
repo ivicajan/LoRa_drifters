@@ -144,7 +144,7 @@ void Update_Kalman() {
 
   //Optimized output X and cov matrix.
   //Update from input
-  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1]) / T_};
+  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1])};
   U_INS = U_pre - Bias_Predic;
   X_INS = {X_INS(0) + T_ * U_INS(0),
            X_INS(1) + T_ * U_INS(1),

@@ -2,7 +2,7 @@
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// #define USING_IMU
+#define USING_IMU
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
@@ -206,6 +206,14 @@ static void update_imu() {
     }
   }
 }
+
+static void imuTask(void * params) {
+  (void)params;
+  disableCore0WDT(); // Disable watchdog to keep process alive
+  while(1) {
+    update_imu();
+  }
+}
 #endif // USING_IMU
 
 #ifdef USING_MESH
@@ -237,9 +245,6 @@ static void sendTask(void * params) {
   if(!webServerOn) {
 #ifdef USING_MESH
       int result = 0;
-#ifdef USING_IMU
-      update_imu();
-#endif // USING_IMU
       generatePacket();
 #ifdef IGNORE_GPS_INSIDE
       if(runEvery(PL_TX_TIME)) {
@@ -337,7 +342,10 @@ void setup() {
   delay(50);
   readConfigFile();
   loraSemaphore = xSemaphoreCreateMutex();
-  // Create listen and send RTOS tasks
+#ifdef USING_IMU
+  xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 2, NULL, 0);
+  delay(500);
+#endif //USING_IMU
 #ifdef USING_MESH
   xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 1, NULL, 0);
   delay(500);

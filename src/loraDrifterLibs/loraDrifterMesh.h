@@ -31,6 +31,7 @@ extern SemaphoreHandle_t servantSemaphore;
 #else
 struct Packet;
 extern Packet packet;
+extern uint32_t last_packet_received_time_ms;
 // extern SemaphoreHandle_t loraSemaphore;
 #endif //MESH_MASTER_MODE
 
@@ -219,6 +220,7 @@ static int insertRoutingTable(const byte nodeID, const byte hopCount, const byte
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3], &Rssi, sizeof(Rssi));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7], &snr, sizeof(snr));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
+    last_packet_received_time_ms = millis();
     return Success;
   }
   return InvalidNodeID;

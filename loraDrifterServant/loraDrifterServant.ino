@@ -3,6 +3,7 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 #define USING_IMU
+// #define WAVE_TANK_TEST
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
@@ -18,6 +19,9 @@ String csvIMUOutStr = "";
 
 #define SSID     "DrifterServant"   // Wifi ssid and password
 #define PASSWORD "Tracker1"
+
+#define LAST_PACKET_TIMEOUT_ms (60000)
+uint32_t last_packet_received_time_ms = 0;
 
 // GLOBAL VARIABLES
 String csvOutStr = "";                 // Buffer for output file
@@ -174,11 +178,13 @@ static void update_imu() {
     static uint32_t prev_ms = millis();
     static uint32_t imu_ms = millis(); //For reset
     if(millis() > prev_ms + SAMPLE_PERIOD_ms) {
+#ifdef WAVE_TANK_TEST
       if((millis() > imu_ms + 20000) && (reset__ != 1)){
         update_ref_location(); // Reset data after 20 secs
         imu_ms = millis();
         reset__ = 1;
       }
+#endif //WAVE_TANK_TEST
       if(Serial1.available() > 0) { // only need 1 measurement here
         gps.encode(Serial1.read());
         measure_gps_data();
@@ -198,9 +204,9 @@ static void update_imu() {
       // Serial << "Lat: " << lat << " Lng: " << lng << "\n";
 
 #ifdef DEBUG_MODE
-      Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
-              << " pitch: " << float(mpu.getPitch() / 180.f * PI)
-              << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
+      Serial << " Acc: " << acc << " Yaw[0]: " << float(mpu.getYaw() / 180.f * PI)
+             << " pitch: " << float(mpu.getPitch() / 180.f * PI)
+             << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
 #endif // DEBUG_MODE
       prev_ms = millis();
     }
@@ -211,6 +217,7 @@ static void imuTask(void * params) {
   (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
+    vTaskDelay(pdMS_TO_TICKS(10)); // might not need a delay at all
     update_imu();
   }
 }
@@ -231,6 +238,9 @@ static void sendTask(void * params) {
   (void)params;
   disableCore1WDT(); // Disable watchdog to keep process alive
   while(1) {
+    if(millis() - last_packet_received_time_ms > LAST_PACKET_TIMEOUT_ms) {
+      ESP.restart();
+    }
     if(digitalRead(BUTTON_PIN) == LOW) { //Check for button press
       if(webServerOn) {
         Serial.println("Web server already started");
@@ -343,11 +353,11 @@ void setup() {
   readConfigFile();
   loraSemaphore = xSemaphoreCreateMutex();
 #ifdef USING_IMU
-  xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 2, NULL, 0);
+  xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, NULL, 0);
   delay(500);
 #endif //USING_IMU
 #ifdef USING_MESH
-  xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 2, NULL, 0);
   delay(500);
 #endif //USING_MESH
   xTaskCreatePinnedToCore(sendTask, "sendTask", 10000, NULL, 2, NULL, 1);

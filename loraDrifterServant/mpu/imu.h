@@ -282,9 +282,6 @@ static void read_imu_cali_para(const int address, float * data, const int size) 
 }
 
 void initIMU() {
-  Wire.begin();
-  delay(1000);
-
   //Detect if MPU setup correctly
   if(!mpu.setup(0x68)) {  // change to your own address
     while(1) {

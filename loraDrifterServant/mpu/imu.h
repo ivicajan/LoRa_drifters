@@ -21,8 +21,7 @@
 #ifndef IMU_H
 #define IMU_H
 
-#define DEBUG_MODE
-#define SKIP_ROT_MAT
+// #define DEBUG_MODE
 
 #include "MPU9250.h"
 #include "BasicLinearAlgebra.h"
@@ -33,13 +32,12 @@
 #define MAG_CALI_PARA_ADDR 25
 
 float lms_mb[6] = {1.f, 0.f, 1.f, 0.f, 1.f, 0.f};
-bool calibrate_imu = true;
+bool calibrate_imu = false;
 
 using namespace BLA;
 MPU9250 mpu;
 #define SAMPLE_PERIOD_ms 50
-float T_ = 0.05f; //in Sec
-const float last_T__= 0.f;
+float T_ = SAMPLE_PERIOD_ms / 1000; //in Sec
 // int Freq_acc = 1000 / SAMPLE_PERIOD_ms; //40Hz
 // char in123 = 'a';         // char for input debug
 // char incomingByte = 'a';
@@ -95,7 +93,7 @@ static void Initial_Kalman() {
 
   //Setup initial Guess:
   const float P_0_[8] = {10.f, 10.f, 10.f, 10.f, 90.f * PI / 180.f, 5.f, 5.f, 25.f * PI / 180.f};
-  const float R_[3] = {1.f, 1.f, 1.f * PI / 180.f};
+  const float R_[3] = {10.1f, 10.1f, 10.1f * PI / 180.f};
   const float Q_[3] = {0.1f, 0.1f, 0.1f * PI / 180.f};
   for(int ii = 0; ii < 8; ii++) {
     P_0(ii, ii) = P_0_[ii];
@@ -127,16 +125,12 @@ static void Initial_Kalman() {
          << "Q" << Q << "\n"
          << "H" << H << "\n"
          << "X_E_Predic" << X_E_Predic << "\n"
-
          << "A_E" << A_E << "\n"
          << "B_E" << B_E << "\n";
 #endif // DEBUG_MODE
 }
 
 void Update_Kalman() {
-  float Current_T_ = millis();
-  //T_ = abs(Current_T_ - last_T__)/1000;
-
    //Parameters update
   C_ = {cos(X_INS(4)), sin(X_INS(4)), cos(X_INS(4)), -sin(X_INS(4))};
   A_E = (big_zero.Submatrix<2, 2>(0, 0) && big_I.Submatrix<2, 2>(0, 0) && big_zero.Submatrix<4, 2>(0, 0)) ||
@@ -146,10 +140,9 @@ void Update_Kalman() {
   B_E = (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
         (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
 
-
   //Optimized output X and cov matrix.
   //Update from input
-  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0]-Yaw[1]) / T_};
+  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1])};
   U_INS = U_pre - Bias_Predic;
   X_INS = {X_INS(0) + T_ * U_INS(0),
            X_INS(1) + T_ * U_INS(1),
@@ -160,7 +153,7 @@ void Update_Kalman() {
   P = A_E * P * ~A_E + B_E * Q * ~B_E + P_0 * BETA;
 
   //Update the kalman para
-  for(int ii = 0; ii < 3; ii++ ) {
+  for(int ii = 0; ii < 3; ii++) {
     Y_E(ii) = X_INS(2 + ii) - Y_GPS(ii);
   }
   BLA::Matrix<3, 3> dom = H * P * ~H + R;
@@ -177,21 +170,20 @@ void Update_Kalman() {
   X_INS -= X_E_Predic.Submatrix<5, 1>(0, 0);
   Bias_Predic = X_E_Predic.Submatrix<3, 1>(5, 0);
 #ifdef DEBUG_MODE
- Serial << "Time:" << T_  << " last millis: " << last_T__ << " current millis: " << Current_T_ << '\n'
-        << "Y_E: " << Y_E << "\n"
-        << "H: "   << H   << "\n"
-        << "G_k: " << G_k << "\n"
-        << "X_E_Predic: " << X_E_Predic << "\n"
-        << "Bias_Predic: " << Bias_Predic << "\n"
-        << "U_pre: [" << U_pre(0) << "; " << U_pre(1) << "; " << U_pre(2) << "] "
-        << "U_INS: " << U_INS << "\n"
-        << "Y_GPS: " << Y_GPS << "\n"
-        << "X_INS: " << X_INS << "\n"
-        << "P: " <<  P << "\n"
-        << "Yaw" << Yaw[0] << " C_" << C_ << "\n"
-        << "----------------------------------------------------\n";
+  Serial << "Time:" << T_  << " current millis: " << Current_T_ << '\n'
+         << "Y_E: " << Y_E << "\n"
+         << "H: "   << H   << "\n"
+         << "G_k: " << G_k << "\n"
+         << "X_E_Predic: " << X_E_Predic << "\n"
+         << "Bias_Predic: " << Bias_Predic << "\n"
+         << "U_pre: [" << U_pre(0) << "; " << U_pre(1) << "; " << U_pre(2) << "] "
+         << "U_INS: " << U_INS << "\n"
+         << "Y_GPS: " << Y_GPS << "\n"
+         << "X_INS: " << X_INS << "\n"
+         << "P: " <<  P << "\n"
+         << "Yaw" << Yaw[0] << " C_" << C_ << "\n"
+         << "----------------------------------------------------\n";
 #endif // DEBUG_MODE
-  const float last_T__ = Current_T_;
 }
 
 void update_ref_location() {
@@ -200,7 +192,6 @@ void update_ref_location() {
     Lng_o = gps.location.lng();
   }
   X_INS.Fill(0);
-  X_INS(4)=Yaw[0];
 }
 
 static const float get_diff_dist(const float oringe, const float update_) {
@@ -241,9 +232,9 @@ void measure_gps_data() {
 
 //Process Acceleration data to earth frame
 void measure_imu_data() {
-  float acc_x___ = lms_mb[0] * mpu.getAccX() + lms_mb[1]; //get from mpu
-  float acc_y___ = lms_mb[2] * mpu.getAccY() + lms_mb[3];
-  float acc_z___ = lms_mb[4] * mpu.getAccZ() + lms_mb[5];
+  float acc_x___ = mpu.getAccX() / 1.02f; //get from mpu
+  float acc_y___ = mpu.getAccY();
+  float acc_z___ = mpu.getAccZ() / 1.045f;
   const float acc_the = mpu.getRoll() / 180.f * PI;
   const float acc_fin = mpu.getPitch() / 180.f * PI;
   const float acc_psi = mpu.getYaw() / 180.f * PI;
@@ -266,24 +257,18 @@ void measure_imu_data() {
   const float acc_x_ = acc_x___ * cos(acc_fin) - acc_z__ * sin(acc_fin);
   const float acc_z_ = acc_z__ * cos(acc_fin) + acc_x___ * sin(acc_fin);
   //rotate from z-axis
-#ifndef SKIP_ROT_MAT
   acc(0) = acc_x_ * cos(acc_psi) + acc_y__ * sin(acc_psi);
   acc(1) = acc_y__ * cos(acc_psi) - acc_x_ * sin(acc_psi);
   acc(3) = acc_z_;
-#else
-  acc(0) = acc_x___;
-  acc(1) = acc_y___;
-  acc(2) = acc_z___;
-#endif //SKIP_ROT_MAT
   Yaw[1] = Yaw[0];
   Yaw[0] = acc_psi;
-  // if(calibrate_imu) {
-    // for(int ii = 0; ii < 3; ii++) {
-      // acc(ii) = lms_mb[2 * ii] * acc(ii) + lms_mb[2 * ii + 1];
-    // }
-  // }
+  if(calibrate_imu) {
+    for(int ii = 0; ii < 3; ii++) {
+      acc(ii) = lms_mb[2 * ii] * acc(ii) + lms_mb[2 * ii + 1];
+    }
+  }
 #ifdef DEBUG_MODE
-  Serial << " Acc: " << acc << " Yaw[0]: " << float(mpu.getYaw() / 180.f * PI)
+  Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
          << " pitch: " << float(mpu.getPitch() / 180.f * PI)
          << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
 #endif // DEBUG_MODE

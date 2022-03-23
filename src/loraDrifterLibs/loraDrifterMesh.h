@@ -220,7 +220,9 @@ static int insertRoutingTable(const byte nodeID, const byte hopCount, const byte
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 3], &Rssi, sizeof(Rssi));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 7], &snr, sizeof(snr));
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
+#ifndef MESH_MASTER_MODE
     last_packet_received_time_ms = millis();
+#endif //MESH_MASTER_MODE
     return Success;
   }
   return InvalidNodeID;

@@ -21,7 +21,10 @@
 #ifndef IMU_H
 #define IMU_H
 
-// #define DEBUG_MODE
+//#define DEBUG_MODE
+#define print_data_serial
+#define skip_rot_mat //do not do rotation matrix
+//#define without_yaw		//Do not rotate acc with yaw
 
 #include "MPU9250.h"
 #include "BasicLinearAlgebra.h"
@@ -31,13 +34,14 @@
 #define ACC_CALI_PARA_ADDR 0
 #define MAG_CALI_PARA_ADDR 25
 
-float lms_mb[6] = {1.f, 0.f, 1.f, 0.f, 1.f, 0.f};
-bool calibrate_imu = false;
+float lms_mb[6] = {1, 0, 1, 0, 1, 0};
+bool calibrate_imu = true;
 
 using namespace BLA;
 MPU9250 mpu;
 #define SAMPLE_PERIOD_ms 50
-float T_ = SAMPLE_PERIOD_ms / 1000; //in Sec
+float T_ = 0.15; //in Sec
+uint32_t last_T__=0;
 // int Freq_acc = 1000 / SAMPLE_PERIOD_ms; //40Hz
 // char in123 = 'a';         // char for input debug
 // char incomingByte = 'a';
@@ -48,28 +52,31 @@ extern TinyGPSPlus gps;
 
 //Define global variables
 BLA::Matrix<3> acc = {0.f, 0.f, 0.f};
+BLA::Matrix<3> acc_raw = {0.f, 0.f, 0.f};
+BLA::Matrix<3> acc_old;
+BLA::Matrix<3> Rotation_matrix; 
 // float Acc_mag[2] = {0.f, 0.f};
 // float Acc[3][2] = {{}, {}};
 // float Vel[3][2];
 // float Pos[3][2] = {{}, {}};
 // float Acc_bias[3] = {0.f, 0.f, 0.f};
-float Yaw[2] = {0.f, 0.f};
+float Yaw[2];
 // float thread_G = 0.01f;
 // int stationary = 1;
 // int count_S = 0, count_v = 0;
 
 float Lat_o, Lng_o;
 
-BLA::Matrix<3> U_INS = {0, 0, 0};
+BLA::Matrix<3> U_INS;
 // BLA::Matrix<3> Y_INS = {0, 0, 0};
-BLA::Matrix<5> X_INS = {0, 0, 0, 0, 0};
+BLA::Matrix<5> X_INS;
 // BLA::Matrix<3> N_INS = {0, 0, 0};
-BLA::Matrix<3> Y_GPS = {0, 0, 0};
+BLA::Matrix<3> Y_GPS;
 // BLA::Matrix<3> N_GPS = {0, 0, 0};
 // BLA::Matrix<3> Bias = {0, 0, 0};
-BLA::Matrix<3> Bias_Predic = {0, 0, 0};
+BLA::Matrix<3> Bias_Predic;
 // BLA::Matrix<3> U_E = {0, 0, 0};
-BLA::Matrix<3> Y_E = {0, 0, 0};
+BLA::Matrix<3> Y_E;
 BLA::Matrix<8> X_E_Predic;
 BLA::Matrix<8, 8> P;
 BLA::Matrix<8, 8, Diagonal<8, float>> P_0;
@@ -83,7 +90,7 @@ BLA::Matrix<2, 2> C_;
 BLA::Matrix<8, 8> big_zero;
 BLA::Matrix<8, 8> big_I;
 BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
-#define BETA 0.005f
+#define BETA 0.005
 
 static void Initial_Kalman() {
   //Form matrix reference.
@@ -92,9 +99,9 @@ static void Initial_Kalman() {
   big_diag.Fill(1);
 
   //Setup initial Guess:
-  const float P_0_[8] = {10.f, 10.f, 10.f, 10.f, 90.f * PI / 180.f, 5.f, 5.f, 25.f * PI / 180.f};
-  const float R_[3] = {10.1f, 10.1f, 10.1f * PI / 180.f};
-  const float Q_[3] = {0.1f, 0.1f, 0.1f * PI / 180.f};
+  const float P_0_[8] = {10.f, 10.f, 10.f, 10.f, 90.f * PI / 180.f, 5.f, 5.f, 25 * PI / 180.f};
+  const float R_[3] = {1.01, 1.01, 1.01 * PI / 180};
+  const float Q_[3] = {0.1, 0.1, 0.1 * PI / 180};
   for(int ii = 0; ii < 8; ii++) {
     P_0(ii, ii) = P_0_[ii];
   }
@@ -125,14 +132,18 @@ static void Initial_Kalman() {
          << "Q" << Q << "\n"
          << "H" << H << "\n"
          << "X_E_Predic" << X_E_Predic << "\n"
+
          << "A_E" << A_E << "\n"
          << "B_E" << B_E << "\n";
 #endif // DEBUG_MODE
 }
 
 void Update_Kalman() {
+  uint32_t Current_T_ = millis();
+  //T_ = (float)(Current_T_ - last_T__) /1000.f;
+  
    //Parameters update
-  C_ = {cos(X_INS(4)), sin(X_INS(4)), cos(X_INS(4)), -sin(X_INS(4))};
+  C_ = {cos(X_INS(4)), sin(X_INS(4)), -sin(X_INS(4)), cos(X_INS(4))};
   A_E = (big_zero.Submatrix<2, 2>(0, 0) && big_I.Submatrix<2, 2>(0, 0) && big_zero.Submatrix<4, 2>(0, 0)) ||
         big_zero.Submatrix<8, 3>(0, 0) ||
         (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
@@ -140,20 +151,21 @@ void Update_Kalman() {
   B_E = (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
         (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
 
+
   //Optimized output X and cov matrix.
   //Update from input
-  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0] - Yaw[1])};
+  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0]-Yaw[1])/T_};
   U_INS = U_pre - Bias_Predic;
   X_INS = {X_INS(0) + T_ * U_INS(0),
            X_INS(1) + T_ * U_INS(1),
-           0.5f * T_ * X_INS(0) + X_INS(2),
-           0.5f * T_ * X_INS(1) + X_INS(3),
+           0.5 * T_ * X_INS(0) + X_INS(2),
+           0.5 * T_ * X_INS(1) + X_INS(3),
            X_INS(4) + T_ * U_INS(2)
           };
   P = A_E * P * ~A_E + B_E * Q * ~B_E + P_0 * BETA;
 
   //Update the kalman para
-  for(int ii = 0; ii < 3; ii++) {
+  for(int ii = 0; ii < 3; ii++ ) {
     Y_E(ii) = X_INS(2 + ii) - Y_GPS(ii);
   }
   BLA::Matrix<3, 3> dom = H * P * ~H + R;
@@ -169,21 +181,24 @@ void Update_Kalman() {
 
   X_INS -= X_E_Predic.Submatrix<5, 1>(0, 0);
   Bias_Predic = X_E_Predic.Submatrix<3, 1>(5, 0);
+  
 #ifdef DEBUG_MODE
-  Serial << "Time:" << T_  << " current millis: " << Current_T_ << '\n'
-         << "Y_E: " << Y_E << "\n"
-         << "H: "   << H   << "\n"
-         << "G_k: " << G_k << "\n"
-         << "X_E_Predic: " << X_E_Predic << "\n"
-         << "Bias_Predic: " << Bias_Predic << "\n"
-         << "U_pre: [" << U_pre(0) << "; " << U_pre(1) << "; " << U_pre(2) << "] "
-         << "U_INS: " << U_INS << "\n"
-         << "Y_GPS: " << Y_GPS << "\n"
-         << "X_INS: " << X_INS << "\n"
-         << "P: " <<  P << "\n"
-         << "Yaw" << Yaw[0] << " C_" << C_ << "\n"
-         << "----------------------------------------------------\n";
+ Serial << "Time:" << T_  << " last millis: " << (float)last_T__ << " current millis: " << (float)Current_T_
+		<< '\n'
+		<< "Y_E: " << Y_E << "\n"
+        << "H: "   << H   << "\n"
+        << "G_k: " << G_k << "\n"
+        << "X_E_Predic: " << X_E_Predic << "\n"
+        << "Bias_Predic: " << Bias_Predic << "\n"
+        << "U_pre: [" << U_pre(0) << "; " << U_pre(1) << "; " << U_pre(2) << "] "
+        << "U_INS: " << U_INS << "\n"
+        << "Y_GPS: " << Y_GPS << "\n"
+        << "X_INS: " << X_INS << "\n"
+        << "P: " <<  P << "\n"
+        << "Yaw" << Yaw[0] << " C_" << C_ << "\n"
+        << "----------------------------------------------------\n";
 #endif // DEBUG_MODE
+	last_T__ = Current_T_;
 }
 
 void update_ref_location() {
@@ -192,6 +207,7 @@ void update_ref_location() {
     Lng_o = gps.location.lng();
   }
   X_INS.Fill(0);
+  X_INS(4)=Yaw[0];
 }
 
 static const float get_diff_dist(const float oringe, const float update_) {
@@ -201,6 +217,14 @@ static const float get_diff_dist(const float oringe, const float update_) {
 void get_current_location(float * lat, float * lng) {
   *lat = X_INS(2) * 180 / (6372795 * PI) + Lat_o;
   *lng = X_INS(3) * 180 / (6372795 * PI) + Lng_o;
+}
+
+static float get_sqre(BLA::Matrix<3> x, const int n) {
+  float sqar = 0.f;
+  for(int ii = 0; ii < n; ii++) {
+    sqar += x(ii) * x(ii);
+  }
+  return sqrt(sqar);
 }
 
 //Record GPS data
@@ -219,11 +243,11 @@ void measure_gps_data() {
   else {
     Serial << "Location: INVALID";
   }
-// #ifdef DEBUG_MODE
-//   Serial << "Lat: " <<  Y_GPS(0)
-//          << " Lon: " << Y_GPS(1)
-//          << " angle: " << Y_GPS(2) << "\n";
-// #endif // DEBUG_MODE
+#ifdef DEBUG_MODE
+  Serial << "Lat: " <<  Y_GPS(0)
+         << " Lon: " << Y_GPS(1)
+         << " angle: " << Y_GPS(2) << "\n";
+#endif // DEBUG_MODE
   //#ifdef DEBUG_MODE
   //  Serial << "Lat: " <<  gps.location.lat()
   //         << " Lon: " << gps.location.lng() << "\n";
@@ -232,46 +256,71 @@ void measure_gps_data() {
 
 //Process Acceleration data to earth frame
 void measure_imu_data() {
-  float acc_x___ = mpu.getAccX() / 1.02f; //get from mpu
-  float acc_y___ = mpu.getAccY();
-  float acc_z___ = mpu.getAccZ() / 1.045f;
-  const float acc_the = mpu.getRoll() / 180.f * PI;
-  const float acc_fin = mpu.getPitch() / 180.f * PI;
-  const float acc_psi = mpu.getYaw() / 180.f * PI;
+  acc_raw(0) = lms_mb[0]*mpu.getAccX() + lms_mb[1]; //get from mpu
+  acc_raw(1) = lms_mb[2]*mpu.getAccY() + lms_mb[3];
+  acc_raw(2) = lms_mb[4]*mpu.getAccZ() + lms_mb[5];
+  Rotation_matrix(0) = mpu.getRoll() / 180.f * PI;
+  Rotation_matrix(1) = mpu.getPitch() / 180.f * PI;
+  Rotation_matrix(2) = mpu.getYaw() / 180.f * PI;
 
+}
+
+void rotate_imu_data() {
   //Set Max Acc
-  if(acc_x___ >= 2.f) {
-    acc_x___ = 2.f;
+  if(acc_raw(0) >= 2.f) {
+    acc_raw(0) = 2.f;
   }
-  if(acc_y___ >= 2.f) {
-    acc_y___ = 2.f;
+  if(acc_raw(1) >= 2.f) {
+    acc_raw(1) = 2.f;
   }
-  if(acc_z___ >= 2.f) {
-    acc_z___ = 2.f;
+  if(acc_raw(2) >= 2.f) {
+    acc_raw(2) = 2.f;
   }
 
   //rotate from x-axis
-  const float acc_y__ = acc_y___ * cos(acc_the) - acc_z___ * sin(acc_the);
-  const float acc_z__ = acc_z___ * cos(acc_the) + acc_y___ * sin(acc_the);
+  const float acc_y__ = acc_raw(1) * cos(Rotation_matrix(0)) - acc_raw(2) * sin(Rotation_matrix(0));
+  const float acc_z__ = acc_raw(2) * cos(Rotation_matrix(0)) + acc_raw(1) * sin(Rotation_matrix(0));
   //rotate from y-axis
-  const float acc_x_ = acc_x___ * cos(acc_fin) - acc_z__ * sin(acc_fin);
-  const float acc_z_ = acc_z__ * cos(acc_fin) + acc_x___ * sin(acc_fin);
+  const float acc_x_ = acc_raw(0) * cos(Rotation_matrix(1)) - acc_z__ * sin(Rotation_matrix(1));
+  const float acc_z_ = acc_z__ * cos(Rotation_matrix(1)) + acc_raw(0) * sin(Rotation_matrix(1));
   //rotate from z-axis
-  acc(0) = acc_x_ * cos(acc_psi) + acc_y__ * sin(acc_psi);
-  acc(1) = acc_y__ * cos(acc_psi) - acc_x_ * sin(acc_psi);
+  acc(0) = acc_x_ * cos(Rotation_matrix(2)) + acc_y__ * sin(Rotation_matrix(2));
+  acc(1) = acc_y__ * cos(Rotation_matrix(2)) - acc_x_ * sin(Rotation_matrix(2));
   acc(3) = acc_z_;
+#ifdef skip_rot_mat
+  acc(0) = acc_raw(0);
+  acc(1) = acc_raw(1);
+  acc(2) = acc_raw(2);
+#endif
+#ifdef without_yaw
+  acc(0) = acc_x_;
+  acc(1) = acc_y__;
+  acc(2) = acc_raw(2);
+#endif 
   Yaw[1] = Yaw[0];
-  Yaw[0] = acc_psi;
-  if(calibrate_imu) {
-    for(int ii = 0; ii < 3; ii++) {
-      acc(ii) = lms_mb[2 * ii] * acc(ii) + lms_mb[2 * ii + 1];
-    }
-  }
+  Yaw[0] = Rotation_matrix(2);
+  // if(calibrate_imu) {
+    // for(int ii = 0; ii < 3; ii++) {
+      // acc(ii) = lms_mb[2 * ii] * acc(ii) + lms_mb[2 * ii + 1];
+    // }
+  // }
 #ifdef DEBUG_MODE
-  Serial << " Acc: " << acc << " Yew[0]: " << float(mpu.getYaw() / 180.f * PI)
-         << " pitch: " << float(mpu.getPitch() / 180.f * PI)
-         << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
+  Serial << " Acc: " << acc << " Yaw[0]: " << Rotation_matrix(2)
+         << " pitch: " << Rotation_matrix(1)
+         << " Roll: " << Rotation_matrix(0) << " \n "
+		 << " acc_raw: " << acc_raw << " abs: " << float(get_sqre(acc_raw, 3)) << '\n';
 #endif // DEBUG_MODE
+}
+
+static bool imu_update(){
+	int diff=0;
+	for(int i=0; i<3; i++){
+		if(acc(i) != acc_old(i)){
+			diff = 1;
+			acc_old(i)=acc(i);
+		}
+	}
+	return diff; 
 }
 
 static void read_imu_cali_para(const int address, float * data, const int size) {
@@ -281,7 +330,24 @@ static void read_imu_cali_para(const int address, float * data, const int size) 
   }
 }
 
+#ifdef print_data_serial
+static void print_data_name(){
+	Serial << "time accx accy accz roll pitch yaw\n";
+}
+
+static void print_data(){
+	Serial << int(millis()) << " " << acc(0) << " " << acc(1) << " " << acc(2) << " "
+			<< Rotation_matrix(0) << " " << Rotation_matrix(1) << " " << Rotation_matrix(2) 
+			<< '\n';
+}
+#endif
+
 void initIMU() {
+  Wire.begin();
+  delay(1000);
+  
+  //Yaw[1] = mpu.getYaw() / 180.f * PI;
+
   //Detect if MPU setup correctly
   if(!mpu.setup(0x68)) {  // change to your own address
     while(1) {
@@ -311,7 +377,11 @@ void initIMU() {
   }
   //Initial Kalman and GPS
   Initial_Kalman(); //Initial parameters
-
+  
+#ifdef print_data_serial
+  //Print data by serial 
+  print_data_name();
+#endif
   // A sample NMEA stream.
   const char *gpsStream =
     "$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C\r\n"
@@ -364,14 +434,6 @@ static void LMS_para(const float x[], const int n, float * m_, float * b_) {
     *b_ = (sumy * sumx2 - sumx * sumxy) / denom;
     Serial << "Solution: m = " << *m_ << " b = " << *b_ << '\n' ;
   }
-}
-
-static float get_sqre(BLA::Matrix<3> x, const int n) {
-  float sqar = 0.f;
-  for(int ii = 0; ii < n; ii++) {
-    sqar += x(ii) * x(ii);
-  }
-  return sqrt(sqar);
 }
 
 static void write_imu_cali_para(const int address, const float * data, const int size) {
@@ -500,27 +562,35 @@ void read_Serial_input() {
     print_data(c);
   }
 }
-
-void check_stable_imu() {
   const float error = 0.01f;
   float fix[20] = {};
-  fix[0] = abs(get_sqre(acc, 3) - 1);
+void check_stable_imu() {
+  fix[0] = abs(get_sqre(acc_raw, 3) - 1);
   for(int ii = 1; ii < 20; ii++) {
     memcpy(&fix[ii], &fix[ii - 1], sizeof(float));
   }
   int stationary = 0;
-  for(int ii = 0; ii < 15; ii++) {
-    if(fix[ii] <= error) {
+  for(int ii = 0; ii < 15; ii++) { //check last 15
+    if(fix[ii] <= error) {		// if less than the error
       stationary++;
     }
   }
   if(stationary >= 15) {
     for(int ii = 0; ii < 2; ii++) {
-      X_INS(ii);
+      acc(ii)=0;
     }
     for(int ii = 0; ii < 20; ii++) {
       fix[ii] = 1.f;
     }
   }
+#ifdef DEBUG_MODE
+	Serial << "station times: " << stationary
+			<< " abs acc: " << fix[0]*1000
+			<< " acc: " << acc(0) << ' ' << acc(1)
+			<< '\n';
+#endif
 }
+
+
+
 #endif //IMU_H

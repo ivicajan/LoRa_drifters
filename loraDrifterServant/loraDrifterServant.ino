@@ -3,13 +3,15 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 #define USING_IMU
-// #define WAVE_TANK_TEST
+#define WAVE_TANK_TEST
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
 extern BLA::Matrix<3> U_INS;
 extern BLA::Matrix<5> X_INS;
 extern BLA::Matrix<3> Y_GPS;
+extern BLA::Matrix<3> acc_raw;        //Save please
+extern BLA::Matrix<3> Rotation_matrix;//Save please
 extern BLA::Matrix<8, 8> P;
 extern bool calibrate_imu;
 String csvIMUFileName = "";
@@ -20,7 +22,7 @@ String csvIMUOutStr = "";
 #define SSID     "DrifterServant"   // Wifi ssid and password
 #define PASSWORD "Tracker1"
 
-#define LAST_PACKET_TIMEOUT_ms (60000)
+#define LAST_PACKET_TIMEOUT_ms (600000)
 uint32_t last_packet_received_time_ms = 0;
 
 // GLOBAL VARIABLES
@@ -178,36 +180,45 @@ static void update_imu() {
     static uint32_t prev_ms = millis();
     static uint32_t imu_ms = millis(); //For reset
     if(millis() > prev_ms + SAMPLE_PERIOD_ms) {
-#ifdef WAVE_TANK_TEST
+#ifndef WAVE_TANK_TEST
       if((millis() > imu_ms + 20000) && (reset__ != 1)){
         update_ref_location(); // Reset data after 20 secs
         imu_ms = millis();
         reset__ = 1;
       }
-#endif //WAVE_TANK_TEST
+
       if(Serial1.available() > 0) { // only need 1 measurement here
         gps.encode(Serial1.read());
         measure_gps_data();
       }
+#endif //WAVE_TANK_TEST
+#ifdef WAVE_TANK_TEST
+      Y_GPS = {0,0,Yaw[0]};
+      //if(millis() < 25000) Initial_Kalman();
+#endif
       //Run Kalman with fusion IMU and GPS
       Update_Kalman();
       if(mpu.update()) {
         measure_imu_data();
       }
+      rotate_imu_data();
 // #ifdef CALIBRATION_IMU
       // read_Serial_input();
       // check_stable_imu();
 // #endif //CALIBRATION_IMU
       //Ouput current location in lat and lng
-      // float lat, lng;
-      // get_current_location(&lat, &lng);
-      // Serial << "Lat: " << lat << " Lng: " << lng << "\n";
+//       float lat, lng;
+//       get_current_location(&lat, &lng);
+//       Serial << "Lat: " << lat << " Lng: " << lng << "\n";
 
 #ifdef DEBUG_MODE
       Serial << " Acc: " << acc << " Yaw[0]: " << float(mpu.getYaw() / 180.f * PI)
              << " pitch: " << float(mpu.getPitch() / 180.f * PI)
              << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
 #endif // DEBUG_MODE
+#ifdef print_data_serial
+      print_data();
+#endif
       prev_ms = millis();
     }
   }

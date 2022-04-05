@@ -90,7 +90,7 @@ BLA::Matrix<2, 2> C_;
 BLA::Matrix<8, 8> big_zero;
 BLA::Matrix<8, 8> big_I;
 BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
-#define BETA 0.005
+float BETA = 0.05;
 
 static void Initial_Kalman() {
   //Form matrix reference.
@@ -103,18 +103,18 @@ static void Initial_Kalman() {
   const float R_[3] = {1.01, 1.01, 1.01 * PI / 180};
   const float Q_[3] = {0.1, 0.1, 0.1 * PI / 180};
   for(int ii = 0; ii < 8; ii++) {
-    P_0(ii, ii) = P_0_[ii];
+    P_0(ii, ii) = P_0_[ii]*P_0_[ii];
   }
   for(int ii = 0; ii < 3; ii++) {
-    R(ii, ii) = R_[ii];
-    Q(ii, ii) = Q_[ii];
+    R(ii, ii) = R_[ii]*R_[ii];
+    Q(ii, ii) = Q_[ii]*Q_[ii];
   }
   Bias_Predic = {0, 0, 0};
 
   P = P_0;    //Initial The cov of error.
   H.Fill(0);
   //form: H = {0,0,1,1,1,0,0,0, 0,0,1,1,1,0,0,0, 0,0,1,1,1,0,0,0};
-  H = (big_zero.Submatrix<3, 2>(1, 1) || big_I.Submatrix<3, 3>(1, 1) || big_zero.Submatrix<3, 3>(1, 1));
+  H = (big_zero.Submatrix<3, 2>(1, 1) || big_diag.Submatrix<3, 3>(1, 1) || big_zero.Submatrix<3, 3>(1, 1));
   X_E_Predic.Fill(0);
 
   //Para matrix for IMU(U) and GPS(Y)
@@ -142,19 +142,19 @@ void Update_Kalman() {
   uint32_t Current_T_ = millis();
   //T_ = (float)(Current_T_ - last_T__) /1000.f;
   
-   //Parameters update
-  C_ = {cos(X_INS(4)), sin(X_INS(4)), -sin(X_INS(4)), cos(X_INS(4))};
-  A_E = (big_zero.Submatrix<2, 2>(0, 0) && big_I.Submatrix<2, 2>(0, 0) && big_zero.Submatrix<4, 2>(0, 0)) ||
+  //Parameters update
+  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0]-Yaw[1])/T_};
+  C_ = {cos(Yaw[0]), sin(Yaw[0]), -sin(Yaw[0]), cos(Yaw[0])};
+  A_E = (big_zero.Submatrix<2, 2>(0, 0) && big_diag.Submatrix<2, 2>(0, 0) && big_zero.Submatrix<4, 2>(0, 0)) ||
         big_zero.Submatrix<8, 3>(0, 0) ||
         (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
-        (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
+        (big_zero.Submatrix<4, 1>(0, 0) && big_diag.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
   B_E = (C_ && big_zero.Submatrix<6, 2>(0, 0)) ||
-        (big_zero.Submatrix<4, 1>(0, 0) && big_I.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
+        (big_zero.Submatrix<4, 1>(0, 0) && big_diag.Submatrix<1, 1>(0, 0) && big_zero.Submatrix<3, 1>(0, 0));
 
 
   //Optimized output X and cov matrix.
   //Update from input
-  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0]-Yaw[1])/T_};
   U_INS = U_pre - Bias_Predic;
   X_INS = {X_INS(0) + T_ * U_INS(0),
            X_INS(1) + T_ * U_INS(1),
@@ -168,9 +168,10 @@ void Update_Kalman() {
   for(int ii = 0; ii < 3; ii++ ) {
     Y_E(ii) = X_INS(2 + ii) - Y_GPS(ii);
   }
-  BLA::Matrix<3, 3> dom = H * P * ~H + R;
-  const BLA::Matrix<3, 3> dom1 = Invert(dom);
-  G_k = P * ~H * dom1;
+  BLA::Matrix<3, 3> dom_ = H * P * ~H + R;
+  BLA::Matrix<3, 3> dom = dom_;
+  Invert(dom);
+  G_k = P * ~H * dom;
   P = (big_diag - G_k * H) * P;
   BLA::Matrix<8> Bias_0;
   Bias_0.Fill(0);
@@ -185,8 +186,11 @@ void Update_Kalman() {
 #ifdef DEBUG_MODE
  Serial << "Time:" << T_  << " last millis: " << (float)last_T__ << " current millis: " << (float)Current_T_
 		<< '\n'
+		<< "C: " << C_ << '\n'
 		<< "Y_E: " << Y_E << "\n"
         << "H: "   << H   << "\n"
+		<< "dom_" << dom_ << '\n'
+		<< "dom" << dom << '\n'
         << "G_k: " << G_k << "\n"
         << "X_E_Predic: " << X_E_Predic << "\n"
         << "Bias_Predic: " << Bias_Predic << "\n"
@@ -336,7 +340,10 @@ static void print_data_name(){
 }
 
 static void print_data(){
-	Serial << int(millis()) << " " << acc(0) << " " << acc(1) << " " << acc(2) << " "
+	float x = acc(0)*9.81;
+	float y = acc(1)*9.81;
+	float z = acc(2)*9.81;
+	Serial << int(millis()) << " " << x << " " << y << " " << z << " "
 			<< Rotation_matrix(0) << " " << Rotation_matrix(1) << " " << Rotation_matrix(2) 
 			<< '\n';
 }

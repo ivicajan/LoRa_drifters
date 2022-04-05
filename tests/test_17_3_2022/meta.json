@@ -1,6 +1,6 @@
 {
-    "start_time": "4:45:00",
-    "end_time": "6:30:00",
+    "start_time": "4:15:00",
+    "end_time": "6:45:00",
     "using_mesh": true,
-    "frequency": 30
+    "frequency": 10
 }

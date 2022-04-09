@@ -103,18 +103,21 @@ class Master {
 #include "loraDrifterMesh.h"
 #endif //USING_MESH
 
-#define BATT_MAX_BATTERY_VOLTAGE (4.2f)
-#define BATT_MID_BATTERY_VOLTAGE (3.7f)
-#define BATT_MIN_BATTERY_VOLTAGE (3.2f)
+#define BATT_MAX_BATTERY_VOLTAGE_MV (4200.f)
+#define BATT_MIN_BATTERY_VOLTAGE_MV (3200.f)
+#define BATT_VOLTAGE_RANGE_MV       (BATT_MAX_BATTERY_VOLTAGE_MV - BATT_MIN_BATTERY_VOLTAGE_MV)
 
-#define BATT_MID_CONVERSION      (BATT_MID_BATTERY_VOLTAGE / BATT_MAX_BATTERY_VOLTAGE)
-#define BATT_MIN_CONVERSION      (BATT_MIN_BATTERY_VOLTAGE / BATT_MAX_BATTERY_VOLTAGE)
-#define BATT_CONVERSION          (1000.f * (BATT_MID_CONVERSION - BATT_MIN_CONVERSION) / 50.f)
-
+// Note, the previous formula for calculating battery precentages was incorrect
+// In order to convert the previous precentages to an actual percent, a conversion needs to be used
+// here is the change in Python
+// magic_conversion: float = 2.380952381
+// drifter.Battery = drifter.Battery.astype(float)
+// drifter.Battery = (drifter.Battery * 100.0) / magic_conversion
+// drifter.Battery = (drifter.Battery - 3200.0) / 10.0
 float getBatteryPercentage() {
     // TODO: master display (with gps on) segfaults when running this conversion
 #ifndef MASTER_NODE
-    return (PMU.getBattVoltage() * BATT_CONVERSION) / 100.f;
+    return= (PMU.getBattVoltage() - BATT_MIN_BATTERY_VOLTAGE_MV) / BATT_VOLTAGE_RANGE_MV;
 #else
     return 100.f;
 #endif //MASTER_NODE

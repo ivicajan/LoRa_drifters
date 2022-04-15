@@ -3,7 +3,7 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 #define USING_IMU
-#define WAVE_TANK_TEST
+//#define WAVE_TANK_TEST
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
@@ -13,6 +13,7 @@ extern BLA::Matrix<3> Y_GPS;
 extern BLA::Matrix<3> acc_raw;        //Save please
 extern BLA::Matrix<3> Rotation_matrix;//Save please
 extern BLA::Matrix<8, 8> P;
+BLA::Matrix<2> Updated_GPS; //updated gps after imu kalman modification
 extern bool calibrate_imu;
 String csvIMUFileName = "";
 File imu_file;
@@ -180,21 +181,27 @@ static void update_imu() {
     static uint32_t prev_ms = millis();
     static uint32_t imu_ms = millis(); //For reset
     if(millis() > prev_ms + SAMPLE_PERIOD_ms) {
-#ifndef WAVE_TANK_TEST
-      if((millis() > imu_ms + 20000) && (reset__ != 1)){
-        update_ref_location(); // Reset data after 20 secs
-        imu_ms = millis();
-        reset__ = 1;
-      }
+#ifdef WAVE_TANK_TEST
+      Y_GPS = {0,0,Yaw[0]};
+      //if(millis() < 25000) Initial_Kalman();
+#else
+//      if((millis() > imu_ms + 20000) && (reset__ != 1)){
+//        update_ref_location(); // Reset data after 20 secs
+//        imu_ms = millis();
+//        reset__ = 1;
+//      }
 
       if(Serial1.available() > 0) { // only need 1 measurement here
         gps.encode(Serial1.read());
         measure_gps_data();
       }
-#endif //WAVE_TANK_TEST
-#ifdef WAVE_TANK_TEST
-      Y_GPS = {0,0,Yaw[0]};
-      //if(millis() < 25000) Initial_Kalman();
+      //Ouput current location in lat and lng
+      float lat, lng;
+      get_current_location(&lat, &lng);
+      Updated_GPS = {lat, lng};
+      #ifdef DEBUG_MODE
+      Serial << "Updated Lat: " << lat << " Lng: " << lng << '\n';
+      #endif
 #endif
       //Run Kalman with fusion IMU and GPS
       Update_Kalman();
@@ -206,10 +213,7 @@ static void update_imu() {
       // read_Serial_input();
       // check_stable_imu();
 // #endif //CALIBRATION_IMU
-      //Ouput current location in lat and lng
-//       float lat, lng;
-//       get_current_location(&lat, &lng);
-//       Serial << "Lat: " << lat << " Lng: " << lng << "\n";
+
 
 #ifdef DEBUG_MODE
       Serial << " Acc: " << acc << " Yaw[0]: " << float(mpu.getYaw() / 180.f * PI)
@@ -390,6 +394,9 @@ static void fill_packet() {
   packet.nSamples = nSamples;
   packet.age = gps.location.age();
   packet.battPercent = getBatteryPercentage();
+  #ifdef DEBUG_MODE
+  Serial << "Raw Lat: " << float(packet.lat) << " Lng: " << float(packet.lng) << '\n';
+  #endif
 }
 
 #ifdef USING_MESH
@@ -442,6 +449,9 @@ static void generatePacket() {
        }
        for(int ii = 0; ii < 3; ii++) {
          csvIMUOutStr += String(Rotation_matrix(ii))+ ",";
+       }
+       for(int ii = 0; ii < 2; ii++) {
+         csvIMUOutStr += String(Updated_GPS(ii))+ ",";
        }
       csvIMUOutStr += "\n";
 #endif //USING_IMU

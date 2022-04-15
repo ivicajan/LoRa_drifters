@@ -21,8 +21,8 @@
 #ifndef IMU_H
 #define IMU_H
 
-//#define DEBUG_MODE
-#define print_data_serial
+#define DEBUG_MODE
+//#define print_data_serial
 #define skip_rot_mat //do not do rotation matrix
 //#define without_yaw		//Do not rotate acc with yaw
 

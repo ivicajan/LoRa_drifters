@@ -90,7 +90,7 @@ BLA::Matrix<2, 2> C_;
 BLA::Matrix<8, 8> big_zero;
 BLA::Matrix<8, 8> big_I;
 BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
-float BETA = 0.05;
+float BETA = 0.005;
 
 static void Initial_Kalman() {
   //Form matrix reference.
@@ -100,7 +100,7 @@ static void Initial_Kalman() {
 
   //Setup initial Guess:
   const float P_0_[8] = {10.f, 10.f, 10.f, 10.f, 90.f * PI / 180.f, 5.f, 5.f, 25 * PI / 180.f};
-  const float R_[3] = {1.01, 1.01, 1.01 * PI / 180};
+  const float R_[3] = {1.5, 1.5, 1.5 * PI / 180};
   const float Q_[3] = {0.1, 0.1, 0.1 * PI / 180};
   for(int ii = 0; ii < 8; ii++) {
     P_0(ii, ii) = P_0_[ii]*P_0_[ii];
@@ -179,6 +179,9 @@ void Update_Kalman() {
     Bias_0(ii + 5) = Bias_Predic(ii);
   }
   X_E_Predic = Bias_0 + G_k * Y_E;
+  float v_conf = 0.5; //How much speed should be decreased. 0.3=30% decreased. 
+  X_E_Predic(0) += X_INS(0)*v_conf;
+  X_E_Predic(1) += X_INS(1)*v_conf;
 
   X_INS -= X_E_Predic.Submatrix<5, 1>(0, 0);
   Bias_Predic = X_E_Predic.Submatrix<3, 1>(5, 0);
@@ -219,7 +222,7 @@ static const float get_diff_dist(const float oringe, const float update_) {
 }
 
 void get_current_location(float * lat, float * lng) {
-  *lat = X_INS(2) * 180 / (6372795 * PI) + Lat_o;
+  *lat = X_INS(2) * 180 / (6372795 * PI) - Lat_o; //on south earth 
   *lng = X_INS(3) * 180 / (6372795 * PI) + Lng_o;
 }
 
@@ -235,7 +238,7 @@ static float get_sqre(BLA::Matrix<3> x, const int n) {
 void measure_gps_data() {
   if(gps.location.isValid()) {
     //Get GPS measure in meter from ref point.
-    Y_GPS = {get_diff_dist(Lat_o, gps.location.lat()),
+    Y_GPS = {-get_diff_dist(Lat_o, gps.location.lat()),
              get_diff_dist(Lng_o, gps.location.lng()),
              Yaw[0]
             };
@@ -388,6 +391,7 @@ bool initIMU() {
   //Print data by serial 
   print_data_name();
 #endif
+#ifdef WAVE_TANK_TEST
   // A sample NMEA stream.
   const char *gpsStream =
     "$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C\r\n"
@@ -396,7 +400,7 @@ bool initIMU() {
     "$GPGGA,045201.000,3014.3864,N,09748.9411,W,1,10,1.2,200.8,M,-22.5,M,,0000*6C\r\n"
     "$GPRMC,045251.000,A,3014.4275,N,09749.0626,W,0.51,217.94,030913,,,A*7D\r\n"
     "$GPGGA,045252.000,3014.4273,N,09749.0628,W,1,09,1.3,206.9,M,-22.5,M,,0000*6F\r\n";
-
+#endif //WAVE_TANK_TEST
   while(*gpsStream) {
     if(gps.encode(*gpsStream++))
       update_ref_location(); //Set first reference location

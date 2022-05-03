@@ -527,13 +527,13 @@ int listener(const int frameSize, const int mode) {
         messageLog = "";
         numLogs = 0;
       }
-      String temp = "";
+      String routed_string = "";
       if(sender != source) {
-        temp = " routed by D" + String(idToIndex(source));
+        routed_string = " routed by D" + String(idToIndex(source));
       }
       const String tDate = String(gps.date.year()) + "-" + String(gps.date.month()) + "-" + String(gps.date.day());
       const String tTime = String(gps.time.hour()) + ":" + String(gps.time.minute()) + ":" + String(gps.time.second());
-      messageLog += "<tr><td>" + tDate + " " + tTime  + "</td><td>Received packet from D" + String(idToIndex(sender)) + temp + "</td></tr>";
+      messageLog += "<tr><td>" + tDate + " " + tTime  + "</td><td>Received packet from D" + String(idToIndex(sender)) + routed_string + "</td></tr>";
       numLogs++;
 #endif //MESH_MASTER_MODE
     }

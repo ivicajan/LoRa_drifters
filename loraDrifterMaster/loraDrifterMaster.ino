@@ -69,6 +69,46 @@ static String processor(const String & var) {
     xSemaphoreGive(servantSemaphore);
     return diagnosticString += "</tr>" + diagnosticData;
   }
+  else if(var == "STATUSFLAGS") {
+    bool statusFlags = false;
+    for(int ii = 0; ii < NUM_NODES; ii++) {
+      if(s[ii].active) {
+        uint8_t statusTmp = 0;
+        memcpy(&statusTmp, &s[ii].drifterState, sizeof(uint8_t));
+        if(statusTmp > 0) { // has status flags - currently ignoring using mesh
+          statusFlags = true;
+          break;
+        }
+      }
+    }
+    if(statusFlags) {
+      String statusString =
+        R"rawliteral(
+        <br><br>
+        <h4>Status Flags</h4>
+        <table>
+          <tr>
+            <td><b>Drifter</b></td>
+            <td><b>Statuses</b></td>
+          </tr>
+          )rawliteral";
+      xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+      for(int ii = 0; ii < NUM_NODES; ii++) {
+        if(s[ii].active) {
+          uint8_t statusTmp = 0;
+          memcpy(&statusTmp, &s[ii].drifterState, sizeof(uint8_t));
+          if(statusTmp > 0) {
+            statusString += "<tr><td><b>D" + String(ii) + "</b></td><td>" + drifterStatusFlagToString(&s[ii].drifterState) + "</td></tr>";
+          }
+        }
+      }
+      xSemaphoreGive(servantSemaphore);
+      return statusString;
+    }
+    else{
+      return String();
+    }
+  }
   else if(var == "MESSAGELOG") {
     String outputLog =
       R"rawliteral(
@@ -296,6 +336,38 @@ static void listenTask(void * params) {
 #endif // USING_MESH
     xSemaphoreGive(loraSemaphore);
   }
+}
+
+String drifterStatusFlagToString(drifterStatus_t * drifterStatusIn){
+  String stringOut = "- ";
+  if(drifterStatusIn->b.imuUsed == 1){
+    if(drifterStatusIn->b.imuError == 1){
+      stringOut += "IMU OK -  ";
+    }
+    else{
+      stringOut += "IMU ERROR -  ";
+    }
+  }
+  // unused mesh print
+  // if(drifterStatusIn->b->meshUsed == 1){
+  //   stringOut += "USING MESH";
+  // }
+  if(drifterStatusIn->b.configError == 1){
+    stringOut += "CONFIG ERROR -  ";
+  }
+  if(drifterStatusIn->b.lowBattery == 1){
+    stringOut += "LOW BATTERY -  ";
+  }
+  if(drifterStatusIn->b.lowBattery == 1){
+    stringOut += "SAVE ERROR -  ";
+  }
+  if(drifterStatusIn->b.saveError == 1){
+    stringOut += "SPIFFS ERROR -  ";
+  }
+  if(drifterStatusIn->b.lowStorage == 1){
+    stringOut += "LOW STORAGE -  ";
+  }
+  return stringOut;
 }
 
 static void sendTask(void * params) {

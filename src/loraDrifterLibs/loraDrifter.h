@@ -53,6 +53,7 @@
 #define LED_OFF                     (HIGH)
 #define WEB_SERVER_PIN              (BUTTON_PIN)
 #define SAMPLES_BEFORE_WRITE        (300)    // Number of samples to store in memory before file write
+#define SPIFFS_FLASH_SIZE           (3.f)    // SPIFFS formatted size of storage in MB
 #define NUM_MAX_SERVANTS            (11)     // Maximum number of servant drifters (just for setting array size)
 
 // #define DEBUG_MODE                         // Additional printouts to serial port
@@ -62,7 +63,21 @@ AXP20X_Class PMU;
 TinyGPSPlus gps;                      // decoder for GPS stream
 AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 
-// 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 + 4 = 42 bytes
+typedef union drifterStatus_r {
+    uint8_t r;
+    struct {
+        uint8_t imuUsed : 1;       // 1 == in use
+        uint8_t imuError : 1;      // 1 == error
+        uint8_t meshUsed : 1;      // 1 == in use
+        uint8_t configError : 1;   // 1 == error
+        uint8_t lowBattery : 1;    // 1 == error (low battery)
+        uint8_t saveError : 1;     // 1 == error
+        uint8_t lowStorage : 1;    // 1 == error (low storage)
+        uint8_t reserved : 1;
+    } b;
+} drifterStatus_t;
+
+// 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 + 4 + 1 = 43 bytes
 #pragma pack(1) // Fixes padding issues
 struct Packet {
   char name[3];             // e.g. D01
@@ -78,6 +93,7 @@ struct Packet {
   uint32_t age;
   float storageUsed;
   float battPercent;
+  drifterStatus_t drifterState;
 };
 
 class Master {

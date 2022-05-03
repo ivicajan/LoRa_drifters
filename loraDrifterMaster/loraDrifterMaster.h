@@ -23,6 +23,7 @@ class Servant {
     uint32_t age = 0;
     float storageUsed = 0.f;
     float battPercent = 0.f;
+    drifterStatus_t drifterState;
     int dist = 0;
     float bear = 0.f;
     int rssi = 0;
@@ -49,6 +50,7 @@ void Servant::decode(Packet * packet) {
     age = packet->age;
     storageUsed = packet->storageUsed;
     battPercent = packet->battPercent;
+    drifterState = packet->drifterState;
 // #ifdef DEBUG_MODE
 //     Serial.println(drifterTimeSlotSec);
 //     Serial.println(lastUpdateMasterTime);
@@ -113,6 +115,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     </table>
     %SERVANTS%
     %DIAGNOSTICS%
+    </table>
+    %STATUSFLAGS%
     </table>
     %MESSAGELOG%
     </table>

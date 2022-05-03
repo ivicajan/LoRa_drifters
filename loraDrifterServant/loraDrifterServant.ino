@@ -41,7 +41,10 @@ String drifterName = "D05";       // ID send with packet
 int drifterTimeSlotSec = 25;      // seconds after start of each GPS minute
 
 Packet packet;
+drifterStatus_t drifterState; // status flags of the drifter state
+
 SemaphoreHandle_t loraSemaphore = NULL;
+SemaphoreHandle_t drifterStateMutex = NULL;
 
 #ifdef USING_MESH
 byte routingTable[ROUTING_TABLE_SIZE] = "";
@@ -135,17 +138,25 @@ static void writeData2Flash() {
       ESP.restart();
   }
   else {
+    const uint32_t file_size_before_save = file.size();
     if(file.println(csvOutStr)) {
       Serial.print("Wrote data in file, current size: ");
-      Serial.println(file.size());
-      storageUsed = file.size() * 0.000001f; // convert to MB
+      const uint32_t file_size_after_save = file.size();
+      Serial.println(file_size_after_save);
+      storageUsed = file_size_after_save * 0.000001f; // convert to MB
       csvOutStr = "";
       nSamples = 0;
       lastFileWrite = tTime;
+      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+      drifterState.b.saveError = (file_size_after_save == file_size_before_save);
+      xSemaphoreGive(drifterStateMutex);
     }
     else {
       lastFileWrite = "FAILED WRITE, RESTARTING";
       ESP.restart();
+      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+      drifterState.b.saveError = 1;
+      xSemaphoreGive(drifterStateMutex);
     }
   }
   file.close();
@@ -168,6 +179,7 @@ static void writeIMUData2Flash() {
       Serial.print("Wrote data in imu file, current size: ");
       Serial.println(imu_file.size());
       csvIMUOutStr = "";
+      storageUsed += imu_file.size() * 0.000001f; // convert to MB
     }
     else {
       ESP.restart();
@@ -339,6 +351,9 @@ static void readConfigFile() {
   file = SPIFFS.open("/config.txt", FILE_READ);
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
+    xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+    drifterState.b.configError = 1;
+    xSemaphoreGive(drifterStateMutex);
   }
   else {
     const String inData = file.readStringUntil('\n');
@@ -353,18 +368,35 @@ static void readConfigFile() {
   }
   delay(50);
   csvFileName = "/svt" + String(drifterName) + ".csv";
+  file = SPIFFS.open(csvFileName, FILE_APPEND);
+  if(file){
+    storageUsed = file.size() * 0.000001f; // convert to MB
+    file.close();
+  }
 #ifdef USING_IMU
   csvIMUFileName = "/svt" + String(drifterName) + "_IMU.csv";
+  imu_file = SPIFFS.open(csvIMUFileName, FILE_APPEND);
+  if(imu_file){
+    storageUsed += imu_file.size() * 0.000001f; // convert to MB
+    imu_file.close();
+  }
 #endif //USING_IMU
 }
 
 void setup() {
   initBoard();
   delay(500);
+  loraSemaphore = xSemaphoreCreateMutex();
+  drifterStateMutex = xSemaphoreCreateMutex();
+  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  memset(&drifterState, 0, sizeof(drifterStatus_r));
 #ifdef USING_IMU
   const bool initIMUok = initIMU();
+  drifterState.b.imuUsed = 1;
+  drifterState.b.imuError = !initIMUok;
   delay(500);
 #endif // USING_IMU
+  xSemaphoreGive(drifterStateMutex);
   if(!SPIFFS.begin(true)) {
     Serial.println("SPIFFS ERROR HAS OCCURED");
     return;
@@ -372,14 +404,16 @@ void setup() {
   initLoRa();
   delay(50);
   readConfigFile();
-  loraSemaphore = xSemaphoreCreateMutex();
 #ifdef USING_IMU
-  if(initIMUok == true){
+  if(initIMUok){
     xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, NULL, 0);
     delay(500);
   }
 #endif //USING_IMU
 #ifdef USING_MESH
+  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  // drifterState.b.meshUsed = 1;
+  xSemaphoreGive(drifterStateMutex);
   xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 2, NULL, 0);
   delay(500);
 #endif //USING_MESH
@@ -402,6 +436,15 @@ static void fill_packet() {
   packet.storageUsed = storageUsed;
   packet.age = gps.location.age();
   packet.battPercent = getBatteryPercentage();
+  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  drifterState.b.lowStorage = (packet.storageUsed > 0.75f * SPIFFS_FLASH_SIZE); // if we are above 75% storage capacity we show the flag 1 (error)
+  drifterState.b.lowBattery = (packet.battPercent < 50.f); // if we are below 50% battery we show the flag 1 (error)
+  packet.drifterState = drifterState;
+  // uncomment below to display hardcoded errors on master
+  // packet.drifterState.b.imuError = 1;
+  // packet.drifterState.b.lowBattery = 1;
+  // packet.drifterState.b.lowStorage = 1;
+  xSemaphoreGive(drifterStateMutex);
 #ifdef DEBUG_MODE
   Serial << "Raw Lat: " << float(packet.lat) << " Lng: " << float(packet.lng) << '\n';
 #endif
@@ -484,9 +527,11 @@ static void generatePacket() {
 #endif // USING_MESH
     }
   }
+#ifdef DEBUG_MODE
   else {
     Serial.println("No GPS fix, not sending or writing");
   }
+#endif //DEBUG_MODE
 }
 
 #ifdef USING_IMU
@@ -537,11 +582,17 @@ static void startWebServer(const bool webServerOn) {
       if(!file) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
+        xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+        drifterState.b.configError = 1;
+        xSemaphoreGive(drifterStateMutex);
       }
       else {
         file.print(drifterName + "," + String(drifterTimeSlotSec));
         file.close();
         request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+        xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+        drifterState.b.configError = 0;
+        xSemaphoreGive(drifterStateMutex);
       }
     });
 
@@ -559,7 +610,8 @@ static void startWebServer(const bool webServerOn) {
       }
       if(file.println("#FILE ERASED at " + lastFileWrite)) {
         Serial.println("File was created");
-      } else {
+      }
+      else {
         Serial.println("File creation failed");
       }
       file.close();
@@ -581,7 +633,8 @@ static void startWebServer(const bool webServerOn) {
       }
       if(file.println("#FILE ERASED at " + lastFileWrite)) {
         Serial.println("File was created");
-      } else {
+      }
+      else {
         Serial.println("File creation failed");
       }
       file.close();

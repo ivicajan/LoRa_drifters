@@ -9,7 +9,7 @@
 #define WIFI_PASSWORD     ("Tracker1")
 
 SemaphoreHandle_t servantSemaphore = NULL;
-SemaphoreHandle_t loraSemaphore = NULL;
+static SemaphoreHandle_t loraSemaphore = NULL;
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
@@ -17,14 +17,14 @@ extern AXP20X_Class PMU;
 // GLOBAL VARIABLES
 Master m;                             // Master data
 Servant s[NUM_MAX_SERVANTS];          // Servants data array
-String masterData = "";               // Strings for tabular data output to web page
-String servantsData = "";
-String diagnosticData = "";
+static String masterData = "";               // Strings for tabular data output to web page
+static String servantsData = "";
+static String diagnosticData = "";
 String csvOutStr = "";                // Buffer for output file
 String lastFileWrite = "";
-File file;                            // Data file for the SPIFFS output
-int nSamples;                         // Counter for the number of samples gathered
-int gpsLastSecond = -1;
+static File file;                            // Data file for the SPIFFS output
+static volatile int nSamples;                         // Counter for the number of samples gathered
+static volatile int gpsLastSecond = -1;
 
 #ifdef USING_MESH
 byte routingTable[ROUTING_TABLE_SIZE] = "";
@@ -34,8 +34,8 @@ byte localNextHopID = MASTER_LOCAL_ID;
 byte localHopCount = 0x00;
 String messageLog = "";
 // Diagnostics
-int messagesSent = 0;
-int messagesReceived = 0;
+volatile int messagesSent = 0;
+volatile int messagesReceived = 0;
 int nodeRx[NUM_NODES]; // array of receiving message counts
 #endif // USING_MESH
 
@@ -338,14 +338,14 @@ static void listenTask(void * params) {
   }
 }
 
-String drifterStatusFlagToString(drifterStatus_t * drifterStatusIn){
+static String drifterStatusFlagToString(drifterStatus_t * drifterStatusIn){
   String stringOut = "- ";
   if(drifterStatusIn->b.imuUsed == 1){
     if(drifterStatusIn->b.imuError == 1){
-      stringOut += "IMU OK -  ";
+      stringOut += "IMU ERROR -  ";
     }
     else{
-      stringOut += "IMU ERROR -  ";
+      stringOut += "IMU OK -  ";
     }
   }
   // unused mesh print

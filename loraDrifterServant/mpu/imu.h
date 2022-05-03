@@ -21,10 +21,9 @@
 #ifndef IMU_H
 #define IMU_H
 
-// #define DEBUG_MODE
-//#define print_data_serial
-#define skip_rot_mat //do not do rotation matrix
-//#define without_yaw		//Do not rotate acc with yaw
+//#define PRINT_DATA_SERIAL
+#define SKIP_ROT_MAT //do not do rotation matrix
+//#define WITHOUT_YAW		//Do not rotate acc with yaw
 
 #include "MPU9250.h"
 #include "BasicLinearAlgebra.h"
@@ -34,8 +33,8 @@
 #define ACC_CALI_PARA_ADDR 0
 #define MAG_CALI_PARA_ADDR 25
 
-float lms_mb[6] = {1, 0, 1, 0, 1, 0};
-bool calibrate_imu = true;
+static float lms_mb[6] = {1, 0, 1, 0, 1, 0};
+volatile bool calibrate_imu = true;
 
 using namespace BLA;
 MPU9250 mpu;
@@ -53,7 +52,7 @@ extern TinyGPSPlus gps;
 //Define global variables
 BLA::Matrix<3> acc = {0.f, 0.f, 0.f};
 BLA::Matrix<3> acc_raw = {0.f, 0.f, 0.f};
-BLA::Matrix<3> acc_old;
+static BLA::Matrix<3> acc_old;
 BLA::Matrix<3> Rotation_matrix; 
 // float Acc_mag[2] = {0.f, 0.f};
 // float Acc[3][2] = {{}, {}};
@@ -74,23 +73,24 @@ BLA::Matrix<5> X_INS;
 BLA::Matrix<3> Y_GPS;
 // BLA::Matrix<3> N_GPS = {0, 0, 0};
 // BLA::Matrix<3> Bias = {0, 0, 0};
-BLA::Matrix<3> Bias_Predic;
+static BLA::Matrix<3> Bias_Predic;
 // BLA::Matrix<3> U_E = {0, 0, 0};
-BLA::Matrix<3> Y_E;
-BLA::Matrix<8> X_E_Predic;
-BLA::Matrix<8, 8> P;
-BLA::Matrix<8, 8, Diagonal<8, float>> P_0;
-BLA::Matrix<8, 3> G_k;
-BLA::Matrix<3, 8> H;
-BLA::Matrix<3, 3, Diagonal<3, float>> R;
-BLA::Matrix<3, 3, Diagonal<3, float>> Q;
-BLA::Matrix<8, 8> A_E;
-BLA::Matrix<8, 3> B_E;
-BLA::Matrix<2, 2> C_;
-BLA::Matrix<8, 8> big_zero;
-BLA::Matrix<8, 8> big_I;
-BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
-float BETA = 0.005;
+static BLA::Matrix<3> Y_E;
+static BLA::Matrix<8> X_E_Predic;
+static BLA::Matrix<8, 8> P;
+static BLA::Matrix<8, 8, Diagonal<8, float>> P_0;
+static BLA::Matrix<8, 3> G_k;
+static BLA::Matrix<3, 8> H;
+static BLA::Matrix<3, 3, Diagonal<3, float>> R;
+static BLA::Matrix<3, 3, Diagonal<3, float>> Q;
+static BLA::Matrix<8, 8> A_E;
+static BLA::Matrix<8, 3> B_E;
+static BLA::Matrix<2, 2> C_;
+static BLA::Matrix<8, 8> big_zero;
+static BLA::Matrix<8, 8> big_I;
+static BLA::Matrix<8, 8, Diagonal<8, float>> big_diag;
+
+#define BETA (0.005f)
 
 static void Initial_Kalman() {
   //Form matrix reference.
@@ -294,12 +294,12 @@ void rotate_imu_data() {
   acc(0) = acc_x_ * cos(Rotation_matrix(2)) + acc_y__ * sin(Rotation_matrix(2));
   acc(1) = acc_y__ * cos(Rotation_matrix(2)) - acc_x_ * sin(Rotation_matrix(2));
   acc(3) = acc_z_;
-#ifdef skip_rot_mat
+#ifdef SKIP_ROT_MAT
   acc(0) = acc_raw(0);
   acc(1) = acc_raw(1);
   acc(2) = acc_raw(2);
 #endif
-#ifdef without_yaw
+#ifdef WITHOUT_YAW
   acc(0) = acc_x_;
   acc(1) = acc_y__;
   acc(2) = acc_raw(2);
@@ -337,7 +337,7 @@ static void read_imu_cali_para(const int address, float * data, const int size) 
   }
 }
 
-#ifdef print_data_serial
+#ifdef PRINT_DATA_SERIAL
 static void print_data_name(){
 	Serial << "time accx accy accz roll pitch yaw\n";
 }
@@ -387,7 +387,7 @@ bool initIMU() {
   //Initial Kalman and GPS
   Initial_Kalman(); //Initial parameters
   
-#ifdef print_data_serial
+#ifdef PRINT_DATA_SERIAL
   //Print data by serial 
   print_data_name();
 #endif
@@ -400,11 +400,13 @@ bool initIMU() {
     "$GPGGA,045201.000,3014.3864,N,09748.9411,W,1,10,1.2,200.8,M,-22.5,M,,0000*6C\r\n"
     "$GPRMC,045251.000,A,3014.4275,N,09749.0626,W,0.51,217.94,030913,,,A*7D\r\n"
     "$GPGGA,045252.000,3014.4273,N,09749.0628,W,1,09,1.3,206.9,M,-22.5,M,,0000*6F\r\n";
-#endif //WAVE_TANK_TEST
   while(*gpsStream) {
     if(gps.encode(*gpsStream++))
       update_ref_location(); //Set first reference location
   }
+#else
+  update_ref_location(); //Set first reference location
+#endif //WAVE_TANK_TEST
   return true;
 }
 
@@ -573,16 +575,18 @@ void read_Serial_input() {
     print_data(c);
   }
 }
-  const float error = 0.01f;
-  float fix[20] = {};
+
+#define IMU_ERROR (0.01f)
+
 void check_stable_imu() {
+  float fix[20] = {};
   fix[0] = abs(get_sqre(acc_raw, 3) - 1);
   for(int ii = 1; ii < 20; ii++) {
     memcpy(&fix[ii], &fix[ii - 1], sizeof(float));
   }
   int stationary = 0;
   for(int ii = 0; ii < 15; ii++) { //check last 15
-    if(fix[ii] <= error) {		// if less than the error
+    if(fix[ii] <= IMU_ERROR) {		// if less than the error
       stationary++;
     }
   }
@@ -601,7 +605,5 @@ void check_stable_imu() {
 			<< '\n';
 #endif
 }
-
-
 
 #endif //IMU_H

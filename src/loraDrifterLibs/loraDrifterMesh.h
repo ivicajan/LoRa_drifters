@@ -21,7 +21,7 @@ extern AXP20X_Class PMU;
 extern String csvOutStr;
 extern String messageLog;
 #define MAX_NUM_LOGS              (30)
-int numLogs = 0;
+static volatile int numLogs = 0;
 extern TinyGPSPlus gps;
 class Master;
 extern Master m;
@@ -31,7 +31,7 @@ extern SemaphoreHandle_t servantSemaphore;
 #else
 struct Packet;
 extern Packet packet;
-extern uint32_t last_packet_received_time_ms;
+extern volatile uint32_t last_packet_received_time_ms;
 // extern SemaphoreHandle_t loraSemaphore;
 #endif //MESH_MASTER_MODE
 
@@ -42,12 +42,12 @@ extern byte localNextHopID;
 extern byte localAddress;
 // DIAGNOSTICS
 extern int nodeRx[NUM_NODES];
-extern int messagesSent;
-extern int messagesReceived;
+extern volatile int messagesSent;
+extern volatile int messagesReceived;
 
 #ifndef MESH_MASTER_MODE
-extern int localLinkRssi;
-extern int masterRx;
+extern volatile int localLinkRssi;
+extern volatile int masterRx;
 #endif // MESH_MASTER_MODE
 
 typedef enum {
@@ -82,7 +82,7 @@ static int parsePayload() {
 #endif // MESH_MASTER_NODE
   if(LoRa.available() == sizeof(Packet)) {
     uint8_t buffer[sizeof(Packet)];
-    for(uint8_t ii = 0; ii < sizeof(Packet); ii++) {
+    for(size_t ii = 0; ii < sizeof(Packet); ii++) {
       buffer[ii] = LoRa.read();
     }
     memcpy(&packet, buffer, sizeof(Packet));
@@ -227,9 +227,9 @@ static int insertRoutingTable(const byte nodeID, const byte hopCount, const byte
   return InvalidNodeID;
 }
 
-boolean runEvery(const unsigned long interval) {
+bool runEvery(const unsigned long interval) {
   static uint32_t previousMillis = 0;
-  uint32_t currentMillis = millis();
+  const uint32_t currentMillis = millis();
   if(currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     return true;
@@ -237,9 +237,9 @@ boolean runEvery(const unsigned long interval) {
   return false;
 }
 
-boolean loop_runEvery(const unsigned long interval) {
+bool loop_runEvery(const unsigned long interval) {
   static uint32_t previousMillis = 0;
-  uint32_t currentMillis = millis();
+  const uint32_t currentMillis = millis();
   if(currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     return true;
@@ -297,7 +297,7 @@ static int findMinHopCount() {
   int currentHopCount = 0;
   
   for(int idx = 0; idx < NUM_NODES; idx++) {
-    byte hopCount = routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1];
+    const byte hopCount = routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1];
     currentHopCount = (int)hopCount;
     if((currentHopCount != 0) && (currentHopCount < minHopCount)) {
       minHopCount = currentHopCount;
@@ -559,15 +559,14 @@ static bool waitForAck(const byte router) {
     delay(1);
     maxloops++;
   }
-  return (result == Success) ? true : false; // ACK received from router or not
+  return result == Success; // ACK received from router or not
 }
 
 static int ackHandshake(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl, int resend) {
   // If no ACK received, resend two more times.
-  bool ack = false;
   // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
   sendFrame(mode, type, router, recipient, sender, ttl);
-  ack = waitForAck(router);
+  bool ack = waitForAck(router);
   // xSemaphoreGive(loraSemaphore);
 
   while(!ack && resend < 2) {
@@ -582,11 +581,10 @@ static int ackHandshake(const int mode, const byte type, const byte router, cons
 
 static int routePayload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend) {
   // Send the data based on routing status
-  byte type = 0x00;
   // Check first if the localNextHopID is the Master ID
-  type = (recipient == localNextHopID) ? DirectPayload : RouteRequest;
+  const byte type = (recipient == localNextHopID) ? DirectPayload : RouteRequest;
   const byte router = localNextHopID;
-  int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
+  const int result = ackHandshake(mode, type, router, recipient, sender, ttl, resend);
   Serial.print("Route payload ACK handshake result with router (0x");
   Serial.print((int)router, HEX);
   Serial.print("): ");
@@ -682,9 +680,8 @@ static int frameHandler(const int mode, const byte type, const byte router, cons
 
 // Send a broadcast to the network
 static int bcastRoutingStatus(const int mode) {
-  int result = 0;
   if(mode == SERVANT_MODE) {
-    result = setRoutingStatus();
+    const int result = setRoutingStatus();
     if(result == Invalid) {
       return result;
     }
@@ -733,7 +730,6 @@ static void printNodeInfo() {
 
 static int findMaxRssi(const int minHopCount) {
   //To make sure the nextHop of that entry is not local
-  int currentRssi = 0;
   int maxRssi = -10000000;
   byte bestRoute = 0x00;
 
@@ -743,7 +739,7 @@ static int findMaxRssi(const int minHopCount) {
 
     // maintain the currentRssi as maxRssi.
     if((hopCount == minHopCount) && (nextHopID != localAddress)) {
-      currentRssi = *(int *)(&routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 3]);
+      const int currentRssi = *(int *)(&routingTable[(ii * ROUTING_TABLE_ENTRY_SIZE) + 3]);
       if (currentRssi > maxRssi) {
         maxRssi = currentRssi;
         bestRoute = routingTable[ii * ROUTING_TABLE_ENTRY_SIZE];

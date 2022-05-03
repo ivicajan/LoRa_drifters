@@ -1,14 +1,44 @@
 #ifndef LORADRIFTERMASTER_H
 #define LORADRIFTERMASTER_H
 
-#define nSamplesFileWrite (300)      // Number of samples to store in memory before file write
-
 // G. Classes for Master and Servant Data
 class Servant {
   public:
     Servant() = default;
-    void decode(Packet * packet);
-    void updateDistBear(const double fromLon, const double fromLat);
+    void decode(const Packet * const packet) {
+      drifterTimeSlotSec = packet->drifterTimeSlotSec;
+      lastUpdateMasterTime = millis();
+      year = packet->year;
+      month = packet->month;
+      day = packet->day;
+      hour = packet->hour;
+      minute = packet->minute;
+      second = packet->second;
+      lng = packet->lng;
+      lat = packet->lat;
+      age = packet->age;
+      storageUsed = packet->storageUsed;
+      battPercent = packet->battPercent;
+      drifterState = packet->drifterState;
+  // #ifdef DEBUG_MODE
+  //     Serial.println(drifterTimeSlotSec);
+  //     Serial.println(lastUpdateMasterTime);
+  //     Serial.println(year);
+  //     Serial.println(month);
+  //     Serial.println(day);
+  //     Serial.println(hour);
+  //     Serial.println(minute);
+  //     Serial.println(second);
+  //     Serial.println(lng);
+  //     Serial.println(lat);
+  //     Serial.println(age);
+  //     Serial.println(nSamples);
+  // #endif //DEBUG_MODE
+    }
+    void updateDistBear(const double fromLon, const double fromLat) {
+      dist = (int)TinyGPSPlus::distanceBetween(fromLat, fromLon, lat, lng);
+      bear = TinyGPSPlus::courseTo(fromLat, fromLon, lat, lng);
+    }
     int ID = 0;
     int drifterTimeSlotSec = 0;
     int lastUpdateMasterTime = 0;
@@ -31,44 +61,8 @@ class Servant {
     ~Servant() = default;
 };
 
-void Servant::updateDistBear(const double fromLon, const double fromLat) {
-   dist = (int)TinyGPSPlus::distanceBetween(fromLat, fromLon, lat, lng);
-   bear = TinyGPSPlus::courseTo(fromLat, fromLon, lat, lng);
-}
-
-void Servant::decode(Packet * packet) {
-    drifterTimeSlotSec = packet->drifterTimeSlotSec;
-    lastUpdateMasterTime = millis();
-    year = packet->year;
-    month = packet->month;
-    day = packet->day;
-    hour = packet->hour;
-    minute = packet->minute;
-    second = packet->second;
-    lng = packet->lng;
-    lat = packet->lat;
-    age = packet->age;
-    storageUsed = packet->storageUsed;
-    battPercent = packet->battPercent;
-    drifterState = packet->drifterState;
-// #ifdef DEBUG_MODE
-//     Serial.println(drifterTimeSlotSec);
-//     Serial.println(lastUpdateMasterTime);
-//     Serial.println(year);
-//     Serial.println(month);
-//     Serial.println(day);
-//     Serial.println(hour);
-//     Serial.println(minute);
-//     Serial.println(second);
-//     Serial.println(lng);
-//     Serial.println(lat);
-//     Serial.println(age);
-//     Serial.println(nSamples);
-// #endif //DEBUG_MODE
-}
-
 // H. This is the string literal for the main web page
-const char index_html[] PROGMEM = R"rawliteral(
+static const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML>
 <html>
   <head>

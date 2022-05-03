@@ -139,7 +139,7 @@ float getBatteryPercentage() {
 // #endif //MASTER_NODE
 }
 
-bool initPMU() {
+static bool initPMU() {
     Wire.begin(I2C_SDA, I2C_SCL);
     delay(50);
     if(PMU.begin(Wire, AXP192_SLAVE_ADDRESS) == AXP_FAIL) {

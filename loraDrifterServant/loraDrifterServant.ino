@@ -2,8 +2,10 @@
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// #define USING_IMU
+#define USING_IMU
 // #define WAVE_TANK_TEST
+
+// uncomment OUTPUT_SYSTEM_MONITOR to view heap and stack size
 // #define OUTPUT_SYSTEM_MONITOR
 
 // this shouldnt be a thing but esp32 seems very tempremental in using semaphores (RTOS),
@@ -18,60 +20,60 @@ extern BLA::Matrix<3> Y_GPS;
 extern BLA::Matrix<3> acc_raw;
 extern BLA::Matrix<3> Rotation_matrix;
 extern BLA::Matrix<8, 8> P;
-BLA::Matrix<2> Updated_GPS; //updated gps after imu kalman modification
-extern bool calibrate_imu;
+static BLA::Matrix<2> Updated_GPS; //updated gps after imu kalman modification
+extern volatile bool calibrate_imu;
 String csvIMUFileName = "";
-File imu_file;
+static File imu_file;
 String csvIMUOutStr = "";
-TaskHandle_t imu_task_handle;
+static TaskHandle_t imu_task_handle;
 #endif // USING_IMU
 
 #define SSID     "DrifterServant"   // Wifi ssid and password
 #define PASSWORD "Tracker1"
 
 #define LAST_PACKET_TIMEOUT_ms (600000)
-uint32_t last_packet_received_time_ms = 0;
+volatile uint32_t last_packet_received_time_ms = 0;
 
 // GLOBAL VARIABLES
 String csvOutStr = "";                 // Buffer for output file
-String lastFileWrite = "";
-bool webServerOn = false;
-String csvFileName = "";
-File file;                            // Data file for the SPIFFS output
-int nSamples = 0;                         // Counter for the number of samples gathered
-static float storageUsed = 0.f;                   // MB used in SPIFFS storage
+static String lastFileWrite = "";
+static bool webServerOn = false;
+static String csvFileName = "";
+static File file;                            // Data file for the SPIFFS output
+volatile int nSamples = 0;                         // Counter for the number of samples gathered
+static volatile float storageUsed = 0.f;                   // MB used in SPIFFS storage
 
-int gpsLastSecond = -1;
-String tTime = "";
-String drifterName = "D09";       // ID send with packet
-int drifterTimeSlotSec = 45;      // seconds after start of each GPS minute
+static volatile int gpsLastSecond = -1;
+static String tTime = "";
+static String drifterName = "D05";       // ID send with packet
+static volatile int drifterTimeSlotSec = 25;      // seconds after start of each GPS minute
 
 Packet packet;
-drifterStatus_t drifterState; // status flags of the drifter state
+static drifterStatus_t drifterState; // status flags of the drifter state
 
 #ifdef USING_SEMAPHORES
 static SemaphoreHandle_t loraSemaphore = NULL; // only used here as its commented out elsewhere
 static SemaphoreHandle_t drifterStateMutex = NULL;
 #endif //USING_SEMAPHORES
-TaskHandle_t send_task_handle;
-TaskHandle_t system_monitoring_task_handle;
+static TaskHandle_t send_task_handle;
+static TaskHandle_t system_monitoring_task_handle;
 
 #ifdef USING_MESH
-TaskHandle_t listen_task_handle;
+static TaskHandle_t listen_task_handle;
 byte routingTable[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
-int localLinkRssi = 0;
+volatile int localLinkRssi = 0;
 byte localHopCount = 0x00;
 byte localNextHopID = 0x00;
 byte localAddress = indexToId(drifterName.substring(1, 3).toInt());
 // Diagnostics
-int messagesSent = 0;
-int messagesReceived = 0;
+volatile int messagesSent = 0;
+volatile int messagesReceived = 0;
 int nodeRx[NUM_NODES];
-int masterRx = 0;
+volatile int masterRx = 0;
 #endif // USING_MESH
 
-const char index_html[] PROGMEM = R"rawliteral(
+static const char index_html[] PROGMEM = R"rawliteral(
   <!DOCTYPE HTML>
   <html>
     <head>
@@ -246,7 +248,7 @@ static void update_imu() {
              << " pitch: " << float(mpu.getPitch() / 180.f * PI)
              << " Roll: " << float(mpu.getRoll() / 180.f * PI) << " \n ";
 #endif // DEBUG_MODE
-#ifdef print_data_serial
+#ifdef PRINT_DATA_SERIAL
       print_data();
 #endif
       prev_ms = millis();

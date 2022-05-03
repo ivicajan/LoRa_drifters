@@ -46,7 +46,7 @@
 #define LORA_SYNC_WORD                       // defaults to 0x12
 #define LORA_GAIN                            // defaults to 0 - between 0 <-> 6
 
-#define GPS_BAND_RATE               (9600)
+#define GPS_BAUD_RATE               (9600)
 #define UNUSE_PIN                   (0)
 #define BOARD_LED                   (4)
 #define LED_ON                      (LOW)
@@ -76,7 +76,7 @@ struct Packet {
   double lng;
   double lat;
   uint32_t age;
-  int nSamples;
+  float storageUsed;
   float battPercent;
 };
 
@@ -116,11 +116,11 @@ class Master {
 // drifter.Battery = (drifter.Battery - 3200.0) / 10.0
 float getBatteryPercentage() {
     // TODO: master display (with gps on) segfaults when running this conversion
-#ifndef MASTER_NODE
-    return= (PMU.getBattVoltage() - BATT_MIN_BATTERY_VOLTAGE_MV) / BATT_VOLTAGE_RANGE_MV;
-#else
-    return 100.f;
-#endif //MASTER_NODE
+// #ifndef MASTER_NODE
+    return ((PMU.getBattVoltage() - BATT_MIN_BATTERY_VOLTAGE_MV) / BATT_VOLTAGE_RANGE_MV) * 100.f;
+// #else
+    // return 100.f;
+// #endif //MASTER_NODE
 }
 
 bool initPMU() {
@@ -200,7 +200,7 @@ void initBoard() {
 #endif
     delay(50);
     pinMode(WEB_SERVER_PIN, INPUT);
-    Serial1.begin(GPS_BAND_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    Serial1.begin(GPS_BAUD_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     Serial.println("init gps");
     delay(50);
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);

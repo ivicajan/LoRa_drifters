@@ -16,7 +16,7 @@
 #define MASTER_MODE               (1)
 
 // #define DEBUG_HOP
-
+extern AXP20X_Class PMU;
 #ifdef MESH_MASTER_MODE
 extern String csvOutStr;
 extern String messageLog;
@@ -106,8 +106,7 @@ static int parsePayload() {
       // Serial.println(tTime);
       const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
       // Serial.println(tLocation);
-      csvOutStr += "D" + String(id) + "," + tDate + "," + tTime + "," + tLocation  + '\n';
-      // Serial.println("Seg fault after csvOutStr +=");
+      csvOutStr += "D" + String(id) + "," + tDate + "," + tTime + "," + tLocation  + "," + String(s[id].battPercent, 2) + '\n';
 
       xSemaphoreGive(servantSemaphore);
     }
@@ -514,6 +513,9 @@ int listener(const int frameSize, const int mode) {
   if(validHeader) {
     messagesReceived++;
     incNodeRxCounter(source);
+      PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
+      delay(1);
+      PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
 
     if(type == DirectPayload) { // this will go direct to master
       Serial.print("Received DirectPayload packet from: 0x");

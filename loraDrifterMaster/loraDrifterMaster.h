@@ -21,7 +21,7 @@ class Servant {
     double lng = 0.0;
     double lat = 0.0;
     uint32_t age = 0;
-    int nSamples = 0;
+    float storageUsed = 0.f;
     float battPercent = 0.f;
     int dist = 0;
     float bear = 0.f;
@@ -47,7 +47,7 @@ void Servant::decode(Packet * packet) {
     lng = packet->lng;
     lat = packet->lat;
     age = packet->age;
-    nSamples = packet->nSamples;
+    storageUsed = packet->storageUsed;
     battPercent = packet->battPercent;
 // #ifdef DEBUG_MODE
 //     Serial.println(drifterTimeSlotSec);

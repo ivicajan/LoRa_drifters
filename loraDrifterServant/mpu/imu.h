@@ -21,7 +21,7 @@
 #ifndef IMU_H
 #define IMU_H
 
-#define DEBUG_MODE
+// #define DEBUG_MODE
 //#define print_data_serial
 #define skip_rot_mat //do not do rotation matrix
 //#define without_yaw		//Do not rotate acc with yaw
@@ -349,7 +349,8 @@ static void print_data(){
 }
 #endif
 
-void initIMU() {
+// return 0 or 1 based on init
+bool initIMU() {
   Wire.begin();
   delay(1000);
   
@@ -357,10 +358,8 @@ void initIMU() {
 
   //Detect if MPU setup correctly
   if(!mpu.setup(0x68)) {  // change to your own address
-    while(1) {
-      Serial << "MPU connection failed. Please check your connection with `connection_check` example.\n";
-      delay(1000);
-    }
+    Serial << "MPU connection failed. Please check your connection with `connection_check` example.\n";
+    return false;
   } 
   else {
     Serial << "MPU is connected. \n";
@@ -402,6 +401,7 @@ void initIMU() {
     if(gps.encode(*gpsStream++))
       update_ref_location(); //Set first reference location
   }
+  return true;
 }
 
 /*-----------------------------Calibration functions---------------------*/

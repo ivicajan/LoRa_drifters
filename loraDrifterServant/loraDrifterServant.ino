@@ -2,7 +2,7 @@
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-#define USING_IMU
+// #define USING_IMU
 //#define WAVE_TANK_TEST
 
 #ifdef USING_IMU
@@ -10,8 +10,8 @@
 extern BLA::Matrix<3> U_INS;
 extern BLA::Matrix<5> X_INS;
 extern BLA::Matrix<3> Y_GPS;
-extern BLA::Matrix<3> acc_raw;        //Save please
-extern BLA::Matrix<3> Rotation_matrix;//Save please
+extern BLA::Matrix<3> acc_raw;
+extern BLA::Matrix<3> Rotation_matrix;
 extern BLA::Matrix<8, 8> P;
 BLA::Matrix<2> Updated_GPS; //updated gps after imu kalman modification
 extern bool calibrate_imu;
@@ -32,12 +32,13 @@ String lastFileWrite = "";
 bool webServerOn = false;
 String csvFileName = "";
 File file;                            // Data file for the SPIFFS output
-int nSamples;                         // Counter for the number of samples gathered
+int nSamples = 0;                         // Counter for the number of samples gathered
+static float storageUsed = 0.f;                   // MB used in SPIFFS storage
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D01";       // ID send with packet
-int drifterTimeSlotSec = 5;      // seconds after start of each GPS minute
+String drifterName = "D05";       // ID send with packet
+int drifterTimeSlotSec = 25;      // seconds after start of each GPS minute
 
 Packet packet;
 SemaphoreHandle_t loraSemaphore = NULL;
@@ -137,6 +138,7 @@ static void writeData2Flash() {
     if(file.println(csvOutStr)) {
       Serial.print("Wrote data in file, current size: ");
       Serial.println(file.size());
+      storageUsed = file.size() * 0.000001f; // convert to MB
       csvOutStr = "";
       nSamples = 0;
       lastFileWrite = tTime;
@@ -199,9 +201,9 @@ static void update_imu() {
       float lat, lng;
       get_current_location(&lat, &lng);
       Updated_GPS = {lat, lng};
-      #ifdef DEBUG_MODE
+#ifdef DEBUG_MODE
       Serial << "Updated Lat: " << lat << " Lng: " << lng << '\n';
-      #endif
+#endif
 #endif
       //Run Kalman with fusion IMU and GPS
       Update_Kalman();
@@ -277,12 +279,16 @@ static void sendTask(void * params) {
       if(gps.time.second() == drifterTimeSlotSec) {
 #endif //IGNORE_GPS_INSIDE
         result = routePayload(SERVANT_MODE, MASTER_LOCAL_ID, localAddress, 0x0F, 0);
+        PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
         delay(50);
+        PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
       }
       if(loop_runEvery(RS_BCAST_TIME)) {
         Serial.println("Route broadcast");
         result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
+        PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
         delay(50);
+        PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
       }
 #endif // USING_MESH
       delay(10);
@@ -356,7 +362,7 @@ void setup() {
   initBoard();
   delay(500);
 #ifdef USING_IMU
-  initIMU();
+  const bool initIMUok = initIMU();
   delay(500);
 #endif // USING_IMU
   if(!SPIFFS.begin(true)) {
@@ -368,8 +374,10 @@ void setup() {
   readConfigFile();
   loraSemaphore = xSemaphoreCreateMutex();
 #ifdef USING_IMU
-  xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, NULL, 0);
-  delay(500);
+  if(initIMUok == true){
+    xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, NULL, 0);
+    delay(500);
+  }
 #endif //USING_IMU
 #ifdef USING_MESH
   xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 2, NULL, 0);
@@ -391,12 +399,12 @@ static void fill_packet() {
   packet.day = gps.date.day();
   packet.lng = gps.location.lng();
   packet.lat = gps.location.lat();
-  packet.nSamples = nSamples;
+  packet.storageUsed = storageUsed;
   packet.age = gps.location.age();
   packet.battPercent = getBatteryPercentage();
-  #ifdef DEBUG_MODE
+#ifdef DEBUG_MODE
   Serial << "Raw Lat: " << float(packet.lat) << " Lng: " << float(packet.lng) << '\n';
-  #endif
+#endif
 }
 
 #ifdef USING_MESH
@@ -439,19 +447,19 @@ static void generatePacket() {
 #ifdef USING_IMU
       csvIMUOutStr += tDate + "," + tTime + ",";
       for(int ii = 0; ii < 5; ii++) {
-        csvIMUOutStr += String(X_INS(ii))+ ",";
+        csvIMUOutStr += String(X_INS(ii), 4)+ ",";
       }
        for(int ii = 0; ii < 3; ii++) {
-         csvIMUOutStr += String(Y_GPS(ii))+ ",";
+         csvIMUOutStr += String(Y_GPS(ii), 4)+ ",";
        }
        for(int ii = 0; ii < 3; ii++) {
-         csvIMUOutStr += String(acc_raw(ii))+ ",";
+         csvIMUOutStr += String(acc_raw(ii), 4)+ ",";
        }
        for(int ii = 0; ii < 3; ii++) {
-         csvIMUOutStr += String(Rotation_matrix(ii))+ ",";
+         csvIMUOutStr += String(Rotation_matrix(ii), 4)+ ",";
        }
        for(int ii = 0; ii < 2; ii++) {
-         csvIMUOutStr += String(Updated_GPS(ii))+ ",";
+         csvIMUOutStr += String(Updated_GPS(ii), 6)+ ",";
        }
       csvIMUOutStr += "\n";
 #endif //USING_IMU
@@ -475,9 +483,9 @@ static void generatePacket() {
     }
 #endif // USING_MESH
     }
-    else {
-      Serial.println("No GPS fix, not sending or writing");
-    }
+  }
+  else {
+    Serial.println("No GPS fix, not sending or writing");
   }
 }
 

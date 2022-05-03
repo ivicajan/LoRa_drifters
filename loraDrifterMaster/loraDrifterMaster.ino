@@ -13,6 +13,7 @@ SemaphoreHandle_t loraSemaphore = NULL;
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
+extern AXP20X_Class PMU;
 // GLOBAL VARIABLES
 Master m;                             // Master data
 Servant s[NUM_MAX_SERVANTS];          // Servants data array
@@ -159,6 +160,7 @@ static void onReceive(const int packetsize) {
       const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
       const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
       csvOutStr += tDate + "," + tTime + "," + tLocation + '\n';
+
       xSemaphoreGive(servantSemaphore);
       Serial.println("RX from LoRa - decoding completed");
     }
@@ -240,7 +242,7 @@ void setup() {
 static void fill_master() {
   m.lng = gps.location.lng();
   m.lat = gps.location.lat();
-  // TODO: Need to add 8 hours onto gps time  
+  // TODO: Need to add 8 hours onto gps time
   m.year = gps.date.year();
   m.month = gps.date.month();
   m.day = gps.date.day();
@@ -306,11 +308,13 @@ static void sendTask(void * params) {
 #else 
     if(gps.time.second() == RS_BCAST_TIME / 1000) {
 #endif // IGNORE_GPS_INSIDE
+      PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
       xSemaphoreTake(loraSemaphore, portMAX_DELAY);
       Serial.println("Route broadcast");
       bcastRoutingStatus(MASTER_MODE);
       xSemaphoreGive(loraSemaphore);
       delay(50);
+      PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
     }
 #endif // USING_MESH
     servantsData = R"rawliteral(
@@ -323,11 +327,11 @@ static void sendTask(void * params) {
           <td><b>Last Update [s]</b></td>
           <td><b>Time</b></td>
           <td><b>Batt [%%]</b></td>
+          <td><b>Storage Used [MB]</b></td>
           <td><b>Lon</b></td>
           <td><b>Lat</b></td>
           <td><b>Dist [m]</b></td>
           <td><b>Bearing [degN to]</b></td>
-          <td><b>Count</b></td>
           <td><b>RSSI</b></td>
     )rawliteral";
 #ifdef USING_MESH
@@ -357,11 +361,11 @@ static void sendTask(void * params) {
         servantsData += tempClassColour + String(lastUpdate) + "</td>";
         servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
         servantsData += "<td>" + String(s[ii].battPercent, 2) + "</td>";
+        servantsData += "<td>" + String(s[ii].storageUsed, 4) + "</td>";
         servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
         servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
         servantsData += "<td>" + String(s[ii].dist) + "</td>";
         servantsData += "<td>" + String(s[ii].bear) + "</td>";
-        servantsData += "<td>" + String(s[ii].nSamples) + "</td>";
         servantsData += "<td>" + String(s[ii].rssi) + "</td>";
 #ifdef USING_MESH
         servantsData += R"rawliteral(

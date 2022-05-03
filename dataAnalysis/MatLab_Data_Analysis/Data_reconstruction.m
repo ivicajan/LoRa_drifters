@@ -43,7 +43,7 @@ X_INS=zeros(5,1);
 Y_GPS = [raw_gps(1,2); raw_gps(11); input(1,7)]
 Bias_pre = zeros(3,1);
 H = [zeros(3,2) eye(3) zeros(3)];
-e_r = 1.1; %error of GPS, larger means less depends 
+e_r = 1.5; %error of GPS, larger means less depends 
 e_q = 0.1; %error of imu, larger means less depends 
 i_p = 10; %indext of P0
 P_0 =diag([i_p,i_p,i_p,i_p,0.2/pi,i_p/2,i_p/2,25*3.14/180]).^2;
@@ -61,14 +61,6 @@ for i = 2:1:n1 %size write by hand
     %get data
     U = [input(i,2)*G;input(i,3)*G;(input(i,7)-input(i-1,7))/T];
     Y_GPS = [raw_lat(i); raw_lng(i); input(i,7)];
-    
-    %check if stable
-    error = 0.01;
-    if abs(sqrt(input(i,2)^2+input(i,3)^2+input(i,4)^2)-1) < error
-        fix_ = fix_ + 1;
-    else 
-        fix_ = 0;
-    end 
     
     C = [cos(Y_GPS(3)), sin(Y_GPS(3)); -sin(Y_GPS(3)), cos(Y_GPS(3))];
     A_E=[ [zeros(2);eye(2);zeros(4,2)] zeros(8,3) [C; zeros(6,2)] [zeros(4,1);1;zeros(3,1)] ];
@@ -109,7 +101,7 @@ figure, plot3(input(:,1), output(:,3), output(:,4)); xlabel('time (sec)'); ylabe
 hold on;
 plot3(raw_gps_time(:,1), raw_lat, raw_lng);title('xy distance by raw gps'); xlabel('time (sec)'); ylabel('x (m)'); zlabel('y (m)');
 figure, 
-plot(output(:,3), output(:,4)); 
-hold on
-plot(raw_lat, raw_lng); title('xy distance, R=1 Q=0.1, decrease speed to 1%'); xlabel('x (m)'); ylabel('y (m)');legend('Kalman', 'GPS');
-figure, plot(x_ins_esp(:,3), x_ins_esp(:,2)); title('xy distance, R=1.1 Q=0.1, esp'); xlabel('x (m)');ylabel('y (m)');
+plot(output(:,3), output(:,4)); hold on
+title_ = 'xy distance, R=' + string(e_r) + ' Q=' + string(e_q) + ', decrease speed to ' + string(IMU_SPEED_RATIO) + '%';
+plot(raw_lat, raw_lng); title(title_); xlabel('x (m)'); ylabel('y (m)');legend('Kalman', 'GPS');
+%figure, plot(x_ins_esp(:,3), x_ins_esp(:,2)); title('xy distance, R=1.1 Q=0.1, esp'); xlabel('x (m)');ylabel('y (m)');

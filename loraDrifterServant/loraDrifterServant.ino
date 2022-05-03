@@ -3,7 +3,12 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 // #define USING_IMU
-//#define WAVE_TANK_TEST
+// #define WAVE_TANK_TEST
+// #define OUTPUT_SYSTEM_MONITOR
+
+// this shouldnt be a thing but esp32 seems very tempremental in using semaphores (RTOS),
+// using semaphores gives us thread safety
+// #define USING_SEMAPHORES
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
@@ -18,6 +23,7 @@ extern bool calibrate_imu;
 String csvIMUFileName = "";
 File imu_file;
 String csvIMUOutStr = "";
+TaskHandle_t imu_task_handle;
 #endif // USING_IMU
 
 #define SSID     "DrifterServant"   // Wifi ssid and password
@@ -37,16 +43,21 @@ static float storageUsed = 0.f;                   // MB used in SPIFFS storage
 
 int gpsLastSecond = -1;
 String tTime = "";
-String drifterName = "D05";       // ID send with packet
-int drifterTimeSlotSec = 25;      // seconds after start of each GPS minute
+String drifterName = "D09";       // ID send with packet
+int drifterTimeSlotSec = 45;      // seconds after start of each GPS minute
 
 Packet packet;
 drifterStatus_t drifterState; // status flags of the drifter state
 
-SemaphoreHandle_t loraSemaphore = NULL;
-SemaphoreHandle_t drifterStateMutex = NULL;
+#ifdef USING_SEMAPHORES
+static SemaphoreHandle_t loraSemaphore = NULL; // only used here as its commented out elsewhere
+static SemaphoreHandle_t drifterStateMutex = NULL;
+#endif //USING_SEMAPHORES
+TaskHandle_t send_task_handle;
+TaskHandle_t system_monitoring_task_handle;
 
 #ifdef USING_MESH
+TaskHandle_t listen_task_handle;
 byte routingTable[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
 int localLinkRssi = 0;
@@ -147,16 +158,17 @@ static void writeData2Flash() {
       csvOutStr = "";
       nSamples = 0;
       lastFileWrite = tTime;
+#ifdef USING_SEMAPHORES
       xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+#endif //USING_SEMAPHORES
       drifterState.b.saveError = (file_size_after_save == file_size_before_save);
+#ifdef USING_SEMAPHORES
       xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
     }
     else {
       lastFileWrite = "FAILED WRITE, RESTARTING";
       ESP.restart();
-      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
-      drifterState.b.saveError = 1;
-      xSemaphoreGive(drifterStateMutex);
     }
   }
   file.close();
@@ -253,7 +265,7 @@ static void imuTask(void * params) {
 #endif // USING_IMU
 
 #ifdef USING_MESH
-static void listenTask(void * params) {
+static void listenTask(void * params){
   (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
@@ -262,6 +274,32 @@ static void listenTask(void * params) {
   }
 }
 #endif // USING_MESH
+
+static void systemMonitoringTask(void * params){
+  (void)params;
+  disableCore1WDT(); // Disable watchdog to keep process alive
+  while(1){
+#ifdef OUTPUT_SYSTEM_MONITOR
+    Serial.println("--------------------System Monitor---------------------");
+    Serial.print("Heap remaining: ");
+    Serial.println(ESP.getFreeHeap());
+#ifdef USING_IMU
+    Serial.print("IMU task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(imu_task_handle));
+#endif //USING_IMU
+#ifdef USING_MESH
+    Serial.print("Listen task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(listen_task_handle));
+#endif //USING_MESH
+    Serial.print("Send task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(send_task_handle));
+    Serial.print("System monitoring task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(system_monitoring_task_handle));
+    Serial.println("-------------------------------------------------------");
+#endif //OUTPUT_SYSTEM_MONITOR
+    vTaskDelay(1000); // keep delaying
+  }
+}
 
 static void sendTask(void * params) {
   (void)params;
@@ -351,9 +389,13 @@ static void readConfigFile() {
   file = SPIFFS.open("/config.txt", FILE_READ);
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
-    xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
-    drifterState.b.configError = 1;
-    xSemaphoreGive(drifterStateMutex);
+#ifdef USING_SEMAPHORES
+      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+#endif //USING_SEMAPHORES
+      drifterState.b.configError = 1;
+#ifdef USING_SEMAPHORES
+      xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
   }
   else {
     const String inData = file.readStringUntil('\n');
@@ -384,19 +426,27 @@ static void readConfigFile() {
 }
 
 void setup() {
-  initBoard();
-  delay(500);
+#ifdef USING_SEMAPHORES
+  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
   loraSemaphore = xSemaphoreCreateMutex();
   drifterStateMutex = xSemaphoreCreateMutex();
-  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
-  memset(&drifterState, 0, sizeof(drifterStatus_r));
-#ifdef USING_IMU
-  const bool initIMUok = initIMU();
-  drifterState.b.imuUsed = 1;
-  drifterState.b.imuError = !initIMUok;
-  delay(500);
-#endif // USING_IMU
   xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
+  initBoard();
+  delay(500);
+#ifdef USING_SEMAPHORES
+      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+#endif //USING_SEMAPHORES
+      memset(&drifterState, 0, sizeof(drifterStatus_r));
+#ifdef USING_IMU
+      const bool initIMUok = initIMU();
+      drifterState.b.imuUsed = 1;
+      drifterState.b.imuError = !initIMUok;
+      delay(500);
+#endif // USING_IMU
+#ifdef USING_SEMAPHORES
+      xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
   if(!SPIFFS.begin(true)) {
     Serial.println("SPIFFS ERROR HAS OCCURED");
     return;
@@ -406,18 +456,23 @@ void setup() {
   readConfigFile();
 #ifdef USING_IMU
   if(initIMUok){
-    xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, &imu_task_handle, 0);
     delay(500);
   }
 #endif //USING_IMU
 #ifdef USING_MESH
-  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
-  // drifterState.b.meshUsed = 1;
-  xSemaphoreGive(drifterStateMutex);
-  xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 2, NULL, 0);
+#ifdef USING_SEMAPHORES
+      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+#endif //USING_SEMAPHORES
+      // drifterState.b.meshUsed = 1;
+#ifdef USING_SEMAPHORES
+      xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
+  xTaskCreatePinnedToCore(listenTask, "listenTask", 5000, NULL, 2, &listen_task_handle, 0);
   delay(500);
 #endif //USING_MESH
-  xTaskCreatePinnedToCore(sendTask, "sendTask", 10000, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(sendTask, "sendTask", 8000, NULL, 2, &send_task_handle, 1);
+  xTaskCreatePinnedToCore(systemMonitoringTask, "systemMonitoringTask", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
   delay(500);
   Serial.println("Initialization complete.");
 }
@@ -436,7 +491,9 @@ static void fill_packet() {
   packet.storageUsed = storageUsed;
   packet.age = gps.location.age();
   packet.battPercent = getBatteryPercentage();
+#ifdef USING_SEMAPHORES
   xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+#endif //USING_SEMAPHORES
   drifterState.b.lowStorage = (packet.storageUsed > 0.75f * SPIFFS_FLASH_SIZE); // if we are above 75% storage capacity we show the flag 1 (error)
   drifterState.b.lowBattery = (packet.battPercent < 50.f); // if we are below 50% battery we show the flag 1 (error)
   packet.drifterState = drifterState;
@@ -444,7 +501,9 @@ static void fill_packet() {
   // packet.drifterState.b.imuError = 1;
   // packet.drifterState.b.lowBattery = 1;
   // packet.drifterState.b.lowStorage = 1;
+#ifdef USING_SEMAPHORES
   xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
 #ifdef DEBUG_MODE
   Serial << "Raw Lat: " << float(packet.lat) << " Lng: " << float(packet.lng) << '\n';
 #endif
@@ -582,17 +641,25 @@ static void startWebServer(const bool webServerOn) {
       if(!file) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
-        xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
-        drifterState.b.configError = 1;
-        xSemaphoreGive(drifterStateMutex);
+#ifdef USING_SEMAPHORES
+      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+#endif //USING_SEMAPHORES
+      drifterState.b.configError = 1;
+#ifdef USING_SEMAPHORES
+      xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
       }
       else {
         file.print(drifterName + "," + String(drifterTimeSlotSec));
         file.close();
         request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
-        xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
-        drifterState.b.configError = 0;
-        xSemaphoreGive(drifterStateMutex);
+#ifdef USING_SEMAPHORES
+      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+#endif //USING_SEMAPHORES
+      drifterState.b.configError = 0;
+#ifdef USING_SEMAPHORES
+      xSemaphoreGive(drifterStateMutex);
+#endif //USING_SEMAPHORES
       }
     });
 

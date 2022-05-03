@@ -391,7 +391,7 @@ bool initIMU() {
   //Print data by serial 
   print_data_name();
 #endif
-#ifndef WAVE_TANK_TEST
+#ifdef WAVE_TANK_TEST
   // A sample NMEA stream.
   const char *gpsStream =
     "$GPRMC,045103.000,A,3014.1984,N,09749.2872,W,0.67,161.46,030913,,,A*7C\r\n"

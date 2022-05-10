@@ -1,10 +1,5 @@
-#define USING_MESH
+#include "loraDrifterMaster.h"
 
-#ifdef USING_MESH
-#define MESH_MASTER_MODE
-#endif // USING_MESH
-
-#define MASTER_NODE
 #define WIFI_SSID         ("DrifterMaster")      // Wifi ssid and password
 #define WIFI_PASSWORD     ("Tracker1")
 
@@ -13,7 +8,10 @@ static SemaphoreHandle_t loraSemaphore = NULL;
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
+extern TinyGPSPlus gps;
+
 extern AXP20X_Class PMU;
+extern AsyncWebServer server;
 // GLOBAL VARIABLES
 Master m;                             // Master data
 Servant s[NUM_MAX_SERVANTS];          // Servants data array

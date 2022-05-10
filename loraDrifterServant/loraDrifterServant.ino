@@ -1,5 +1,3 @@
-#define USING_MESH
-
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 #define USING_IMU
@@ -33,6 +31,9 @@ static TaskHandle_t imu_task_handle;
 
 #define LAST_PACKET_TIMEOUT_ms (600000)
 volatile uint32_t last_packet_received_time_ms = 0;
+
+extern AsyncWebServer server;
+extern AXP20X_Class PMU;
 
 // GLOBAL VARIABLES
 String csvOutStr = "";                 // Buffer for output file

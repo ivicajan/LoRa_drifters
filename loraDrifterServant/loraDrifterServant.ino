@@ -1,5 +1,17 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
+// #define USING_SD_CARD
+
+#ifdef USING_SD_CARD
+#include <SD.h>
+// HSPI
+#define HSPI_SCLK (14)
+#define HSPI_MISO (4)
+#define HSPI_MOSI (13)
+#define HSPI_CS   (2)
+SPIClass * hspi = NULL;
+#endif //USING_SD_CARD
+
 #define USING_IMU
 // #define WAVE_TANK_TEST
 
@@ -141,10 +153,18 @@ static const char index_html[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 static void writeData2Flash() {
+#ifdef USING_SD_CARD
+  file = SD.open(csvFileName, FILE_APPEND);
+#else
   file = SPIFFS.open(csvFileName, FILE_APPEND);
+#endif //USING_SD_CARD
   if(!file) {
     Serial.println("There was an error opening the file for appending, creating a new one");
+#ifdef USING_SD_CARD
+    file = SD.open(csvFileName, FILE_WRITE);
+#else
     file = SPIFFS.open(csvFileName, FILE_WRITE);
+#endif //USING_SD_CARD
   }
   if(!file) { // this shouldn't occur
       Serial.println("There was an error opening the file for writing");
@@ -180,10 +200,18 @@ static void writeData2Flash() {
 
 #ifdef USING_IMU
 static void writeIMUData2Flash() {
+#ifdef USING_SD_CARD
+  imu_file = SD.open(csvIMUFileName, FILE_APPEND);
+#else
   imu_file = SPIFFS.open(csvIMUFileName, FILE_APPEND);
+#endif //USING_SD_CARD
   if(!imu_file) {
     Serial.println("There was an error opening the imu file for appending, creating a new one");
+#ifdef USING_SD_CARD
+    imu_file = SD.open(csvIMUFileName, FILE_WRITE);
+#else
     imu_file = SPIFFS.open(csvIMUFileName, FILE_WRITE);
+#endif //USING_SD_CARD
   }
   if(!imu_file) { // this shouldn't occur
       Serial.println("There was an error opening the imu file for writing");
@@ -230,8 +258,8 @@ static void update_imu() {
       Updated_GPS = {lat, lng};
 #ifdef DEBUG_MODE
       Serial << "Updated Lat: " << lat << " Lng: " << lng << '\n';
-#endif
-#endif
+#endif //DEBUG_MODE
+#endif //WAVE_TASK_TEST
       //Run Kalman with fusion IMU and GPS
       Update_Kalman();
       if(mpu.update()) {
@@ -251,7 +279,7 @@ static void update_imu() {
 #endif // DEBUG_MODE
 #ifdef PRINT_DATA_SERIAL
       print_data();
-#endif
+#endif //PRINT_DATA_SERIAL
       prev_ms = millis();
     }
   }
@@ -313,11 +341,34 @@ static void sendTask(void * params) {
     }
     if(digitalRead(BUTTON_PIN) == LOW) { //Check for button press
       if(webServerOn) {
-        Serial.println("Web server already started");
         webServerOn = false;
+#ifdef USING_MESH
+        vTaskResume(listen_task_handle);
+        Serial.println("Resumed listen_task_handle");
+#endif //USING_MESH
+        vTaskResume(system_monitoring_task_handle);
+        Serial.println("Resumed system_monitoring_task_handle");
+#ifdef USING_IMU
+        if(imu_task_handle != NULL) {
+          vTaskResume(imu_task_handle);
+          Serial.println("Resumed imu_task_handle");
+        }
+#endif //USING_IMU
       } else {
-        Serial.println("Web server started");
+        Serial.println("Turning web server on");
         webServerOn = true;
+#ifdef USING_MESH
+        vTaskSuspend(listen_task_handle);
+        Serial.println("Suspended listen_task_handle");
+#endif //USING_MESH
+        vTaskSuspend(system_monitoring_task_handle);
+        Serial.println("Suspended system_monitoring_task_handle");
+#ifdef USING_IMU
+        if(imu_task_handle != NULL) {
+          vTaskSuspend(imu_task_handle);
+          Serial.println("Suspended imu_task_handle");
+        }
+#endif //USING_IMU
       }
       startWebServer(webServerOn);
       delay(1000);
@@ -389,7 +440,11 @@ static void initLoRa(bool default_params = false) {
 
 //H. Read config file, if it exists
 static void readConfigFile() {
+#ifdef USING_SD_CARD
+  file = SD.open("/config.txt", FILE_READ);
+#else
   file = SPIFFS.open("/config.txt", FILE_READ);
+#endif //USING_SD_CARD
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
 #ifdef USING_SEMAPHORES
@@ -413,20 +468,58 @@ static void readConfigFile() {
   }
   delay(50);
   csvFileName = "/svt" + String(drifterName) + ".csv";
+#ifdef USING_SD_CARD
+  file = SD.open(csvFileName, FILE_APPEND);
+#else
   file = SPIFFS.open(csvFileName, FILE_APPEND);
+#endif //USING_SD_CARD
   if(file){
     storageUsed = file.size() * 0.000001f; // convert to MB
     file.close();
   }
 #ifdef USING_IMU
   csvIMUFileName = "/svt" + String(drifterName) + "_IMU.csv";
-  imu_file = SPIFFS.open(csvIMUFileName, FILE_APPEND);
+#ifdef USING_SD_CARD
+  imu_file = SD.open(csvIMUFileName, FILE_APPEND);
+#else
+  imu_file = SPIFFS.open(csvFileName, FILE_APPEND);
+#endif //USING_SD_CARD
   if(imu_file){
     storageUsed += imu_file.size() * 0.000001f; // convert to MB
     imu_file.close();
   }
 #endif //USING_IMU
 }
+
+#ifdef USING_SD_CARD
+static void printVolumeSize() {
+    const uint8_t cardType = SD.cardType();
+
+    if(cardType == CARD_NONE) {
+        Serial.println("No SD card attached");
+        return;
+    }
+
+    Serial.print("SD Card Type: ");
+    if(cardType == CARD_MMC) {
+        Serial.println("MMC");
+    }
+    else if(cardType == CARD_SD) {
+        Serial.println("SDSC");
+    }
+    else if(cardType == CARD_SDHC) {
+        Serial.println("SDHC");
+    }
+    else {
+        Serial.println("UNKNOWN");
+    }
+
+    const uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+    Serial.printf("SD Card Size: %lluMB\n", cardSize);
+    Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+    Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+}
+#endif //USING_SD_CARD
 
 void setup() {
 #ifdef USING_SEMAPHORES
@@ -436,22 +529,33 @@ void setup() {
   xSemaphoreGive(drifterStateMutex);
 #endif //USING_SEMAPHORES
   initBoard();
+#ifdef USING_SD_CARD
+  hspi = new SPIClass(HSPI);
+  hspi->begin(HSPI_SCLK, HSPI_MISO, HSPI_MOSI, HSPI_CS); //SCLK, MISO, MOSI, SS
+  pinMode(HSPI_CS, OUTPUT); //HSPI SS
+
+  // see if the card is present and can be initialized:
+  if(!SD.begin(HSPI_CS, *hspi)) {
+    Serial.println("SD Card failed, or not not present");
+  }
+  printVolumeSize();
+#endif //USING_SD_CARD
   delay(500);
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      memset(&drifterState, 0, sizeof(drifterStatus_r));
+  memset(&drifterState, 0, sizeof(drifterStatus_r));
 #ifdef USING_IMU
-      const bool initIMUok = initIMU();
-      drifterState.b.imuUsed = 1;
-      drifterState.b.imuError = !initIMUok;
-      delay(500);
+  const bool initIMUok = initIMU();
+  drifterState.b.imuUsed = 1;
+  drifterState.b.imuError = !initIMUok;
+  delay(500);
 #endif // USING_IMU
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifterStateMutex);
+  xSemaphoreGive(drifterStateMutex);
 #endif //USING_SEMAPHORES
   if(!SPIFFS.begin(true)) {
-    Serial.println("SPIFFS ERROR HAS OCCURED");
+    Serial.println("SPIFFS error has occured");
     return;
   }
   initLoRa();
@@ -461,6 +565,9 @@ void setup() {
   if(initIMUok){
     xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, &imu_task_handle, 0);
     delay(500);
+  }
+  else {
+    imu_task_handle = NULL;
   }
 #endif //USING_IMU
 #ifdef USING_MESH
@@ -541,6 +648,8 @@ static void generatePacket() {
     Serial.println(drifterName);
     fill_packet();
     gpsLastSecond = gps.time.second();
+    Serial.print("samples: ");
+    Serial.println(nSamples);
 #ifdef IGNORE_GPS_INSIDE
     if(true) {
 #else 
@@ -615,6 +724,7 @@ static void startWebServer(const bool webServerOn) {
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
     btStop();
+    Serial.println("Turning web server off");
   }
   else {
     WiFi.softAP(SSID, PASSWORD);
@@ -640,7 +750,11 @@ static void startWebServer(const bool webServerOn) {
 #ifdef USING_IMU
       csvIMUFileName = "/svt" + String(drifterName) + "_IMU.csv";
 #endif //USING_IMU
+#ifdef USING_SD_CARD
+      file = SD.open("/config.txt", FILE_WRITE);
+#else
       file = SPIFFS.open("/config.txt", FILE_WRITE);
+#endif //USING_SD_CARD
       if(!file) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
@@ -668,12 +782,21 @@ static void startWebServer(const bool webServerOn) {
 
     server.on("/getServant", HTTP_GET, [](AsyncWebServerRequest * request) {
       writeData2Flash();
+#ifdef USING_SD_CARD
+      request->send(SD, csvFileName, "text/plain", true);
+#else
       request->send(SPIFFS, csvFileName, "text/plain", true);
+#endif //USING_SD_CARD
     });
 
     server.on("/deleteServant", HTTP_GET, [](AsyncWebServerRequest * request) {
+#ifdef USING_SD_CARD
+      SD.remove(csvFileName);
+      file = SD.open(csvFileName, FILE_WRITE);
+#else
       SPIFFS.remove(csvFileName);
       file = SPIFFS.open(csvFileName, FILE_WRITE);
+#endif //USING_SD_CARD
       if(!file) {
         Serial.println("There was an error opening the file for writing");
         return;
@@ -691,12 +814,21 @@ static void startWebServer(const bool webServerOn) {
 #ifdef USING_IMU
     server.on("/getServantIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
       writeIMUData2Flash();
+#ifdef USING_SD_CARD
+      request->send(SD, csvIMUFileName, "text/plain", true);
+#else
       request->send(SPIFFS, csvIMUFileName, "text/plain", true);
+#endif //USING_SD_CARD
     });
 
     server.on("/deleteServantIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
+#ifdef USING_SD_CARD
+      SD.remove(csvIMUFileName);
+      file = SD.open(csvIMUFileName, FILE_WRITE);
+#else
       SPIFFS.remove(csvIMUFileName);
       file = SPIFFS.open(csvIMUFileName, FILE_WRITE);
+#endif //USING_SD_CARD
       if(!file) {
         Serial.println("There was an error opening the file for writing");
         return;

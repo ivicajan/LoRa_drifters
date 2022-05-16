@@ -1,6 +1,6 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-#define USING_SD_CARD
+// #define USING_SD_CARD
 
 #ifdef USING_SD_CARD
 // Note, the SD card library we are using is from not the library downloaded from 

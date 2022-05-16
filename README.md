@@ -40,20 +40,18 @@ The nodes are receiving and transmitting based on time slots and responses to me
 network allows for a greater transmission range of messages with the cost of less energy efficiency.
 
 Configurable parameters for mesh network:
-<ul>
-    <li><code>RS_BCAST_TIME 6000</code>: Time intervals, broadcast for every 6000ms</li>
-    <li><code>PL_TX_TIME 10000</code>: Receive pay load for every 10000ms</li>
-    <li><code>DELETION_TIME 62000</code>: Reset the routing table if entry's time is older than 62000ms</li>
-    <li><code>ARQ_TIME 2000`:</code>Automatic Repeat Request for every 2000ms</li>
-</ul>
+- `RS_BCAST_TIME 6000`: Time intervals, broadcast for every 6000ms
+- `PL_TX_TIME 10000`: Receive pay load for every 10000ms
+- `DELETION_TIME 62000`: Reset the routing table if entry's time is older than 62000ms
+- `ARQ_TIME 2000`: Automatic Repeat Request for every 2000ms
 
 ## IMU (optional)
-The Servant drifters may or may not have IMUs installed so using the macro `USING_IMU`, allows for a
+The Servant drifters may or may not have IMUs installed so using the macro `define USING_IMU`, allows for a
 user to enable/disable the use of IMU code. When connected to the Master drifter's WiFi network, the
 user may calbirate the IMU to allow for easy calibrations in the field.
 
 # SD Storage (optional)
-Provided the user has wired the ESP32 device the same way as expected in the Pin Layout Description section, they can uncomment <code>#define USING_IMU</code> to allow the SD card to handle the data storage. Does not currently play with with Async TCP as the download is very slow and times out, but the user should be able to simply remove the SD card to get the data.
+Provided the user has wired the ESP32 device the same way as expected in the Pin Layout Description section, they can uncomment `#define USING_SD_CARD`to allow the SD card to handle the data storage. Does not currently play with with Async TCP as the download is very slow and times out, but the user should be able to simply remove the SD card to get the data.
 
 # Libraries required:
 Flashing ESP32:

@@ -1,6 +1,6 @@
 #include "src/loraDrifterLibs/loraDrifter.h"
 
-// #define USING_SD_CARD
+#define USING_SD_CARD
 
 #ifdef USING_SD_CARD
 // Note, the SD card library we are using is from not the library downloaded from 
@@ -521,6 +521,10 @@ static void printVolumeSize() {
     Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
     Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
 }
+
+static float getCapacityUsed() {
+  return (float)(SD.usedBytes() / SD.totalBytes());
+}
 #endif //USING_SD_CARD
 
 void setup() {
@@ -606,7 +610,12 @@ static void fill_packet() {
 #ifdef USING_SEMAPHORES
   xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
+#ifdef USING_SD_CARD
+  drifterState.b.lowStorage = (getCapacityUsed() > 0.75f);
+  Serial.printf("%f\n", getCapacityUsed());
+#else
   drifterState.b.lowStorage = (packet.storageUsed > 0.75f * SPIFFS_FLASH_SIZE); // if we are above 75% storage capacity we show the flag 1 (error)
+#endif //USING_SD_CARD
   drifterState.b.lowBattery = (packet.battPercent < 50.f); // if we are below 50% battery we show the flag 1 (error)
   packet.drifterState = drifterState;
   // uncomment below to display hardcoded errors on master

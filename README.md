@@ -52,6 +52,9 @@ The Servant drifters may or may not have IMUs installed so using the macro `USIN
 user to enable/disable the use of IMU code. When connected to the Master drifter's WiFi network, the
 user may calbirate the IMU to allow for easy calibrations in the field.
 
+# SD Storage (optional)
+Provided the user has wired the ESP32 device the same way as expected in the Pin Layout Description section, they can uncomment <code>#define USING_IMU</code> to allow the SD card to handle the data storage. Does not currently play with with Async TCP as the download is very slow and times out, but the user should be able to simply remove the SD card to get the data.
+
 # Libraries required:
 Flashing ESP32:
 https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html#installing-using-boards-manager
@@ -72,3 +75,23 @@ https://github.com/sparkfun/SparkFun_Ublox_Arduino_Library
 
 Power management on the TTGO T-Beam:
 https://github.com/lyusupov/SoftRF/tree/master/software/firmware/source/libraries/AXP202X_Library
+
+
+# Pin Layout Description
+| Name | Pin |
+|  :----: |  :----: |
+| GPS_TX_PIN | 12 |
+| GPS_RX_PIN | 34 |
+| I2C_SDA | 21 |
+| I2C_SCL | 22 |
+| PMU_IRQ | 35 |
+| RADIO_SCLK_PIN | 5 |
+| RADIO_CS_PIN | 18 |
+| RADIO_MISO_PIN | 19 |
+| RADIO_RST_PIN | 23 |
+| RADIO_DI0_PIN | 26 |
+| RADIO_MOSI_PIN | 27 |
+| HSPI_CS | 2 |
+| HSPI_MISO | 4 |
+| HSPI_MOSI | 13 |
+| HSPI_SCLK | 14 |

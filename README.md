@@ -55,6 +55,7 @@ user may calbirate the IMU to allow for easy calibrations in the field.
 # Libraries required:
 Flashing ESP32:
 https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html#installing-using-boards-manager
+- the SD card library used is installed here, and is not the same that can be downloaded from the library manager
 
 Web Server:
 https://github.com/me-no-dev/ESPAsyncWebServer

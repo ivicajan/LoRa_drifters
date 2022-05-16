@@ -3,6 +3,8 @@
 // #define USING_SD_CARD
 
 #ifdef USING_SD_CARD
+// Note, the SD card library we are using is from not the library downloaded from 
+// the library manager, it is the library from the ESP32 specific files (see README)
 #include <SD.h>
 // HSPI
 #define HSPI_SCLK (14)

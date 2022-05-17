@@ -15,14 +15,14 @@
 #define SERVANT_MODE              (0)
 #define MASTER_MODE               (1)
 
-typedef enum {
+enum class MessageType: byte {
   RouteBroadcastMaster  = 0x41,
   RouteBroadcastServant = 0x42,
   DirectPayload         = 0x43,
   RouteRequest          = 0x44,
   ACK                   = 0x45,
   Restart               = 0x46
-} MessageType;
+};
 
 void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl);
 

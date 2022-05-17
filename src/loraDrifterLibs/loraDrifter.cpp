@@ -16,12 +16,7 @@ AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 // drifter.Battery = (drifter.Battery * 100.0) / magic_conversion
 // drifter.Battery = (drifter.Battery - 3200.0) / 10.0
 float getBatteryPercentage() {
-    // TODO: master display (with gps on) segfaults when running this conversion
-// #ifndef MASTER_NODE
     return ((PMU.getBattVoltage() - BATT_MIN_BATTERY_VOLTAGE_MV) / BATT_VOLTAGE_RANGE_MV) * 100.f;
-// #else
-    // return 100.f;
-// #endif //MASTER_NODE
 }
 
 bool initPMU() {

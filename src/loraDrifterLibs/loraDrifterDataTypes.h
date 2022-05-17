@@ -3,23 +3,35 @@
 
 #include <TinyGPS++.h>
 
-#define NUM_MAX_SERVANTS            (11)     // Maximum number of servant drifters (just for setting array size)
+#define NUM_MAX_SERVANTS (11)     // Maximum number of servant drifters (just for setting array size)
 
+/**
+ * @brief Class that holds the state of the master drifter and it's current position.
+ * 
+ */
 class Master {
-  public:
+public:
     Master() = default;
     double lng = 0.0;
     double lat = 0.0;
-    int year = 0;
-    uint16_t month = 0;
-    uint8_t day = 0;
     uint8_t hour = 0;
     uint8_t minute = 0;
     uint8_t second = 0;
-    uint32_t age = 0;
     ~Master() = default;
+    void fillMaster();
+    void generateMaster();
+private:
+    int year = 0;
+    uint16_t month = 0;
+    uint8_t day = 0;
+    uint32_t age = 0;
 };
 
+/**
+ * @brief Bitfield representation of the drifters current state. Can be expanded upon by 
+ * changing the union data type and adding new fields.
+ * 
+ */
 typedef union drifterStatus_r {
     uint8_t r;
     struct {
@@ -30,12 +42,12 @@ typedef union drifterStatus_r {
         uint8_t lowBattery : 1;    // 1 == error (low battery)
         uint8_t saveError : 1;     // 1 == error
         uint8_t lowStorage : 1;    // 1 == error (low storage)
-        uint8_t reserved : 1;
+        uint8_t reserved : 1;      // used to maintain shape of union struct
     } b;
 } drifterStatus_t;
 
 // 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 + 4 + 1 = 43 bytes
-#pragma pack(1) // Fixes padding issues
+#pragma pack(1) // Fixes padding
 typedef struct {
   char name[3];             // e.g. D01
   int drifterTimeSlotSec;   // e.g. 15

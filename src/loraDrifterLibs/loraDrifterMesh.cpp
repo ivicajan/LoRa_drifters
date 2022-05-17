@@ -14,7 +14,7 @@
 
 // Comment this out when flashing a servant node.
 // TODO: move this to a better place
-// #define MESH_MASTER_MODE
+#define MESH_MASTER_MODE
 
 // Uncommenting this prevents the master from being added to the routing table, this allows for a servant node to be
 // forced to hop nodes, to reach master.
@@ -27,7 +27,7 @@ extern String messageLog;
 #define MAX_NUM_LOGS              (30)
 static volatile int numLogs = 0;
 extern TinyGPSPlus gps;
-extern Master m;
+extern Master master;
 extern Servant s[NUM_MAX_SERVANTS];           // Servants data array
 extern SemaphoreHandle_t servantSemaphore;
 #else
@@ -89,7 +89,7 @@ static int parsePayload() {
       s[id].ID = id;
       s[id].decode(&packet);
       s[id].rssi = LoRa.packetRssi();
-      s[id].updateDistBear(m.lng, m.lat);
+      s[id].updateDistBear(master.lng, master.lat);
       s[id].active = true;
       Serial.println("RX from LoRa - decoding completed");
       const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);

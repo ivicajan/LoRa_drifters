@@ -19,8 +19,13 @@ float getBatteryPercentage() {
     return ((PMU.getBattVoltage() - BATT_MIN_BATTERY_VOLTAGE_MV) / BATT_VOLTAGE_RANGE_MV) * 100.f;
 }
 
-bool initPMU() {
-    Serial.println("init PMU");
+/**
+ * @brief Initialise the power managmenet unit on the TTGO ESP32.
+ * 
+ * @return true if the initialisation is successful, else false
+ */
+static bool initPMU() {
+    Serial.println("initPMU");
     Wire.begin(I2C_SDA, I2C_SCL);
     delay(50);
     if(PMU.begin(Wire, AXP192_SLAVE_ADDRESS) == AXP_FAIL) {
@@ -42,10 +47,7 @@ bool initPMU() {
      *  Turn off unused power sources to save power
      **/
 
-    PMU.setPowerOutPut(AXP192_DCDC1, AXP202_OFF);
     PMU.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
-    PMU.setPowerOutPut(AXP192_LDO2, AXP202_OFF);
-    PMU.setPowerOutPut(AXP192_LDO3, AXP202_OFF);
     PMU.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
 
     /*
@@ -79,12 +81,14 @@ bool initPMU() {
     return true;
 }
 
-void initBoard() {
-    Serial.begin(115200);
-    while(!Serial);
-    Serial.println("initBoard");
-    initPMU();
+static void initGPS() {
+    Serial.println("init gps");
+    Serial1.begin(GPS_BAUD_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     delay(50);
+}
+
+static void initLightsAndPins() {
+    Serial.println("initLightsAndPins");
 #ifdef BOARD_LED
       /*
       * T-BeamV1.0, V1.1 LED defaults to low level as turn on,
@@ -98,14 +102,23 @@ void initBoard() {
 #endif
     delay(50);
     pinMode(WEB_SERVER_PIN, INPUT);
-    Serial1.begin(GPS_BAUD_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    Serial.println("init gps");
     delay(50);
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
     delay(50);
 }
 
-// D5. String IP Address
+void initBoard() {
+    Serial.begin(115200);
+    while(!Serial) {
+        Serial.println("Could not init 115200 serial");
+    };
+    Serial.println("initBoard");
+    initPMU();
+    initGPS();
+    initLightsAndPins();
+}
+
+// Convert an IP address to a string
 String IpAddress2String(const IPAddress& ipAddress) {
   return String(ipAddress[0]) + String(".") +
     String(ipAddress[1]) + String(".") +

@@ -13,15 +13,15 @@ extern TinyGPSPlus gps;
 extern AXP20X_Class PMU;
 extern AsyncWebServer server;
 // GLOBAL VARIABLES
-Master m;                             // Master data
+Master master;                        // Master data
 Servant s[NUM_MAX_SERVANTS];          // Servants data array
-static String masterData = "";               // Strings for tabular data output to web page
+static String masterData = "";        // Strings for tabular data output to web page
 static String servantsData = "";
 static String diagnosticData = "";
 String csvOutStr = "";                // Buffer for output file
 String lastFileWrite = "";
-static File file;                            // Data file for the SPIFFS output
-static volatile int nSamples;                         // Counter for the number of samples gathered
+static File file;                     // Data file for the SPIFFS output
+static volatile int nSamples;         // Counter for the number of samples gathered
 static volatile int gpsLastSecond = -1;
 
 #ifdef USING_MESH
@@ -154,7 +154,7 @@ static void writeData2Flash() {
       nSamples = 0;
       Serial.print("Wrote data in file, current size: ");
       Serial.println(file.size());
-      lastFileWrite = String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC);
+      lastFileWrite = String(master.hour, DEC) + ":" + String(master.minute, DEC) + ":" + String(master.second, DEC);
     }
     else {
       lastFileWrite = "FAILED WRITE, RESTARTING";
@@ -192,7 +192,7 @@ static void onReceive(const int packetsize) {
       s[id].ID = id;
       s[id].decode(&packet);
       s[id].rssi = LoRa.packetRssi();
-      s[id].updateDistBear(m.lng, m.lat);
+      s[id].updateDistBear(master.lng, master.lat);
       s[id].active = true;
       const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
       const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
@@ -228,7 +228,7 @@ static void initWebServer() {
       Serial.println("There was an error opening the file for writing");
       return;
     }
-    if(file.println("#FILE ERASED at " + String(m.hour, DEC) + ":" + String(m.minute, DEC) + ":" + String(m.second, DEC))) {
+    if(file.println("#FILE ERASED at " + String(master.hour, DEC) + ":" + String(master.minute, DEC) + ":" + String(master.second, DEC))) {
       Serial.println("File was erased / reinit OK");
     } else {
       Serial.println("File reinit failed");
@@ -270,27 +270,28 @@ void setup() {
   // G. SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
     // TODO: add retry
-    Serial.println("An Error has occurred while mounting SPIFFS");
-    while(1);
+    while(1) {
+      Serial.println("An Error has occurred while mounting SPIFFS");
+    }
   }
   delay(50);
   Serial.println("Initialization complete.");
 }
 
-static void fill_master() {
-  m.lng = gps.location.lng();
-  m.lat = gps.location.lat();
-  // TODO: Need to add 8 hours onto gps time
-  m.year = gps.date.year();
-  m.month = gps.date.month();
-  m.day = gps.date.day();
-  m.hour = gps.time.hour();
-  m.minute = gps.time.minute();
-  m.second = gps.time.second();
-  m.age = gps.location.age();
+// TODO: Need to add 8 hours onto gps time
+void Master::fillMaster() {
+  this->lng = gps.location.lng();
+  this->lat = gps.location.lat();
+  this->year = gps.date.year();
+  this->month = gps.date.month();
+  this->day = gps.date.day();
+  this->hour = gps.time.hour();
+  this->minute = gps.time.minute();
+  this->second = gps.time.second();
+  this->age = gps.location.age();
 }
 
-static void generateMaster() {
+void Master::generateMaster() {
   // Read GPS and run decoder
   const uint32_t start = millis();
   do {
@@ -300,17 +301,17 @@ static void generateMaster() {
   } while(millis() - start < 500);
 
   if(gps.time.second() != gpsLastSecond) {
-    fill_master();
-    const String tDate = String(m.year) + "-" + String(m.month) + "-" + String(m.day);
-    const String tTime = String(m.hour) + ":" + String(m.minute) + ":" + String(m.second);
-    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(m.lng, 6) + "</td><td>" + String(m.lat, 6) + "</td><td>" + String(m.age) + "</td>";
+    fillMaster();
+    const String tDate = String(this->year) + "-" + String(this->month) + "-" + String(this->day);
+    const String tTime = String(this->hour) + ":" + String(this->minute) + ":" + String(this->second);
+    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(this->lng, 6) + "</td><td>" + String(this->lat, 6) + "</td><td>" + String(this->age) + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
     masterData += "<td>" + lastFileWrite + "</td>";
     masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
     masterData += "</tr>";
     // Update String to be written to file
-    if((m.lng != 0.0) && (m.age < 1000)) {
-      csvOutStr += "Master," + tDate + "," + tTime + "," + String(m.lng, 6) + "," + String(m.lat, 6) + "," + String(m.age) + "," + String(getBatteryPercentage(), 2) + '\n';
+    if((this->lng != 0.0) && (this->age < 1000)) {
+      csvOutStr += "Master," + tDate + "," + tTime + "," + String(this->lng, 6) + "," + String(this->lat, 6) + "," + String(this->age) + "," + String(getBatteryPercentage(), 2) + '\n';
       nSamples++;
     } else {
       Serial.println("No GPS fix, not writing local data!");
@@ -329,8 +330,6 @@ static void listenTask(void * params) {
     xSemaphoreTake(loraSemaphore, portMAX_DELAY); // when using portMAX_DELAY - we don't need to check if result == pdPASS
 #ifdef USING_MESH
     const int result = listener(LoRa.parsePacket(), MASTER_MODE);
-#else
-    // onReceive(LoRa.parsePacket());
 #endif // USING_MESH
     xSemaphoreGive(loraSemaphore);
   }
@@ -371,7 +370,7 @@ static String drifterStatusFlagToString(drifterStatus_t * drifterStatusIn){
 static void sendTask(void * params) {
   (void)params;
   while(1) {
-    generateMaster();
+    master.generateMaster();
 #ifdef USING_MESH
 #ifdef IGNORE_GPS_INSIDE
     if(loop_runEvery(RS_BCAST_TIME)) {

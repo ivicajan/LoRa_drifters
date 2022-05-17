@@ -3,7 +3,8 @@
 
 #include "src/loraDrifterLibs/loraDrifterDataTypes.h"
 
-// H. This is the string literal for the main web page
+// String literal for the main web page. Alter the processor function to display 
+// different html elements on the web page. e.g. %MASTER%.
 static const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML>
 <html>

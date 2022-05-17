@@ -19,6 +19,7 @@
 // Uncommenting this prevents the master from being added to the routing table, this allows for a servant node to be
 // forced to hop nodes, to reach master.
 // #define DEBUG_HOP
+
 extern AXP20X_Class PMU;
 #ifdef MESH_MASTER_MODE
 extern String csvOutStr;

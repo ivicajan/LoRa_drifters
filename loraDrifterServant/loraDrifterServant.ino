@@ -14,7 +14,7 @@
 SPIClass * hspi = NULL;
 #endif //USING_SD_CARD
 
-// #define USING_IMU
+#define USING_IMU
 // #define WAVE_TANK_TEST
 
 // uncomment OUTPUT_SYSTEM_MONITOR to view heap and stack size
@@ -236,21 +236,13 @@ static void writeIMUData2Flash() {
 }
 
 static void update_imu() {
-  int reset__ = 0;
   if(mpu.update()) {
     static uint32_t prev_ms = millis();
     static uint32_t imu_ms = millis(); //For reset
     if(millis() > prev_ms + SAMPLE_PERIOD_ms) {
 #ifdef WAVE_TANK_TEST
-      Y_GPS = {0,0,Yaw[0]};
-      //if(millis() < 25000) Initial_Kalman();
+      Y_GPS = {0, 0, Yaw[0]};
 #else
-//      if((millis() > imu_ms + 20000) && (reset__ != 1)){
-//        update_ref_location(); // Reset data after 20 secs
-//        imu_ms = millis();
-//        reset__ = 1;
-//      }
-
       if(Serial1.available() > 0) { // only need 1 measurement here
         gps.encode(Serial1.read());
         measure_gps_data();
@@ -269,12 +261,6 @@ static void update_imu() {
         measure_imu_data();
       }
       rotate_imu_data();
-// #ifdef CALIBRATION_IMU
-      // read_Serial_input();
-      // check_stable_imu();
-// #endif //CALIBRATION_IMU
-
-
 #ifdef DEBUG_MODE
       Serial << " Acc: " << acc << " Yaw[0]: " << float(mpu.getYaw() / 180.f * PI)
              << " pitch: " << float(mpu.getPitch() / 180.f * PI)
@@ -562,6 +548,7 @@ void setup() {
   xSemaphoreGive(drifterStateMutex);
 #endif //USING_SEMAPHORES
   if(!SPIFFS.begin(true)) {
+    // TODO: this should attempt to fix SPIFFS
     Serial.println("SPIFFS error has occured");
     return;
   }
@@ -579,11 +566,11 @@ void setup() {
 #endif //USING_IMU
 #ifdef USING_MESH
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      // drifterState.b.meshUsed = 1;
+  // drifterState.b.meshUsed = 1;
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifterStateMutex);
+  xSemaphoreGive(drifterStateMutex);
 #endif //USING_SEMAPHORES
   xTaskCreatePinnedToCore(listenTask, "listenTask", 5000, NULL, 2, &listen_task_handle, 0);
   delay(500);
@@ -619,10 +606,6 @@ static void fill_packet() {
 #endif //USING_SD_CARD
   drifterState.b.lowBattery = (packet.battPercent < 50.f); // if we are below 50% battery we show the flag 1 (error)
   packet.drifterState = drifterState;
-  // uncomment below to display hardcoded errors on master
-  // packet.drifterState.b.imuError = 1;
-  // packet.drifterState.b.lowBattery = 1;
-  // packet.drifterState.b.lowStorage = 1;
 #ifdef USING_SEMAPHORES
   xSemaphoreGive(drifterStateMutex);
 #endif //USING_SEMAPHORES
@@ -718,6 +701,7 @@ static void generatePacket() {
 }
 
 #ifdef USING_IMU
+// TODO: make this actually begin calibration
 static bool calibrateIMU() {
   if(calibrate_imu == false) {
     calibrate_imu = true;

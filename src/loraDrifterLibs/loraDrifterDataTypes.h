@@ -72,20 +72,6 @@ class Servant {
       storageUsed = packet->storageUsed;
       battPercent = packet->battPercent;
       drifterState = packet->drifterState;
-  // #ifdef DEBUG_MODE
-  //     Serial.println(drifterTimeSlotSec);
-  //     Serial.println(lastUpdateMasterTime);
-  //     Serial.println(year);
-  //     Serial.println(month);
-  //     Serial.println(day);
-  //     Serial.println(hour);
-  //     Serial.println(minute);
-  //     Serial.println(second);
-  //     Serial.println(lng);
-  //     Serial.println(lat);
-  //     Serial.println(age);
-  //     Serial.println(nSamples);
-  // #endif //DEBUG_MODE
     }
     void updateDistBear(const double fromLon, const double fromLat) {
       dist = (int)TinyGPSPlus::distanceBetween(fromLat, fromLon, lat, lng);

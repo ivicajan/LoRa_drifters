@@ -28,7 +28,7 @@ extern String messageLog;
 static volatile int numLogs = 0;
 extern TinyGPSPlus gps;
 extern Master master;
-extern Servant s[NUM_MAX_SERVANTS];           // Servants data array
+extern Servant servants[NUM_MAX_SERVANTS];           // Servants data array
 extern SemaphoreHandle_t servantSemaphore;
 #else
 // struct Packet;
@@ -79,26 +79,23 @@ static int parsePayload() {
     }
     memcpy(&packet, buffer, sizeof(Packet));
 #ifdef MESH_MASTER_MODE
-// Get ID and then send to class for decoding
+    // Get ID and then send to class for decoding
     const String name = String(packet.name);
     Serial.println(name);
     if(!strcmp(name.substring(0, 1).c_str(), "D")) {
       Serial.println("Drifter signal found!");
       const int id = name.substring(1, 3).toInt();
       xSemaphoreTake(servantSemaphore, portMAX_DELAY);
-      s[id].ID = id;
-      s[id].decode(&packet);
-      s[id].rssi = LoRa.packetRssi();
-      s[id].updateDistBear(master.lng, master.lat);
-      s[id].active = true;
+      servants[id].ID = id;
+      servants[id].decode(&packet);
+      servants[id].rssi = LoRa.packetRssi();
+      servants[id].updateDistBear(master.lng, master.lat);
+      servants[id].active = true;
       Serial.println("RX from LoRa - decoding completed");
-      const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
-      // Serial.println(tDate);
-      const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
-      // Serial.println(tTime);
-      const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
-      // Serial.println(tLocation);
-      csvOutStr += "D" + String(id) + "," + tDate + "," + tTime + "," + tLocation  + "," + String(s[id].battPercent, 2) + '\n';
+      const String tDate = String(servants[id].year) + "-" + String(servants[id].month) + "-" + String(servants[id].day);
+      const String tTime = String(servants[id].hour) + ":" + String(servants[id].minute) + ":" + String(servants[id].second);
+      const String tLocation = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
+      csvOutStr += "D" + String(id) + "," + tDate + "," + tTime + "," + tLocation  + "," + String(servants[id].battPercent, 2) + '\n';
 
       xSemaphoreGive(servantSemaphore);
     }
@@ -213,6 +210,7 @@ static int insertRoutingTable(const byte nodeID, const byte hopCount, const byte
     memcpy(&routingTable[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &currentTime, sizeof(currentTime));
 #ifndef MESH_MASTER_MODE
     last_packet_received_time_ms = millis();
+    delay(10); // may not need this
 #endif //MESH_MASTER_MODE
     return static_cast<int>(ResultType::Success);
   }

@@ -1,10 +1,16 @@
 #include "loraDrifterMaster.h"
 
-#define WIFI_SSID         ("DrifterMaster")      // Wifi ssid and password
-#define WIFI_PASSWORD     ("Tracker1")
+#define WIFI_SSID             ("DrifterMaster")      // Wifi ssid and password
+#define WIFI_PASSWORD         ("Tracker1")
+
+// #define OUTPUT_SYSTEM_MONITOR
 
 SemaphoreHandle_t servantSemaphore = NULL;
 static SemaphoreHandle_t loraSemaphore = NULL;
+
+static TaskHandle_t system_monitoring_task_handle;
+static TaskHandle_t listen_task_handle;
+static TaskHandle_t web_update_task_handle;
 
 #include "src/loraDrifterLibs/loraDrifter.h"
 
@@ -14,7 +20,7 @@ extern AXP20X_Class PMU;
 extern AsyncWebServer server;
 // GLOBAL VARIABLES
 Master master;                        // Master data
-Servant s[NUM_MAX_SERVANTS];          // Servants data array
+Servant servants[NUM_MAX_SERVANTS];   // Servants data array
 static String masterData = "";        // Strings for tabular data output to web page
 static String servantsData = "";
 static String diagnosticData = "";
@@ -25,6 +31,7 @@ static volatile int nSamples;         // Counter for the number of samples gathe
 static volatile int gpsLastSecond = -1;
 
 #ifdef USING_MESH
+static TaskHandle_t send_task_handle;
 byte routingTable[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
 byte localAddress = MASTER_LOCAL_ID;
@@ -60,7 +67,7 @@ static String processor(const String & var) {
         )rawliteral";
     xSemaphoreTake(servantSemaphore, portMAX_DELAY);
     for(int ii = 0; ii < NUM_NODES; ii++) {
-      if(s[ii].active) {
+      if(servants[ii].active) {
         diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
       }
     }
@@ -70,9 +77,9 @@ static String processor(const String & var) {
   else if(var == "STATUSFLAGS") {
     bool statusFlags = false;
     for(int ii = 0; ii < NUM_NODES; ii++) {
-      if(s[ii].active) {
+      if(servants[ii].active) {
         uint8_t statusTmp = 0;
-        memcpy(&statusTmp, &s[ii].drifterState, sizeof(uint8_t));
+        memcpy(&statusTmp, &servants[ii].drifterState, sizeof(uint8_t));
         if(statusTmp > 0) { // has status flags - currently ignoring using mesh
           statusFlags = true;
           break;
@@ -92,11 +99,11 @@ static String processor(const String & var) {
           )rawliteral";
       xSemaphoreTake(servantSemaphore, portMAX_DELAY);
       for(int ii = 0; ii < NUM_NODES; ii++) {
-        if(s[ii].active) {
+        if(servants[ii].active) {
           uint8_t statusTmp = 0;
-          memcpy(&statusTmp, &s[ii].drifterState, sizeof(uint8_t));
+          memcpy(&statusTmp, &servants[ii].drifterState, sizeof(uint8_t));
           if(statusTmp > 0) {
-            statusString += "<tr><td><b>D" + String(ii) + "</b></td><td>" + drifterStatusFlagToString(&s[ii].drifterState) + "</td></tr>";
+            statusString += "<tr><td><b>D" + String(ii) + "</b></td><td>" + drifterStatusFlagToString(&servants[ii].drifterState) + "</td></tr>";
           }
         }
       }
@@ -189,14 +196,14 @@ static void onReceive(const int packetsize) {
     }
     else {
       xSemaphoreTake(servantSemaphore, portMAX_DELAY);
-      s[id].ID = id;
-      s[id].decode(&packet);
-      s[id].rssi = LoRa.packetRssi();
-      s[id].updateDistBear(master.lng, master.lat);
-      s[id].active = true;
-      const String tDate = String(s[id].year) + "-" + String(s[id].month) + "-" + String(s[id].day);
-      const String tTime = String(s[id].hour) + ":" + String(s[id].minute) + ":" + String(s[id].second);
-      const String tLocation = String(s[id].lng, 6) + "," + String(s[id].lat, 6) + "," + String(s[id].age);
+      servants[id].ID = id;
+      servants[id].decode(&packet);
+      servants[id].rssi = LoRa.packetRssi();
+      servants[id].updateDistBear(master.lng, master.lat);
+      servants[id].active = true;
+      const String tDate = String(servants[id].year) + "-" + String(servants[id].month) + "-" + String(servants[id].day);
+      const String tTime = String(servants[id].hour) + ":" + String(servants[id].minute) + ":" + String(servants[id].second);
+      const String tLocation = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
       csvOutStr += tDate + "," + tTime + "," + tLocation + '\n';
 
       xSemaphoreGive(servantSemaphore);
@@ -263,9 +270,13 @@ void setup() {
   delay(50);
   servantSemaphore = xSemaphoreCreateMutex();
   loraSemaphore = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(listenTask, "listenTask", 10000, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(listenTask, "listenTask", 8000, NULL, 1, &listen_task_handle, 1);
   delay(500);
-  xTaskCreatePinnedToCore(sendTask, "sendTask", 10000, NULL, 2, NULL, 0);
+  xTaskCreatePinnedToCore(sendTask, "sendTask", 8000, NULL, 2, &send_task_handle, 0);
+  delay(500);
+  xTaskCreatePinnedToCore(webUpdateTask, "webUpdateTask", 8000, NULL, 2, &web_update_task_handle, 0);
+  delay(500);
+  xTaskCreatePinnedToCore(systemMonitoringTask, "systemMonitoringTask", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
   delay(500);
   // G. SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
@@ -320,6 +331,30 @@ void Master::generateMaster() {
   }
 }
 
+static void systemMonitoringTask(void * params){
+  (void)params;
+  disableCore1WDT(); // Disable watchdog to keep process alive
+  while(1){
+#ifdef OUTPUT_SYSTEM_MONITOR
+    Serial.println("--------------------System Monitor---------------------");
+    Serial.print("Heap remaining: ");
+    Serial.println(ESP.getFreeHeap());
+    Serial.print("Listen task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(listen_task_handle));
+    Serial.print("Web update task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(web_update_task_handle));
+#ifdef USING_MESH
+    Serial.print("Send task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(send_task_handle));
+#endif //USING_MESH
+    Serial.print("System monitoring task stack remaining: ");
+    Serial.println(uxTaskGetStackHighWaterMark(system_monitoring_task_handle));
+    Serial.println("-------------------------------------------------------");
+#endif //OUTPUT_SYSTEM_MONITOR
+    vTaskDelay(1000); // keep delaying
+  }
+}
+
 static void listenTask(void * params) {
   (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
@@ -370,12 +405,11 @@ static String drifterStatusFlagToString(drifterStatus_t * drifterStatusIn){
 static void sendTask(void * params) {
   (void)params;
   while(1) {
-    master.generateMaster();
 #ifdef USING_MESH
 #ifdef IGNORE_GPS_INSIDE
     if(loop_runEvery(RS_BCAST_TIME)) {
 #else 
-    if(gps.time.second() == RS_BCAST_TIME / 1000) {
+    if(gps.time.second() == RS_BCAST_TIME / 1000) { // time is in ms
 #endif // IGNORE_GPS_INSIDE
       PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
       xSemaphoreTake(loraSemaphore, portMAX_DELAY);
@@ -384,8 +418,16 @@ static void sendTask(void * params) {
       xSemaphoreGive(loraSemaphore);
       delay(50);
       PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
+      delay(100);
     }
 #endif // USING_MESH
+  }
+}
+
+static void webUpdateTask(void * params) {
+  (void)params;
+  while(1) {
+    master.generateMaster();
     servantsData = R"rawliteral(
       <br><br>
       <h4>Servants</h4>
@@ -410,7 +452,7 @@ static void sendTask(void * params) {
     xSemaphoreTake(servantSemaphore, portMAX_DELAY);
     String tempClassColour = "";
     for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
-      const uint32_t lastUpdate = (millis() - s[ii].lastUpdateMasterTime) / 1000;
+      const uint32_t lastUpdate = (millis() - servants[ii].lastUpdateMasterTime) / 1000;
       if(lastUpdate >= 180) { // 3 minutes and greater
         tempClassColour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
       }
@@ -423,24 +465,24 @@ static void sendTask(void * params) {
       else {
         tempClassColour = R"rawliteral(<td style="background-color:White">)rawliteral";
       }
-      if(s[ii].active) {
+      if(servants[ii].active) {
         servantsData += "<tr>";
-        servantsData += "<td><b>" + String(s[ii].ID) + "</b></td>";
-        servantsData += "<td>" + String(s[ii].drifterTimeSlotSec) + "</td>";
+        servantsData += "<td><b>" + String(servants[ii].ID) + "</b></td>";
+        servantsData += "<td>" + String(servants[ii].drifterTimeSlotSec) + "</td>";
         servantsData += tempClassColour + String(lastUpdate) + "</td>";
-        servantsData += "<td>" + String(s[ii].hour) + ":" + String(s[ii].minute) + ":" + String(s[ii].second) + "</td>";
-        servantsData += "<td>" + String(s[ii].battPercent, 2) + "</td>";
-        servantsData += "<td>" + String(s[ii].storageUsed, 4) + "</td>";
-        servantsData += "<td>" + String(s[ii].lng, 6) + "</td>";
-        servantsData += "<td>" + String(s[ii].lat, 6) + "</td>";
-        servantsData += "<td>" + String(s[ii].dist) + "</td>";
-        servantsData += "<td>" + String(s[ii].bear) + "</td>";
-        servantsData += "<td>" + String(s[ii].rssi) + "</td>";
+        servantsData += "<td>" + String(servants[ii].hour) + ":" + String(servants[ii].minute) + ":" + String(servants[ii].second) + "</td>";
+        servantsData += "<td>" + String(servants[ii].battPercent, 2) + "</td>";
+        servantsData += "<td>" + String(servants[ii].storageUsed, 4) + "</td>";
+        servantsData += "<td>" + String(servants[ii].lng, 6) + "</td>";
+        servantsData += "<td>" + String(servants[ii].lat, 6) + "</td>";
+        servantsData += "<td>" + String(servants[ii].dist) + "</td>";
+        servantsData += "<td>" + String(servants[ii].bear) + "</td>";
+        servantsData += "<td>" + String(servants[ii].rssi) + "</td>";
 #ifdef USING_MESH
         servantsData += R"rawliteral(
           <td><form action="/restartDrifter" method="get"><button type="submit" name="drifterID" value=
         )rawliteral";
-        servantsData += String(s[ii].ID) + ">Restart</button></form></td>";
+        servantsData += String(servants[ii].ID) + ">Restart</button></form></td>";
 #endif // USING_MESH
         servantsData += "</tr>";
       }
@@ -453,7 +495,7 @@ static void sendTask(void * params) {
     diagnosticData += "<td>" + String(messagesReceived) + "</td>";
     xSemaphoreTake(servantSemaphore, portMAX_DELAY);
     for(int ii = 0; ii < NUM_NODES; ii++) {
-      if(s[ii].active) {
+      if(servants[ii].active) {
         diagnosticData += "<td>" + String(nodeRx[ii]) + "</td>";
       }
     }
@@ -464,6 +506,7 @@ static void sendTask(void * params) {
     if(nSamples > SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
       writeData2Flash();
     }
+    delay(1); // not sure if required
   }
 }
 

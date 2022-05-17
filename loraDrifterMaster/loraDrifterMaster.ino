@@ -245,7 +245,7 @@ static void initWebServer() {
       if(p->name() == "drifterID") {
         const int drifterID = (p->value()).toInt();
         const byte drifterIDByte = indexToId(drifterID);
-        sendFrame(MASTER_MODE, Restart, localAddress, drifterIDByte, localAddress, 0x0F);
+        sendFrame(MASTER_MODE, static_cast<byte>(MessageType::Restart), localAddress, drifterIDByte, localAddress, 0x0F);
       }
     }
     request->send(200, "text/html", "<html><span>Sent restart packet!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");

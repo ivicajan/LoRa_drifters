@@ -14,7 +14,7 @@
 SPIClass * hspi = NULL;
 #endif //USING_SD_CARD
 
-#define USING_IMU
+// #define USING_IMU
 // #define WAVE_TANK_TEST
 
 // uncomment OUTPUT_SYSTEM_MONITOR to view heap and stack size
@@ -48,6 +48,7 @@ volatile uint32_t last_packet_received_time_ms = 0;
 
 extern AsyncWebServer server;
 extern AXP20X_Class PMU;
+extern TinyGPSPlus gps;
 
 // GLOBAL VARIABLES
 String csvOutStr = "";                 // Buffer for output file

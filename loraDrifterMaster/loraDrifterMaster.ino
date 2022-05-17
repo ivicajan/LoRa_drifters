@@ -15,9 +15,9 @@ static TaskHandle_t web_update_task_handle;
 #include "src/loraDrifterLibs/loraDrifter.h"
 
 extern TinyGPSPlus gps;
-
 extern AXP20X_Class PMU;
 extern AsyncWebServer server;
+
 // GLOBAL VARIABLES
 Master master;                        // Master data
 Servant servants[NUM_MAX_SERVANTS];   // Servants data array
@@ -257,7 +257,7 @@ static void initWebServer() {
     }
     request->send(200, "text/html", "<html><span>Sent restart packet!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
   });
-#endif // USING_MESH
+#endif //USING_MESH
   server.begin();
 }
 
@@ -272,13 +272,15 @@ void setup() {
   loraSemaphore = xSemaphoreCreateMutex();
   xTaskCreatePinnedToCore(listenTask, "listenTask", 8000, NULL, 1, &listen_task_handle, 1);
   delay(500);
+#ifdef USING_MESH
   xTaskCreatePinnedToCore(sendTask, "sendTask", 8000, NULL, 2, &send_task_handle, 0);
   delay(500);
+#endif //USING_MESH
   xTaskCreatePinnedToCore(webUpdateTask, "webUpdateTask", 8000, NULL, 2, &web_update_task_handle, 0);
   delay(500);
   xTaskCreatePinnedToCore(systemMonitoringTask, "systemMonitoringTask", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
   delay(500);
-  // G. SPIFFS to write data to onboard Flash
+  // SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
     // TODO: add retry
     while(1) {
@@ -402,14 +404,15 @@ static String drifterStatusFlagToString(drifterStatus_t * drifterStatusIn){
   return stringOut;
 }
 
+#ifdef USING_MESH
 static void sendTask(void * params) {
   (void)params;
+  bool sentBcast = false;
   while(1) {
-#ifdef USING_MESH
 #ifdef IGNORE_GPS_INSIDE
     if(loop_runEvery(RS_BCAST_TIME)) {
 #else 
-    if(gps.time.second() == RS_BCAST_TIME / 1000) { // time is in ms
+    if(gps.time.second() == RS_BCAST_TIME / 1000 && !sentBcast) { // time is in ms
 #endif // IGNORE_GPS_INSIDE
       PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
       xSemaphoreTake(loraSemaphore, portMAX_DELAY);
@@ -418,11 +421,14 @@ static void sendTask(void * params) {
       xSemaphoreGive(loraSemaphore);
       delay(50);
       PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
-      delay(100);
+      sentBcast = true;
     }
-#endif // USING_MESH
+    else if(gps.time.second() != RS_BCAST_TIME / 1000) {
+      sentBcast = false;
+    }
   }
 }
+#endif // USING_MESH
 
 static void webUpdateTask(void * params) {
   (void)params;

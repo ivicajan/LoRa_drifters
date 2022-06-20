@@ -353,7 +353,7 @@ static void print_data(){
 #endif
 
 // return 0 or 1 based on init
-bool initIMU() {
+bool init_IMU() {
   Wire.begin();
   delay(1000);
   

@@ -5,8 +5,8 @@
 
 // #define OUTPUT_SYSTEM_MONITOR
 
-SemaphoreHandle_t servantSemaphore = NULL;
-static SemaphoreHandle_t loraSemaphore = NULL;
+SemaphoreHandle_t servant_semaphore = NULL;
+static SemaphoreHandle_t lora_semaphore = NULL;
 
 static TaskHandle_t system_monitoring_task_handle;
 static TaskHandle_t listen_task_handle;
@@ -21,42 +21,42 @@ extern AsyncWebServer server;
 // GLOBAL VARIABLES
 Master master;                        // Master data
 Servant servants[NUM_MAX_SERVANTS];   // Servants data array
-static String masterData = "";        // Strings for tabular data output to web page
-static String servantsData = "";
-static String diagnosticData = "";
-String csvOutStr = "";                // Buffer for output file
-String lastFileWrite = "";
+static String master_data = "";        // Strings for tabular data output to web page
+static String servants_data = "";
+static String diagnostic_data = "";
+String csv_out_str = "";                // Buffer for output file
+String last_file_write = "";
 static File file;                     // Data file for the SPIFFS output
-static volatile int nSamples;         // Counter for the number of samples gathered
-static volatile int gpsLastSecond = -1;
+static volatile int n_samples;         // Counter for the number of samples gathered
+static volatile int gps_last_second = -1;
 
 #ifdef USING_MESH
 static TaskHandle_t send_task_handle;
-byte routingTable[ROUTING_TABLE_SIZE] = "";
+byte routing_table[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
-byte localAddress = MASTER_LOCAL_ID;
-byte localNextHopID = MASTER_LOCAL_ID;
-byte localHopCount = 0x00;
-String messageLog = "";
+byte local_address = MASTER_LOCAL_ID;
+byte local_next_hop_ID = MASTER_LOCAL_ID;
+byte local_hop_count = 0x00;
+String message_log = "";
 // Diagnostics
-volatile int messagesSent = 0;
-volatile int messagesReceived = 0;
-int nodeRx[NUM_NODES]; // array of receiving message counts
+volatile int messages_sent = 0;
+volatile int messages_received = 0;
+int node_rx[NUM_NODES]; // array of receiving message counts
 #endif // USING_MESH
 
 static String processor(const String & var) {
   if(var == "SERVANTS") {
-    return servantsData;
+    return servants_data;
   }
   else if(var == "MASTER") {
-    return masterData;
+    return master_data;
   }
   else if(var == "BATTERYPERCENT") {
-    return String(getBatteryPercentage(), 2);
+    return String(get_battery_percentage(), 2);
   }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
-    String diagnosticString =
+    String diagnostic_string =
       R"rawliteral(
       <br><br>
       <h4>Diagnostics</h4>
@@ -65,29 +65,29 @@ static String processor(const String & var) {
           <td><b>Sent</b></td>
           <td><b>Rcvd</b></td>
         )rawliteral";
-    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+    xSemaphoreTake(servant_semaphore, portMAX_DELAY);
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
-        diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
+        diagnostic_string += "<td><b>D" + String(ii) + "</b></td>";
       }
     }
-    xSemaphoreGive(servantSemaphore);
-    return diagnosticString += "</tr>" + diagnosticData;
+    xSemaphoreGive(servant_semaphore);
+    return diagnostic_string += "</tr>" + diagnostic_data;
   }
   else if(var == "STATUSFLAGS") {
-    bool statusFlags = false;
+    bool status_flags = false;
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
-        uint8_t statusTmp = 0;
-        memcpy(&statusTmp, &servants[ii].drifterState, sizeof(uint8_t));
-        if(statusTmp > 0) { // has status flags - currently ignoring using mesh
-          statusFlags = true;
+        uint8_t status_tmp = 0;
+        memcpy(&status_tmp, &servants[ii].drifter_state, sizeof(uint8_t));
+        if(status_tmp > 0) { // has status flags - currently ignoring using mesh
+          status_flags = true;
           break;
         }
       }
     }
-    if(statusFlags) {
-      String statusString =
+    if(status_flags) {
+      String status_string =
         R"rawliteral(
         <br><br>
         <h4>Status Flags</h4>
@@ -97,18 +97,18 @@ static String processor(const String & var) {
             <td><b>Statuses</b></td>
           </tr>
           )rawliteral";
-      xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+      xSemaphoreTake(servant_semaphore, portMAX_DELAY);
       for(int ii = 0; ii < NUM_NODES; ii++) {
         if(servants[ii].active) {
-          uint8_t statusTmp = 0;
-          memcpy(&statusTmp, &servants[ii].drifterState, sizeof(uint8_t));
-          if(statusTmp > 0) {
-            statusString += "<tr><td><b>D" + String(ii) + "</b></td><td>" + drifterStatusFlagToString(&servants[ii].drifterState) + "</td></tr>";
+          uint8_t status_tmp = 0;
+          memcpy(&status_tmp, &servants[ii].drifter_state, sizeof(uint8_t));
+          if(status_tmp > 0) {
+            status_string += "<tr><td><b>D" + String(ii) + "</b></td><td>" + drifter_status_flag_to_string(&servants[ii].drifter_state) + "</td></tr>";
           }
         }
       }
-      xSemaphoreGive(servantSemaphore);
-      return statusString;
+      xSemaphoreGive(servant_semaphore);
+      return status_string;
     }
     else{
       return String();
@@ -125,7 +125,7 @@ static String processor(const String & var) {
           <td><b>Log</b></td>
         </tr>
         )rawliteral";
-    return outputLog += messageLog;
+    return outputLog += message_log;
   }
 #endif // USING_MESH
   else {
@@ -134,37 +134,37 @@ static String processor(const String & var) {
 }
 
 // Currently using factory only LoRa parameters
-static void initLoRa() {
+static void init_LoRa() {
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
   if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("LoRa init failed. Check your connections.");
     while(1); // if failed, do nothing
   }
 #ifndef USING_MESH
-  LoRa.onReceive(onReceive); // register the receive callback
+  LoRa.onReceive(on_receive); // register the receive callback
   LoRa.receive(); // put the radio into receive mode
   delay(50);
 #endif // USING_MESH
   LoRa.enableCrc(); // if packet is corrupted, packet gets dropped silently
 }
 
-static void writeData2Flash() {
+static void write_data_to_flash() {
   file = SPIFFS.open("/master.csv", FILE_APPEND);
   if(!file) {
     Serial.println("There was an error opening the file for writing, restarting");
-    lastFileWrite = "FAILED OPEN";
+    last_file_write = "FAILED OPEN";
     ESP.restart();
   }
   else {
-    if(file.println(csvOutStr)) {
-      csvOutStr = "";
-      nSamples = 0;
+    if(file.println(csv_out_str)) {
+      csv_out_str = "";
+      n_samples = 0;
       Serial.print("Wrote data in file, current size: ");
       Serial.println(file.size());
-      lastFileWrite = String(master.hour, DEC) + ":" + String(master.minute, DEC) + ":" + String(master.second, DEC);
+      last_file_write = String(master.hour, DEC) + ":" + String(master.minute, DEC) + ":" + String(master.second, DEC);
     }
     else {
-      lastFileWrite = "FAILED WRITE, RESTARTING";
+      last_file_write = "FAILED WRITE, RESTARTING";
       ESP.restart();
     }
   }
@@ -173,8 +173,8 @@ static void writeData2Flash() {
 }
 
 #ifndef USING_MESH
-static void onReceive(const int packetsize) {
-  if(!packetsize) {
+static void on_receive(const int packet_size) {
+  if(!packet_size) {
     return;
   }
   uint8_t buffer[sizeof(Packet)];
@@ -189,24 +189,24 @@ static void onReceive(const int packetsize) {
     Serial.print("Drifter ");
     Serial.print(name);
     Serial.println(" signal found!");
-    // csvOutStr += recv; // Save all packets recevied (debugging purposes)
+    // csv_out_str += recv; // Save all packets recevied (debugging purposes)
     const int id = name.substring(1, 3).toInt();
     if(id < 1 || id > 10) {
       Serial.println("ID not in between 1 and 10");
     }
     else {
-      xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+      xSemaphoreTake(servant_semaphore, portMAX_DELAY);
       servants[id].ID = id;
       servants[id].decode(&packet);
       servants[id].rssi = LoRa.packetRssi();
-      servants[id].updateDistBear(master.lng, master.lat);
+      servants[id].update_dist_bear(master.lng, master.lat);
       servants[id].active = true;
-      const String tDate = String(servants[id].year) + "-" + String(servants[id].month) + "-" + String(servants[id].day);
-      const String tTime = String(servants[id].hour) + ":" + String(servants[id].minute) + ":" + String(servants[id].second);
-      const String tLocation = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
-      csvOutStr += tDate + "," + tTime + "," + tLocation + '\n';
+      const String t_date = String(servants[id].year) + "-" + String(servants[id].month) + "-" + String(servants[id].day);
+      const String t_time = String(servants[id].hour) + ":" + String(servants[id].minute) + ":" + String(servants[id].second);
+      const String t_location = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
+      csv_out_str += t_date + "," + t_time + "," + t_location + '\n';
 
-      xSemaphoreGive(servantSemaphore);
+      xSemaphoreGive(servant_semaphore);
       Serial.println("RX from LoRa - decoding completed");
     }
   }
@@ -214,7 +214,7 @@ static void onReceive(const int packetsize) {
 }
 #endif // USING_MESH
 
-static void initWebServer() {
+static void init_web_server() {
   WiFi.softAP(WIFI_SSID, WIFI_PASSWORD);
   Serial.println(WiFi.softAPIP());    // Print ESP32 Local IP Address
 
@@ -224,7 +224,7 @@ static void initWebServer() {
   });
 
   server.on("/getMaster", HTTP_GET, [](AsyncWebServerRequest * request) {
-    writeData2Flash();
+    write_data_to_flash();
     request->send(SPIFFS, "/master.csv", "text/html", true);
   });
 
@@ -241,8 +241,8 @@ static void initWebServer() {
       Serial.println("File reinit failed");
     }
     file.close();
-    lastFileWrite="";
-    request->send(200, "text/html", "<html><span>Successfully deleted master!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
+    last_file_write = "";
+    request->send(200, "text/html", "<html><span>Successfully deleted master!</span><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Back</a></html>");
   });
 #ifdef USING_MESH
   server.on("/restartDrifter", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -250,35 +250,35 @@ static void initWebServer() {
     for(int ii = 0; ii < paramsNr; ii++) {
       AsyncWebParameter* p = request->getParam(ii);
       if(p->name() == "drifterID") {
-        const int drifterID = (p->value()).toInt();
-        const byte drifterIDByte = indexToId(drifterID);
-        sendFrame(MASTER_MODE, static_cast<byte>(MessageType::Restart), localAddress, drifterIDByte, localAddress, 0x0F);
+        const int drifter_ID = (p->value()).toInt();
+        const byte drifter_ID_byte = index_to_id(drifter_ID);
+        send_frame(MASTER_MODE, static_cast<byte>(MessageType::Restart), local_address, drifter_ID_byte, local_address, 0x0F);
       }
     }
-    request->send(200, "text/html", "<html><span>Sent restart packet!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
+    request->send(200, "text/html", "<html><span>Sent restart packet!</span><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Back</a></html>");
   });
 #endif //USING_MESH
   server.begin();
 }
 
 void setup() {
-  initBoard();
+  init_board();
   delay(500);
-  initLoRa();
+  init_LoRa();
   delay(50);
-  initWebServer();
+  init_web_server();
   delay(50);
-  servantSemaphore = xSemaphoreCreateMutex();
-  loraSemaphore = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(listenTask, "listenTask", 8000, NULL, 1, &listen_task_handle, 1);
+  servant_semaphore = xSemaphoreCreateMutex();
+  lora_semaphore = xSemaphoreCreateMutex();
+  xTaskCreatePinnedToCore(listen_task, "listen_task", 8000, NULL, 1, &listen_task_handle, 1);
   delay(500);
 #ifdef USING_MESH
-  xTaskCreatePinnedToCore(sendTask, "sendTask", 8000, NULL, 2, &send_task_handle, 0);
+  xTaskCreatePinnedToCore(send_task, "send_task", 8000, NULL, 2, &send_task_handle, 0);
   delay(500);
 #endif //USING_MESH
-  xTaskCreatePinnedToCore(webUpdateTask, "webUpdateTask", 8000, NULL, 2, &web_update_task_handle, 0);
+  xTaskCreatePinnedToCore(web_update_task, "web_update_task", 8000, NULL, 2, &web_update_task_handle, 0);
   delay(500);
-  xTaskCreatePinnedToCore(systemMonitoringTask, "systemMonitoringTask", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
+  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
   delay(500);
   // SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
@@ -292,7 +292,7 @@ void setup() {
 }
 
 // TODO: Need to add 8 hours onto gps time
-void Master::fillMaster() {
+void Master::fill_master() {
   this->lng = gps.location.lng();
   this->lat = gps.location.lat();
   this->year = gps.date.year();
@@ -304,7 +304,7 @@ void Master::fillMaster() {
   this->age = gps.location.age();
 }
 
-void Master::generateMaster() {
+void Master::generate_master() {
   // Read GPS and run decoder
   const uint32_t start = millis();
   do {
@@ -313,27 +313,27 @@ void Master::generateMaster() {
     }
   } while(millis() - start < 500);
 
-  if(gps.time.second() != gpsLastSecond) {
-    fillMaster();
-    const String tDate = String(this->year) + "-" + String(this->month) + "-" + String(this->day);
-    const String tTime = String(this->hour) + ":" + String(this->minute) + ":" + String(this->second);
-    masterData =  "<tr><td>" + tDate + " " + tTime + "</td><td>" + String(this->lng, 6) + "</td><td>" + String(this->lat, 6) + "</td><td>" + String(this->age) + "</td>";
-    masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
-    masterData += "<td>" + lastFileWrite + "</td>";
-    masterData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
-    masterData += "</tr>";
+  if(gps.time.second() != gps_last_second) {
+    fill_master();
+    const String t_date = String(this->year) + "-" + String(this->month) + "-" + String(this->day);
+    const String t_time = String(this->hour) + ":" + String(this->minute) + ":" + String(this->second);
+    master_data =  "<tr><td>" + t_date + " " + t_time + "</td><td>" + String(this->lng, 6) + "</td><td>" + String(this->lat, 6) + "</td><td>" + String(this->age) + "</td>";
+    master_data += "<td><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "/getMaster\"> GET </a></td>";
+    master_data += "<td>" + last_file_write + "</td>";
+    master_data += "<td><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "/deleteMaster\"> ERASE </a></td>";
+    master_data += "</tr>";
     // Update String to be written to file
     if((this->lng != 0.0) && (this->age < 1000)) {
-      csvOutStr += "Master," + tDate + "," + tTime + "," + String(this->lng, 6) + "," + String(this->lat, 6) + "," + String(this->age) + "," + String(getBatteryPercentage(), 2) + '\n';
-      nSamples++;
+      csv_out_str += "Master," + t_date + "," + t_time + "," + String(this->lng, 6) + "," + String(this->lat, 6) + "," + String(this->age) + "," + String(get_battery_percentage(), 2) + '\n';
+      n_samples++;
     } else {
       Serial.println("No GPS fix, not writing local data!");
     }
-    gpsLastSecond = gps.time.second();
+    gps_last_second = gps.time.second();
   }
 }
 
-static void systemMonitoringTask(void * params){
+static void system_monitoring_task(void * params){
   (void)params;
   disableCore1WDT(); // Disable watchdog to keep process alive
   while(1){
@@ -357,84 +357,84 @@ static void systemMonitoringTask(void * params){
   }
 }
 
-static void listenTask(void * params) {
+static void listen_task(void * params) {
   (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
 #ifdef USING_MESH
-  memset(nodeRx, 0, sizeof(nodeRx)); // set received array to 0s
+  memset(node_rx, 0, sizeof(node_rx)); // set received array to 0s
 #endif // USING_MESH
   while(1) {
-    xSemaphoreTake(loraSemaphore, portMAX_DELAY); // when using portMAX_DELAY - we don't need to check if result == pdPASS
+    xSemaphoreTake(lora_semaphore, portMAX_DELAY); // when using portMAX_DELAY - we don't need to check if result == pdPASS
 #ifdef USING_MESH
     const int result = listener(LoRa.parsePacket(), MASTER_MODE);
 #endif // USING_MESH
-    xSemaphoreGive(loraSemaphore);
+    xSemaphoreGive(lora_semaphore);
   }
 }
 
-static String drifterStatusFlagToString(drifterStatus_t * drifterStatusIn){
-  String stringOut = "- ";
-  if(drifterStatusIn->b.imuUsed == 1){
-    if(drifterStatusIn->b.imuError == 1){
-      stringOut += "IMU ERROR -  ";
+static String drifter_status_flag_to_string(drifter_status_t * drifter_status_in){
+  String string_out = "- ";
+  if(drifter_status_in->b.imu_used == 1){
+    if(drifter_status_in->b.imu_error == 1){
+      string_out += "IMU ERROR -  ";
     }
     else{
-      stringOut += "IMU OK -  ";
+      string_out += "IMU OK -  ";
     }
   }
   // unused mesh print
-  // if(drifterStatusIn->b->meshUsed == 1){
-  //   stringOut += "USING MESH";
+  // if(drifter_status_in->b->mesh_used == 1){
+  //   string_out += "USING MESH";
   // }
-  if(drifterStatusIn->b.configError == 1){
-    stringOut += "CONFIG ERROR -  ";
+  if(drifter_status_in->b.config_error == 1){
+    string_out += "CONFIG ERROR -  ";
   }
-  if(drifterStatusIn->b.lowBattery == 1){
-    stringOut += "LOW BATTERY -  ";
+  if(drifter_status_in->b.low_battery == 1){
+    string_out += "LOW BATTERY -  ";
   }
-  if(drifterStatusIn->b.lowBattery == 1){
-    stringOut += "SAVE ERROR -  ";
+  if(drifter_status_in->b.low_battery == 1){
+    string_out += "SAVE ERROR -  ";
   }
-  if(drifterStatusIn->b.saveError == 1){
-    stringOut += "SPIFFS ERROR -  ";
+  if(drifter_status_in->b.save_error == 1){
+    string_out += "SPIFFS ERROR -  ";
   }
-  if(drifterStatusIn->b.lowStorage == 1){
-    stringOut += "LOW STORAGE -  ";
+  if(drifter_status_in->b.low_storage == 1){
+    string_out += "LOW STORAGE -  ";
   }
-  return stringOut;
+  return string_out;
 }
 
 #ifdef USING_MESH
-static void sendTask(void * params) {
+static void send_task(void * params) {
   (void)params;
-  bool sentBcast = false;
+  bool sent_bcast = false;
   while(1) {
 #ifdef IGNORE_GPS_INSIDE
     if(loop_runEvery(RS_BCAST_TIME)) {
 #else 
-    if(gps.time.second() == RS_BCAST_TIME / 1000 && !sentBcast) { // time is in ms
+    if(gps.time.second() == RS_BCAST_TIME / 1000 && !sent_bcast) { // time is in ms
 #endif // IGNORE_GPS_INSIDE
       PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
-      xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+      xSemaphoreTake(lora_semaphore, portMAX_DELAY);
       Serial.println("Route broadcast");
-      bcastRoutingStatus(MASTER_MODE);
-      xSemaphoreGive(loraSemaphore);
+      bcast_routing_status(MASTER_MODE);
+      xSemaphoreGive(lora_semaphore);
       delay(50);
       PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
-      sentBcast = true;
+      sent_bcast = true;
     }
     else if(gps.time.second() != RS_BCAST_TIME / 1000) {
-      sentBcast = false;
+      sent_bcast = false;
     }
   }
 }
 #endif // USING_MESH
 
-static void webUpdateTask(void * params) {
+static void web_update_task(void * params) {
   (void)params;
   while(1) {
-    master.generateMaster();
-    servantsData = R"rawliteral(
+    master.generate_master();
+    servants_data = R"rawliteral(
       <br><br>
       <h4>Servants</h4>
       <table>
@@ -452,65 +452,65 @@ static void webUpdateTask(void * params) {
           <td><b>RSSI</b></td>
     )rawliteral";
 #ifdef USING_MESH
-    servantsData += "<td><b>Restart</b></td>";
+    servants_data += "<td><b>Restart</b></td>";
 #endif // USING_MESH
-    servantsData += "</tr>";
-    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
-    String tempClassColour = "";
+    servants_data += "</tr>";
+    xSemaphoreTake(servant_semaphore, portMAX_DELAY);
+    String temp_class_colour = "";
     for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
-      const uint32_t lastUpdate = (millis() - servants[ii].lastUpdateMasterTime) / 1000;
-      if(lastUpdate >= 180) { // 3 minutes and greater
-        tempClassColour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
+      const uint32_t last_update = (millis() - servants[ii].last_update_master_time) / 1000;
+      if(last_update >= 180) { // 3 minutes and greater
+        temp_class_colour = R"rawliteral(<td style="background-color:Crimson">)rawliteral";
       }
-      else if(lastUpdate >= 120 && lastUpdate <= 179) { // 2-3 minutes
-        tempClassColour = R"rawliteral(<td style="background-color:DarkOrange">)rawliteral";
+      else if(last_update >= 120 && last_update <= 179) { // 2-3 minutes
+        temp_class_colour = R"rawliteral(<td style="background-color:DarkOrange">)rawliteral";
       }
-      else if(lastUpdate > 60 && lastUpdate <= 119) { // 1-2 minutes
-        tempClassColour = R"rawliteral(<td style="background-color:LightGrey">)rawliteral";
+      else if(last_update > 60 && last_update <= 119) { // 1-2 minutes
+        temp_class_colour = R"rawliteral(<td style="background-color:LightGrey">)rawliteral";
       }
       else {
-        tempClassColour = R"rawliteral(<td style="background-color:White">)rawliteral";
+        temp_class_colour = R"rawliteral(<td style="background-color:White">)rawliteral";
       }
       if(servants[ii].active) {
-        servantsData += "<tr>";
-        servantsData += "<td><b>" + String(servants[ii].ID) + "</b></td>";
-        servantsData += "<td>" + String(servants[ii].drifterTimeSlotSec) + "</td>";
-        servantsData += tempClassColour + String(lastUpdate) + "</td>";
-        servantsData += "<td>" + String(servants[ii].hour) + ":" + String(servants[ii].minute) + ":" + String(servants[ii].second) + "</td>";
-        servantsData += "<td>" + String(servants[ii].battPercent, 2) + "</td>";
-        servantsData += "<td>" + String(servants[ii].storageUsed, 4) + "</td>";
-        servantsData += "<td>" + String(servants[ii].lng, 6) + "</td>";
-        servantsData += "<td>" + String(servants[ii].lat, 6) + "</td>";
-        servantsData += "<td>" + String(servants[ii].dist) + "</td>";
-        servantsData += "<td>" + String(servants[ii].bear) + "</td>";
-        servantsData += "<td>" + String(servants[ii].rssi) + "</td>";
+        servants_data += "<tr>";
+        servants_data += "<td><b>" + String(servants[ii].ID) + "</b></td>";
+        servants_data += "<td>" + String(servants[ii].drifter_time_slot_sec) + "</td>";
+        servants_data += temp_class_colour + String(last_update) + "</td>";
+        servants_data += "<td>" + String(servants[ii].hour) + ":" + String(servants[ii].minute) + ":" + String(servants[ii].second) + "</td>";
+        servants_data += "<td>" + String(servants[ii].batt_percent, 2) + "</td>";
+        servants_data += "<td>" + String(servants[ii].storage_used, 4) + "</td>";
+        servants_data += "<td>" + String(servants[ii].lng, 6) + "</td>";
+        servants_data += "<td>" + String(servants[ii].lat, 6) + "</td>";
+        servants_data += "<td>" + String(servants[ii].dist) + "</td>";
+        servants_data += "<td>" + String(servants[ii].bear) + "</td>";
+        servants_data += "<td>" + String(servants[ii].rssi) + "</td>";
 #ifdef USING_MESH
-        servantsData += R"rawliteral(
+        servants_data += R"rawliteral(
           <td><form action="/restartDrifter" method="get"><button type="submit" name="drifterID" value=
         )rawliteral";
-        servantsData += String(servants[ii].ID) + ">Restart</button></form></td>";
+        servants_data += String(servants[ii].ID) + ">Restart</button></form></td>";
 #endif // USING_MESH
-        servantsData += "</tr>";
+        servants_data += "</tr>";
       }
     }
-    servantsData += "</table>";
-    xSemaphoreGive(servantSemaphore);
+    servants_data += "</table>";
+    xSemaphoreGive(servant_semaphore);
 #ifdef USING_MESH
-    diagnosticData = "<tr>";
-    diagnosticData += "<td>" + String(messagesSent) + "</td>";
-    diagnosticData += "<td>" + String(messagesReceived) + "</td>";
-    xSemaphoreTake(servantSemaphore, portMAX_DELAY);
+    diagnostic_data = "<tr>";
+    diagnostic_data += "<td>" + String(messages_sent) + "</td>";
+    diagnostic_data += "<td>" + String(messages_received) + "</td>";
+    xSemaphoreTake(servant_semaphore, portMAX_DELAY);
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
-        diagnosticData += "<td>" + String(nodeRx[ii]) + "</td>";
+        diagnostic_data += "<td>" + String(node_rx[ii]) + "</td>";
       }
     }
-    xSemaphoreGive(servantSemaphore);
-    diagnosticData += "</tr>";
+    xSemaphoreGive(servant_semaphore);
+    diagnostic_data += "</tr>";
 #endif // USING_MESH
     // D. Write data to onboard flash
-    if(nSamples > SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
-      writeData2Flash();
+    if(n_samples > SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
+      write_data_to_flash();
     }
     delay(1); // not sure if required
   }

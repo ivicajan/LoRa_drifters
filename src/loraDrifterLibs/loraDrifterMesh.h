@@ -34,16 +34,16 @@ enum class MessageType: byte {
  * @param sender is who sent this packet
  * @param ttl time to live until packet is 'lost'
  */
-void sendFrame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl);
+void send_frame(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl);
 
 /**
  * @brief Listens for packets sent over LoRa and decodes them accordingly
  * 
- * @param frameSize size of the packet decoded
+ * @param frame_size size of the packet decoded
  * @param mode either servant or master mode who sent this packet
  * @return the status of the packet handling
  */
-int listener(const int frameSize, const int mode);
+int listener(const int frame_size, const int mode);
 
 /**
  * @brief Loop that checks if a certain amount of time has elapsed. Used for PL_TX_TIME definition time slot.
@@ -51,7 +51,7 @@ int listener(const int frameSize, const int mode);
  * @param interval to check against
  * @return true if past interval threshold else false
  */
-bool runEvery(const unsigned long interval);
+bool run_every(const unsigned long interval);
 
 /**
  * @brief Loop that checks if a certain amount of time has elapsed. Used for RS_BCAST_TIME definition time slot.
@@ -59,14 +59,14 @@ bool runEvery(const unsigned long interval);
  * @param interval to check against
  * @return true if past interval threshold else false
  */
-bool loop_runEvery(const unsigned long interval);
+bool loop_run_every(const unsigned long interval);
 
 /**
  * @brief Convert the drifter index (i.e. 8) to the hex representation (i.e. 0x88)
  * 
  * @return the drifter ID
  */
-byte indexToId(const int idx);
+byte index_to_id(const int idx);
 
 /**
  * @brief Send the positional packet payload to either master or to a forwarding node
@@ -79,7 +79,7 @@ byte indexToId(const int idx);
  * 
  * @return the status of the payload routing process
  */
-int routePayload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend);
+int route_payload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend);
 
 /**
  * @brief Broadcast the routing status of the drifter to all other reachable nodes.
@@ -87,6 +87,6 @@ int routePayload(const int mode, const byte recipient, const byte sender, const 
  * @param mode either servant or master mode who sent this packet
  * @return the status of the broadcast
  */
-int bcastRoutingStatus(const int mode);
+int bcast_routing_status(const int mode);
 
 #endif // LORADRIFTERMESH_H

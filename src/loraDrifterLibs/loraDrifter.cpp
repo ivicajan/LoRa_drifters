@@ -15,7 +15,7 @@ AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 // drifter.Battery = drifter.Battery.astype(float)
 // drifter.Battery = (drifter.Battery * 100.0) / magic_conversion
 // drifter.Battery = (drifter.Battery - 3200.0) / 10.0
-float getBatteryPercentage() {
+float get_battery_percentage() {
     return ((PMU.getBattVoltage() - BATT_MIN_BATTERY_VOLTAGE_MV) / BATT_VOLTAGE_RANGE_MV) * 100.f;
 }
 
@@ -24,8 +24,8 @@ float getBatteryPercentage() {
  * 
  * @return true if the initialisation is successful, else false
  */
-static bool initPMU() {
-    Serial.println("initPMU");
+static bool init_PMU() {
+    Serial.println("init_PMU");
     Wire.begin(I2C_SDA, I2C_SCL);
     delay(50);
     if(PMU.begin(Wire, AXP192_SLAVE_ADDRESS) == AXP_FAIL) {
@@ -81,14 +81,14 @@ static bool initPMU() {
     return true;
 }
 
-static void initGPS() {
+static void init_GPS() {
     Serial.println("init gps");
     Serial1.begin(GPS_BAUD_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
     delay(50);
 }
 
-static void initLightsAndPins() {
-    Serial.println("initLightsAndPins");
+static void init_lights_and_pins() {
+    Serial.println("init_lights_and_pins");
 #ifdef BOARD_LED
       /*
       * T-BeamV1.0, V1.1 LED defaults to low level as turn on,
@@ -107,21 +107,21 @@ static void initLightsAndPins() {
     delay(50);
 }
 
-void initBoard() {
+void init_board() {
     Serial.begin(115200);
     while(!Serial) {
         Serial.println("Could not init 115200 serial");
     };
-    Serial.println("initBoard");
-    initPMU();
-    initGPS();
-    initLightsAndPins();
+    Serial.println("init_board");
+    init_PMU();
+    init_GPS();
+    init_lights_and_pins();
 }
 
 // Convert an IP address to a string
-String IpAddress2String(const IPAddress& ipAddress) {
-  return String(ipAddress[0]) + String(".") +
-    String(ipAddress[1]) + String(".") +
-    String(ipAddress[2]) + String(".") +
-    String(ipAddress[3]);
+String ip_address_to_string(const IPAddress& ip_address) {
+  return String(ip_address[0]) + String(".") +
+    String(ip_address[1]) + String(".") +
+    String(ip_address[2]) + String(".") +
+    String(ip_address[3]);
 }

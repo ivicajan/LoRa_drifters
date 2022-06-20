@@ -73,15 +73,15 @@
  * 
  * @return current percentage of the battery
  */
-float getBatteryPercentage();
+float get_battery_percentage();
 
 /**
  * @brief Initialise the TTGO ESP32 board. Inclusive of PMU, GPS, and GPIO.
  * 
  */
-void initBoard();
+void init_board();
 
 // D5. String IP Address
-String IpAddress2String(const IPAddress& ipAddress);
+String ip_address_to_string(const IPAddress& ip_address);
 
 #endif //LORADRIFTER_H

@@ -34,9 +34,9 @@ extern BLA::Matrix<3> Rotation_matrix;
 extern BLA::Matrix<8, 8> P;
 static BLA::Matrix<2> Updated_GPS; //updated gps after imu kalman modification
 extern volatile bool calibrate_imu;
-String csvIMUFileName = "";
+String csv_IMU_file_name = "";
 static File imu_file;
-String csvIMUOutStr = "";
+String csv_IMU_out_str = "";
 static TaskHandle_t imu_task_handle;
 #endif // USING_IMU
 
@@ -51,42 +51,42 @@ extern AXP20X_Class PMU;
 extern TinyGPSPlus gps;
 
 // GLOBAL VARIABLES
-String csvOutStr = "";                 // Buffer for output file
-static String lastFileWrite = "";
-static bool webServerOn = false;
-static String csvFileName = "";
+String csv_out_str = "";                 // Buffer for output file
+static String last_file_write = "";
+static bool web_server_on = false;
+static String csv_file_name = "";
 static File file;                            // Data file for the SPIFFS output
-volatile int nSamples = 0;                         // Counter for the number of samples gathered
-static volatile float storageUsed = 0.f;                   // MB used in SPIFFS storage
+volatile int n_samples = 0;                         // Counter for the number of samples gathered
+static volatile float storage_used = 0.f;                   // MB used in SPIFFS storage
 
-static volatile int gpsLastSecond = -1;
-static String tTime = "";
-static String drifterName = "D05";       // ID send with packet
-static volatile int drifterTimeSlotSec = 25;      // seconds after start of each GPS minute
+static volatile int gps_last_second = -1;
+static String t_time = "";
+static String drifter_name = "D05";       // ID send with packet
+static volatile int drifter_time_slot_sec = 25;      // seconds after start of each GPS minute
 
 Packet packet;
-static drifterStatus_t drifterState; // status flags of the drifter state
+static drifter_status_t drifter_state; // status flags of the drifter state
 
 #ifdef USING_SEMAPHORES
-static SemaphoreHandle_t loraSemaphore = NULL; // only used here as its commented out elsewhere
-static SemaphoreHandle_t drifterStateMutex = NULL;
+static SemaphoreHandle_t lora_semaphore = NULL; // only used here as its commented out elsewhere
+static SemaphoreHandle_t drifter_state_mutex = NULL;
 #endif //USING_SEMAPHORES
 static TaskHandle_t send_task_handle;
 static TaskHandle_t system_monitoring_task_handle;
 
 #ifdef USING_MESH
 static TaskHandle_t listen_task_handle;
-byte routingTable[ROUTING_TABLE_SIZE] = "";
+byte routing_table[ROUTING_TABLE_SIZE] = "";
 byte payload[24] = "";
-volatile int localLinkRssi = 0;
-byte localHopCount = 0x00;
-byte localNextHopID = 0x00;
-byte localAddress = indexToId(drifterName.substring(1, 3).toInt());
+volatile int local_link_rssi = 0;
+byte local_hop_count = 0x00;
+byte local_next_hop_ID = 0x00;
+byte local_address = index_to_id(drifter_name.substring(1, 3).toInt());
 // Diagnostics
-volatile int messagesSent = 0;
-volatile int messagesReceived = 0;
-int nodeRx[NUM_NODES];
-volatile int masterRx = 0;
+volatile int messages_sent = 0;
+volatile int messages_received = 0;
+int node_rx[NUM_NODES];
+volatile int master_rx = 0;
 #endif // USING_MESH
 
 static const char index_html[] PROGMEM = R"rawliteral(
@@ -155,45 +155,45 @@ static const char index_html[] PROGMEM = R"rawliteral(
   </html>
 )rawliteral";
 
-static void writeData2Flash() {
+static void write_data_to_flash() {
 #ifdef USING_SD_CARD
-  file = SD.open(csvFileName, FILE_APPEND);
+  file = SD.open(csv_file_name, FILE_APPEND);
 #else
-  file = SPIFFS.open(csvFileName, FILE_APPEND);
+  file = SPIFFS.open(csv_file_name, FILE_APPEND);
 #endif //USING_SD_CARD
   if(!file) {
     Serial.println("There was an error opening the file for appending, creating a new one");
 #ifdef USING_SD_CARD
-    file = SD.open(csvFileName, FILE_WRITE);
+    file = SD.open(csv_file_name, FILE_WRITE);
 #else
-    file = SPIFFS.open(csvFileName, FILE_WRITE);
+    file = SPIFFS.open(csv_file_name, FILE_WRITE);
 #endif //USING_SD_CARD
   }
   if(!file) { // this shouldn't occur
       Serial.println("There was an error opening the file for writing");
-      lastFileWrite = "FAILED OPEN";
+      last_file_write = "FAILED OPEN";
       ESP.restart();
   }
   else {
     const uint32_t file_size_before_save = file.size();
-    if(file.println(csvOutStr)) {
+    if(file.println(csv_out_str)) {
       Serial.print("Wrote data in file, current size: ");
       const uint32_t file_size_after_save = file.size();
       Serial.println(file_size_after_save);
-      storageUsed = file_size_after_save * 0.000001f; // convert to MB
-      csvOutStr = "";
-      nSamples = 0;
-      lastFileWrite = tTime;
+      storage_used = file_size_after_save * 0.000001f; // convert to MB
+      csv_out_str = "";
+      n_samples = 0;
+      last_file_write = t_time;
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      drifterState.b.saveError = (file_size_after_save == file_size_before_save);
+      drifter_state.b.save_error = (file_size_after_save == file_size_before_save);
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifterStateMutex);
+      xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
     }
     else {
-      lastFileWrite = "FAILED WRITE, RESTARTING";
+      last_file_write = "FAILED WRITE, RESTARTING";
       ESP.restart();
     }
   }
@@ -202,18 +202,18 @@ static void writeData2Flash() {
 }
 
 #ifdef USING_IMU
-static void writeIMUData2Flash() {
+static void write_IMU_data_to_flash() {
 #ifdef USING_SD_CARD
-  imu_file = SD.open(csvIMUFileName, FILE_APPEND);
+  imu_file = SD.open(csv_IMU_file_name, FILE_APPEND);
 #else
-  imu_file = SPIFFS.open(csvIMUFileName, FILE_APPEND);
+  imu_file = SPIFFS.open(csv_IMU_file_name, FILE_APPEND);
 #endif //USING_SD_CARD
   if(!imu_file) {
     Serial.println("There was an error opening the imu file for appending, creating a new one");
 #ifdef USING_SD_CARD
-    imu_file = SD.open(csvIMUFileName, FILE_WRITE);
+    imu_file = SD.open(csv_IMU_file_name, FILE_WRITE);
 #else
-    imu_file = SPIFFS.open(csvIMUFileName, FILE_WRITE);
+    imu_file = SPIFFS.open(csv_IMU_file_name, FILE_WRITE);
 #endif //USING_SD_CARD
   }
   if(!imu_file) { // this shouldn't occur
@@ -221,11 +221,11 @@ static void writeIMUData2Flash() {
       ESP.restart();
   }
   else {
-    if(imu_file.println(csvIMUOutStr)) {
+    if(imu_file.println(csv_IMU_out_str)) {
       Serial.print("Wrote data in imu file, current size: ");
       Serial.println(imu_file.size());
-      csvIMUOutStr = "";
-      storageUsed += imu_file.size() * 0.000001f; // convert to MB
+      csv_IMU_out_str = "";
+      storage_used += imu_file.size() * 0.000001f; // convert to MB
     }
     else {
       ESP.restart();
@@ -274,7 +274,7 @@ static void update_imu() {
   }
 }
 
-static void imuTask(void * params) {
+static void imu_task(void * params) {
   (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
@@ -285,7 +285,7 @@ static void imuTask(void * params) {
 #endif // USING_IMU
 
 #ifdef USING_MESH
-static void listenTask(void * params){
+static void listen_task(void * params){
   (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
   while(1) {
@@ -295,7 +295,7 @@ static void listenTask(void * params){
 }
 #endif // USING_MESH
 
-static void systemMonitoringTask(void * params){
+static void system_monitoring_task(void * params){
   (void)params;
   disableCore1WDT(); // Disable watchdog to keep process alive
   while(1){
@@ -321,7 +321,7 @@ static void systemMonitoringTask(void * params){
   }
 }
 
-static void sendTask(void * params) {
+static void send_task(void * params) {
   (void)params;
   disableCore1WDT(); // Disable watchdog to keep process alive
   while(1) {
@@ -329,8 +329,8 @@ static void sendTask(void * params) {
       ESP.restart();
     }
     if(digitalRead(BUTTON_PIN) == LOW) { //Check for button press
-      if(webServerOn) {
-        webServerOn = false;
+      if(web_server_on) {
+        web_server_on = false;
 #ifdef USING_MESH
         vTaskResume(listen_task_handle);
         Serial.println("Resumed listen_task_handle");
@@ -345,7 +345,7 @@ static void sendTask(void * params) {
 #endif //USING_IMU
       } else {
         Serial.println("Turning web server on");
-        webServerOn = true;
+        web_server_on = true;
 #ifdef USING_MESH
         vTaskSuspend(listen_task_handle);
         Serial.println("Suspended listen_task_handle");
@@ -359,38 +359,38 @@ static void sendTask(void * params) {
         }
 #endif //USING_IMU
       }
-      startWebServer(webServerOn);
+      start_web_server(web_server_on);
       delay(1000);
     }
-  if(!webServerOn) {
+  if(!web_server_on) {
 #ifdef USING_MESH
       int result = 0;
-      generatePacket();
+      generate_packet();
 #ifdef IGNORE_GPS_INSIDE
-      if(runEvery(PL_TX_TIME)) {
+      if(run_every(PL_TX_TIME)) {
 #else
-      if(gps.time.second() == drifterTimeSlotSec) {
+      if(gps.time.second() == drifter_time_slot_sec) {
 #endif //IGNORE_GPS_INSIDE
-        result = routePayload(SERVANT_MODE, MASTER_LOCAL_ID, localAddress, 0x0F, 0);
+        result = route_payload(SERVANT_MODE, MASTER_LOCAL_ID, local_address, 0x0F, 0);
         PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
         delay(50);
         PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
       }
-      if(loop_runEvery(RS_BCAST_TIME)) {
+      if(loop_run_every(RS_BCAST_TIME)) {
         Serial.println("Route broadcast");
-        result = bcastRoutingStatus(SERVANT_MODE);   // returns 1 or -1
+        result = bcast_routing_status(SERVANT_MODE);   // returns 1 or -1
         PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
         delay(50);
         PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
       }
 #endif // USING_MESH
       delay(10);
-      // Write data to onboard flash if nSamples is large enough
-      if(nSamples >= SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
+      // Write data to onboard flash if n_samples is large enough
+      if(n_samples >= SAMPLES_BEFORE_WRITE) {  // only write after collecting a good number of samples
         Serial.println("Dump data into the memory");
-        writeData2Flash();
+        write_data_to_flash();
 #ifdef USING_IMU
-        writeIMUData2Flash();
+        write_IMU_data_to_flash();
 #endif // USING_IMU
       }
     }
@@ -405,7 +405,7 @@ static void sendTask(void * params) {
 }
 
 // Init the LoRa communications with/without default factory settings
-static void initLoRa(bool default_params = false) {
+static void init_LoRa(bool default_params = false) {
   LoRa.setPins(RADIO_CS_PIN, RADIO_RST_PIN, RADIO_DI0_PIN);
   if(default_params) {
     /* LoRa paramters - https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
@@ -428,7 +428,7 @@ static void initLoRa(bool default_params = false) {
 }
 
 //H. Read config file, if it exists
-static void readConfigFile() {
+static void read_config_file() {
 #ifdef USING_SD_CARD
   file = SD.open("/config.txt", FILE_READ);
 #else
@@ -437,91 +437,91 @@ static void readConfigFile() {
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      drifterState.b.configError = 1;
+      drifter_state.b.config_error = 1;
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifterStateMutex);
+      xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
   }
   else {
     const String inData = file.readStringUntil('\n');
     const int comma = inData.indexOf(",");
-    drifterName = inData.substring(0, comma);
+    drifter_name = inData.substring(0, comma);
 #ifdef USING_MESH
-    localAddress = indexToId(drifterName.substring(1, 3).toInt());
+    local_address = index_to_id(drifter_name.substring(1, 3).toInt());
 #endif //USING_MESH
-    drifterTimeSlotSec = inData.substring(comma + 1).toInt();
+    drifter_time_slot_sec = inData.substring(comma + 1).toInt();
     Serial.println(inData);
     file.close();
   }
   delay(50);
-  csvFileName = "/svt" + String(drifterName) + ".csv";
+  csv_file_name = "/svt" + String(drifter_name) + ".csv";
 #ifdef USING_SD_CARD
-  file = SD.open(csvFileName, FILE_APPEND);
+  file = SD.open(csv_file_name, FILE_APPEND);
 #else
-  file = SPIFFS.open(csvFileName, FILE_APPEND);
+  file = SPIFFS.open(csv_file_name, FILE_APPEND);
 #endif //USING_SD_CARD
   if(file){
-    storageUsed = file.size() * 0.000001f; // convert to MB
+    storage_used = file.size() * 0.000001f; // convert to MB
     file.close();
   }
 #ifdef USING_IMU
-  csvIMUFileName = "/svt" + String(drifterName) + "_IMU.csv";
+  csv_IMU_file_name = "/svt" + String(drifter_name) + "_IMU.csv";
 #ifdef USING_SD_CARD
-  imu_file = SD.open(csvIMUFileName, FILE_APPEND);
+  imu_file = SD.open(csv_IMU_file_name, FILE_APPEND);
 #else
-  imu_file = SPIFFS.open(csvFileName, FILE_APPEND);
+  imu_file = SPIFFS.open(csv_file_name, FILE_APPEND);
 #endif //USING_SD_CARD
   if(imu_file){
-    storageUsed += imu_file.size() * 0.000001f; // convert to MB
+    storage_used += imu_file.size() * 0.000001f; // convert to MB
     imu_file.close();
   }
 #endif //USING_IMU
 }
 
 #ifdef USING_SD_CARD
-static void printVolumeSize() {
-    const uint8_t cardType = SD.cardType();
+static void print_volume_size() {
+    const uint8_t card_type = SD.cardType();
 
-    if(cardType == CARD_NONE) {
+    if(card_type == CARD_NONE) {
         Serial.println("No SD card attached");
         return;
     }
 
     Serial.print("SD Card Type: ");
-    if(cardType == CARD_MMC) {
+    if(card_type == CARD_MMC) {
         Serial.println("MMC");
     }
-    else if(cardType == CARD_SD) {
+    else if(card_type == CARD_SD) {
         Serial.println("SDSC");
     }
-    else if(cardType == CARD_SDHC) {
+    else if(card_type == CARD_SDHC) {
         Serial.println("SDHC");
     }
     else {
         Serial.println("UNKNOWN");
     }
 
-    const uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    Serial.printf("SD Card Size: %lluMB\n", cardSize);
+    const uint64_t card_size = SD.cardSize() / (1024 * 1024);
+    Serial.printf("SD Card Size: %lluMB\n", card_size);
     Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
     Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
 }
 
-static float getCapacityUsed() {
+static float get_capacity_used() {
   return (float)(SD.usedBytes() / SD.totalBytes());
 }
 #endif //USING_SD_CARD
 
 void setup() {
 #ifdef USING_SEMAPHORES
-  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
-  loraSemaphore = xSemaphoreCreateMutex();
-  drifterStateMutex = xSemaphoreCreateMutex();
-  xSemaphoreGive(drifterStateMutex);
+  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+  lora_semaphore = xSemaphoreCreateMutex();
+  drifter_state_mutex = xSemaphoreCreateMutex();
+  xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
-  initBoard();
+  init_board();
 #ifdef USING_SD_CARD
   hspi = new SPIClass(HSPI);
   hspi->begin(HSPI_SCLK, HSPI_MISO, HSPI_MOSI, HSPI_CS); //SCLK, MISO, MOSI, SS
@@ -531,33 +531,33 @@ void setup() {
   if(!SD.begin(HSPI_CS, *hspi)) {
     Serial.println("SD Card failed, or not not present");
   }
-  printVolumeSize();
+  print_volume_size();
 #endif //USING_SD_CARD
   delay(500);
 #ifdef USING_SEMAPHORES
-  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-  memset(&drifterState, 0, sizeof(drifterStatus_r));
+  memset(&drifter_state, 0, sizeof(drifter_status_r));
 #ifdef USING_IMU
-  const bool initIMUok = initIMU();
-  drifterState.b.imuUsed = 1;
-  drifterState.b.imuError = !initIMUok;
+  const bool init_IMU_ok = init_IMU();
+  drifter_state.b.imu_used = 1;
+  drifter_state.b.imu_error = !init_IMU_ok;
   delay(500);
 #endif // USING_IMU
 #ifdef USING_SEMAPHORES
-  xSemaphoreGive(drifterStateMutex);
+  xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
   if(!SPIFFS.begin(true)) {
     // TODO: this should attempt to fix SPIFFS
     Serial.println("SPIFFS error has occured");
     return;
   }
-  initLoRa();
+  init_LoRa();
   delay(50);
-  readConfigFile();
+  read_config_file();
 #ifdef USING_IMU
-  if(initIMUok){
-    xTaskCreatePinnedToCore(imuTask, "imuTask", 10000, NULL, 1, &imu_task_handle, 0);
+  if(init_IMU_ok){
+    xTaskCreatePinnedToCore(imu_task, "imu_task", 10000, NULL, 1, &imu_task_handle, 0);
     delay(500);
   }
   else {
@@ -566,24 +566,24 @@ void setup() {
 #endif //USING_IMU
 #ifdef USING_MESH
 #ifdef USING_SEMAPHORES
-  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-  // drifterState.b.meshUsed = 1;
+  // drifter_state.b.mesh_used = 1;
 #ifdef USING_SEMAPHORES
-  xSemaphoreGive(drifterStateMutex);
+  xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
-  xTaskCreatePinnedToCore(listenTask, "listenTask", 5000, NULL, 2, &listen_task_handle, 0);
+  xTaskCreatePinnedToCore(listen_task, "listen_task", 5000, NULL, 2, &listen_task_handle, 0);
   delay(500);
 #endif //USING_MESH
-  xTaskCreatePinnedToCore(sendTask, "sendTask", 8000, NULL, 2, &send_task_handle, 1);
-  xTaskCreatePinnedToCore(systemMonitoringTask, "systemMonitoringTask", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
+  xTaskCreatePinnedToCore(send_task, "send_task", 8000, NULL, 2, &send_task_handle, 1);
+  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
   delay(500);
   Serial.println("Initialization complete.");
 }
 
 static void fill_packet() {
-  strcpy(packet.name, drifterName.c_str());
-  packet.drifterTimeSlotSec = drifterTimeSlotSec;
+  strcpy(packet.name, drifter_name.c_str());
+  packet.drifter_time_slot_sec = drifter_time_slot_sec;
   packet.hour = gps.time.hour();
   packet.minute = gps.time.minute();
   packet.second = gps.time.second();
@@ -592,22 +592,22 @@ static void fill_packet() {
   packet.day = gps.date.day();
   packet.lng = gps.location.lng();
   packet.lat = gps.location.lat();
-  packet.storageUsed = storageUsed;
+  packet.storage_used = storage_used;
   packet.age = gps.location.age();
-  packet.battPercent = getBatteryPercentage();
+  packet.batt_percent = get_battery_percentage();
 #ifdef USING_SEMAPHORES
-  xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
 #ifdef USING_SD_CARD
-  drifterState.b.lowStorage = (getCapacityUsed() > 0.75f);
-  Serial.printf("%f\n", getCapacityUsed());
+  drifter_state.b.low_storage = (get_capacity_used() > 0.75f);
+  Serial.printf("%f\n", get_capacity_used());
 #else
-  drifterState.b.lowStorage = (packet.storageUsed > 0.75f * SPIFFS_FLASH_SIZE); // if we are above 75% storage capacity we show the flag 1 (error)
+  drifter_state.b.low_storage = (packet.storage_used > 0.75f * SPIFFS_FLASH_SIZE); // if we are above 75% storage capacity we show the flag 1 (error)
 #endif //USING_SD_CARD
-  drifterState.b.lowBattery = (packet.battPercent < 50.f); // if we are below 50% battery we show the flag 1 (error)
-  packet.drifterState = drifterState;
+  drifter_state.b.low_battery = (packet.batt_percent < 50.f); // if we are below 50% battery we show the flag 1 (error)
+  packet.drifter_state = drifter_state;
 #ifdef USING_SEMAPHORES
-  xSemaphoreGive(drifterStateMutex);
+  xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
 #ifdef DEBUG_MODE
   Serial << "Raw Lat: " << float(packet.lat) << " Lng: " << float(packet.lng) << '\n';
@@ -615,19 +615,19 @@ static void fill_packet() {
 }
 
 #ifdef USING_MESH
-static String nodeHopsToString() {
-  String outStr = "";
+static String node_hops_to_string() {
+  String out_str = "";
   for(size_t idx = 1; idx < NUM_NODES; idx++) {
-    outStr += String(nodeRx[idx]);
+    out_str += String(node_rx[idx]);
     if(idx != NUM_NODES - 1) {
-      outStr += ",";
+      out_str += ",";
     }
   }
-  return outStr;
+  return out_str;
 }
 #endif // USING_MESH
 
-static void generatePacket() {
+static void generate_packet() {
   const uint32_t start = millis();
   do {
     while(Serial1.available() > 0) {
@@ -637,45 +637,45 @@ static void generatePacket() {
 #ifdef IGNORE_GPS_INSIDE
   if(true) {
 #else 
-  if(gps.time.second() != gpsLastSecond) {
+  if(gps.time.second() != gps_last_second) {
 #endif // IGNORE_GPS_INSIDE
     Serial.print("New GPS record from: ");
-    Serial.println(drifterName);
+    Serial.println(drifter_name);
     fill_packet();
-    gpsLastSecond = gps.time.second();
+    gps_last_second = gps.time.second();
     Serial.print("samples: ");
-    Serial.println(nSamples);
+    Serial.println(n_samples);
 #ifdef IGNORE_GPS_INSIDE
     if(true) {
 #else 
     if((gps.location.lng() != 0.0) && (gps.location.age() < 1000)) {
 #endif // IGNORE_GPS_INSIDE
-      nSamples++;
+      n_samples++;
       const String tDate = String(packet.year) + "-" + String(packet.month) + "-" + String(packet.day);
-      tTime = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
+      t_time = String(packet.hour) + ":" + String(packet.minute) + ":" + String(packet.second);
 #ifdef USING_IMU
-      csvIMUOutStr += tDate + "," + tTime + ",";
+      csv_IMU_out_str += tDate + "," + t_time + ",";
       for(int ii = 0; ii < 5; ii++) {
-        csvIMUOutStr += String(X_INS(ii), 4)+ ",";
+        csv_IMU_out_str += String(X_INS(ii), 4)+ ",";
       }
        for(int ii = 0; ii < 3; ii++) {
-         csvIMUOutStr += String(Y_GPS(ii), 4)+ ",";
+         csv_IMU_out_str += String(Y_GPS(ii), 4)+ ",";
        }
        for(int ii = 0; ii < 3; ii++) {
-         csvIMUOutStr += String(acc_raw(ii), 4)+ ",";
+         csv_IMU_out_str += String(acc_raw(ii), 4)+ ",";
        }
        for(int ii = 0; ii < 3; ii++) {
-         csvIMUOutStr += String(Rotation_matrix(ii), 4)+ ",";
+         csv_IMU_out_str += String(Rotation_matrix(ii), 4)+ ",";
        }
        for(int ii = 0; ii < 2; ii++) {
-         csvIMUOutStr += String(Updated_GPS(ii), 6)+ ",";
+         csv_IMU_out_str += String(Updated_GPS(ii), 6)+ ",";
        }
-      csvIMUOutStr += "\n";
+      csv_IMU_out_str += "\n";
 #endif //USING_IMU
-      const String tLocation = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
-      csvOutStr += tDate + "," + tTime + "," + tLocation + "," + String(packet.battPercent, 2)
+      const String t_location = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
+      csv_out_str += tDate + "," + t_time + "," + t_location + "," + String(packet.batt_percent, 2)
 #ifdef USING_MESH
-      + "," + String(messagesSent) + "," + String(messagesReceived) + "," + String(masterRx) + "," + nodeHopsToString() // Diagnostics
+      + "," + String(messages_sent) + "," + String(messages_received) + "," + String(master_rx) + "," + node_hops_to_string() // Diagnostics
 #endif // USING_MESH
       + "\n";
 #ifndef USING_MESH
@@ -683,7 +683,7 @@ static void generatePacket() {
     if(true) {
 #else 
     // Send GPS data on LoRa if it is this units timeslot
-    if(gps.time.second() == drifterTimeSlotSec) {
+    if(gps.time.second() == drifter_time_slot_sec) {
 #endif // IGNORE_GPS_INSIDE
         LoRa.beginPacket();
         LoRa.write((const uint8_t *)&packet, sizeof(packet));
@@ -702,7 +702,7 @@ static void generatePacket() {
 
 #ifdef USING_IMU
 // TODO: make this actually begin calibration
-static bool calibrateIMU() {
+static bool calibrate_IMU() {
   if(calibrate_imu == false) {
     calibrate_imu = true;
     return true;
@@ -714,8 +714,8 @@ static bool calibrateIMU() {
 }
 #endif //USING_IMU
 
-static void startWebServer(const bool webServerOn) {
-  if(!webServerOn) {
+static void start_web_server(const bool web_server_on) {
+  if(!web_server_on) {
     server.end();
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
@@ -731,20 +731,20 @@ static void startWebServer(const bool webServerOn) {
       request->send_P(200, "text/html", index_html, processor);
     });
     server.on("/configure", HTTP_GET, [](AsyncWebServerRequest * request) {
-      int paramsNr = request->params();
-      Serial.println(paramsNr);
-      for(int ii = 0; ii < paramsNr; ii++) {
+      int params_nr = request->params();
+      Serial.println(params_nr);
+      for(int ii = 0; ii < params_nr; ii++) {
         AsyncWebParameter* p = request->getParam(ii);
         if(p->name() == "drifterID") {
-          drifterName = p->value();
+          drifter_name = p->value();
         }
         if(p->name() == "loraSendSec") {
-          drifterTimeSlotSec = String(p->value()).toInt();
+          drifter_time_slot_sec = String(p->value()).toInt();
         }
       }
-      csvFileName = "/svt" + String(drifterName) + ".csv";
+      csv_file_name = "/svt" + String(drifter_name) + ".csv";
 #ifdef USING_IMU
-      csvIMUFileName = "/svt" + String(drifterName) + "_IMU.csv";
+      csv_IMU_file_name = "/svt" + String(drifter_name) + "_IMU.csv";
 #endif //USING_IMU
 #ifdef USING_SD_CARD
       file = SD.open("/config.txt", FILE_WRITE);
@@ -755,99 +755,99 @@ static void startWebServer(const bool webServerOn) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      drifterState.b.configError = 1;
+      drifter_state.b.config_error = 1;
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifterStateMutex);
+      xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
       }
       else {
-        file.print(drifterName + "," + String(drifterTimeSlotSec));
+        file.print(drifter_name + "," + String(drifter_time_slot_sec));
         file.close();
-        request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+        request->send(200, "text/html", "<html><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifterStateMutex, portMAX_DELAY);
+      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      drifterState.b.configError = 0;
+      drifter_state.b.config_error = 0;
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifterStateMutex);
+      xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
       }
     });
 
     server.on("/getServant", HTTP_GET, [](AsyncWebServerRequest * request) {
-      writeData2Flash();
+      write_data_to_flash();
 #ifdef USING_SD_CARD
-      request->send(SD, csvFileName, "text/plain", true);
+      request->send(SD, csv_file_name, "text/plain", true);
 #else
-      request->send(SPIFFS, csvFileName, "text/plain", true);
+      request->send(SPIFFS, csv_file_name, "text/plain", true);
 #endif //USING_SD_CARD
     });
 
     server.on("/deleteServant", HTTP_GET, [](AsyncWebServerRequest * request) {
 #ifdef USING_SD_CARD
-      SD.remove(csvFileName);
-      file = SD.open(csvFileName, FILE_WRITE);
+      SD.remove(csv_file_name);
+      file = SD.open(csv_file_name, FILE_WRITE);
 #else
-      SPIFFS.remove(csvFileName);
-      file = SPIFFS.open(csvFileName, FILE_WRITE);
+      SPIFFS.remove(csv_file_name);
+      file = SPIFFS.open(csv_file_name, FILE_WRITE);
 #endif //USING_SD_CARD
       if(!file) {
         Serial.println("There was an error opening the file for writing");
         return;
       }
-      if(file.println("#FILE ERASED at " + lastFileWrite)) {
+      if(file.println("#FILE ERASED at " + last_file_write)) {
         Serial.println("File was created");
       }
       else {
         Serial.println("File creation failed");
       }
       file.close();
-      lastFileWrite = "";
-      request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+      last_file_write = "";
+      request->send(200, "text/html", "<html><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
     });
 #ifdef USING_IMU
     server.on("/getServantIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
-      writeIMUData2Flash();
+      write_IMU_data_to_flash();
 #ifdef USING_SD_CARD
-      request->send(SD, csvIMUFileName, "text/plain", true);
+      request->send(SD, csv_IMU_file_name, "text/plain", true);
 #else
-      request->send(SPIFFS, csvIMUFileName, "text/plain", true);
+      request->send(SPIFFS, csv_IMU_file_name, "text/plain", true);
 #endif //USING_SD_CARD
     });
 
     server.on("/deleteServantIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
 #ifdef USING_SD_CARD
-      SD.remove(csvIMUFileName);
-      file = SD.open(csvIMUFileName, FILE_WRITE);
+      SD.remove(csv_IMU_file_name);
+      file = SD.open(csv_IMU_file_name, FILE_WRITE);
 #else
-      SPIFFS.remove(csvIMUFileName);
-      file = SPIFFS.open(csvIMUFileName, FILE_WRITE);
+      SPIFFS.remove(csv_IMU_file_name);
+      file = SPIFFS.open(csv_IMU_file_name, FILE_WRITE);
 #endif //USING_SD_CARD
       if(!file) {
         Serial.println("There was an error opening the file for writing");
         return;
       }
-      if(file.println("#FILE ERASED at " + lastFileWrite)) {
+      if(file.println("#FILE ERASED at " + last_file_write)) {
         Serial.println("File was created");
       }
       else {
         Serial.println("File creation failed");
       }
       file.close();
-      lastFileWrite = "";
-      request->send(200, "text/html", "<html><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
+      last_file_write = "";
+      request->send(200, "text/html", "<html><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
     });
 
     server.on("/calibrateIMU", HTTP_GET, [](AsyncWebServerRequest * request) {
-      if(calibrateIMU()) {
+      if(calibrate_IMU()) {
         request->send(200, "text/html",
-        "<html><span>Successfully calibrated IMU!</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
+        "<html><span>Successfully calibrated IMU!</span><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Back</a></html>");
       }
       else {
         request->send(200, "text/html",
-        "<html><span>Failed to calibrate IMU</span><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "\">Back</a></html>");
+        "<html><span>Failed to calibrate IMU</span><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Back</a></html>");
       }
     });
 #endif // USING_IMU
@@ -860,7 +860,7 @@ void loop() {}
 
 static String processor(const String & var) {
   if(var == "SERVANT") {
-    String servantData =
+    String servant_data =
       R"rawliteral(
       <table>
         <tr>
@@ -869,34 +869,34 @@ static String processor(const String & var) {
           <td><b>Last File Write GPS Time</b></td>
           <td><b>Erase Data (NO WARNING)</b></td>)rawliteral";
 #ifdef USING_IMU
-    servantData += "<td><b>Calibrate IMU</b></td>";
-    servantData += "<td><b>Download IMU Data</b></td>";
-    servantData += "<td><b>Erase IMU Data</b></td>";
+    servant_data += "<td><b>Calibrate IMU</b></td>";
+    servant_data += "<td><b>Download IMU Data</b></td>";
+    servant_data += "<td><b>Erase IMU Data</b></td>";
 #endif // USING_IMU
-    servantData += "</tr>";
-    servantData += "<tr><td>" + csvFileName + "</td>";
-    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
-    servantData += "<td>" + lastFileWrite + "</td>";
-    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
+    servant_data += "</tr>";
+    servant_data += "<tr><td>" + csv_file_name + "</td>";
+    servant_data += "<td><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "/getServant\"> GET </a></td>";
+    servant_data += "<td>" + last_file_write + "</td>";
+    servant_data += "<td><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "/deleteServant\"> ERASE </a></td>";
 #ifdef USING_IMU
-    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/calibrateIMU\"> CALIBRATE </a></td>";
-    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/getServantIMU\"> GET IMU </a></td>";
-    servantData += "<td><a href=\"http://" + IpAddress2String(WiFi.softAPIP()) + "/deleteServantIMU\"> ERASE IMU </a></td>";
+    servant_data += "<td><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "/_\"> CALIBRATE </a></td>";
+    servant_data += "<td><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "/getServantIMU\"> GET IMU </a></td>";
+    servant_data += "<td><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "/deleteServantIMU\"> ERASE IMU </a></td>";
 #endif // USING_IMU
-    return servantData + "</tr>";
+    return servant_data + "</tr>";
   }
   else if(var == "BATTERYPERCENT") {
-    return String(getBatteryPercentage(), 2);
+    return String(get_battery_percentage(), 2);
   }
   else if(var == "DRIFTERID") {
-    return drifterName;
+    return drifter_name;
   }
   else if(var == "LORASENDSEC") {
-    return String(drifterTimeSlotSec);
+    return String(drifter_time_slot_sec);
   }
 #ifdef USING_MESH
   else if(var == "DIAGNOSTICS") {
-    String diagnosticString =
+    String diagnostic_string =
       R"rawliteral(
       <br><br>
       <h4>Diagnostics</h4>
@@ -905,26 +905,26 @@ static String processor(const String & var) {
           <td><b>Sent</b></td>
           <td><b>Rcvd</b></td>
         )rawliteral";
-      if(masterRx > 0) {
-        diagnosticString += "<td><b>Master</b></td>";
+      if(master_rx > 0) {
+        diagnostic_string += "<td><b>Master</b></td>";
       }
       for(int ii = 0; ii < NUM_NODES; ii++) {
-        if(nodeRx[ii] > 0) {
-          diagnosticString += "<td><b>D" + String(ii) + "</b></td>";
+        if(node_rx[ii] > 0) {
+          diagnostic_string += "<td><b>D" + String(ii) + "</b></td>";
         }
       }
-      diagnosticString += "<tr>";
-      diagnosticString += "<td>" + String(messagesSent) + "</td>";
-      diagnosticString += "<td>" + String(messagesReceived) + "</td>";
-      if(masterRx > 0) {
-        diagnosticString += "<td>" + String(masterRx) + "</td>";
+      diagnostic_string += "<tr>";
+      diagnostic_string += "<td>" + String(messages_sent) + "</td>";
+      diagnostic_string += "<td>" + String(messages_received) + "</td>";
+      if(master_rx > 0) {
+        diagnostic_string += "<td>" + String(master_rx) + "</td>";
       }
       for(int ii = 0; ii < NUM_NODES; ii++) {
-        if(nodeRx[ii] > 0) {
-          diagnosticString += "<td>" + String(nodeRx[ii]) + "</td>";
+        if(node_rx[ii] > 0) {
+          diagnostic_string += "<td>" + String(node_rx[ii]) + "</td>";
         }
       }
-      return diagnosticString;
+      return diagnostic_string;
   }
 #endif // USING_MESH
   else {

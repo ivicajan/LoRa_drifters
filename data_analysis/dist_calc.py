@@ -2,7 +2,7 @@ import math
 from datetime import datetime
 
 # same as TinyGPS lib calc
-def getDistance(lat1, lon1, lat2, lon2):
+def get_distance(lat1, lon1, lat2, lon2):
     delta = math.radians(lon1-lon2)
     sdlong = math.sin(delta)
     cdlong = math.cos(delta)
@@ -38,8 +38,8 @@ def main():
     print('Total drift time')
     print(time_delta_s, 's\n')
 
-    d01_dist = getDistance(d01_lat1, d01_lon1, d01_lat2, d01_lon2)
-    d02_dist = getDistance(d02_lat1, d02_lon1, d02_lat2, d02_lon2)
+    d01_dist = get_distance(d01_lat1, d01_lon1, d01_lat2, d01_lon2)
+    d02_dist = get_distance(d02_lat1, d02_lon1, d02_lat2, d02_lon2)
     print('Total distance')
     print('D01: ', d01_dist, 'm')
     print('D02: ', d02_dist, 'm')

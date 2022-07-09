@@ -30,20 +30,17 @@
 #include <TinyGPS++.h>
 #include <EEPROM.h>
 
-#define ACC_CALI_PARA_ADDR 0
-#define MAG_CALI_PARA_ADDR 25
+#define ACC_CALI_PARA_ADDR (0)
+#define MAG_CALI_PARA_ADDR (25)
 
-static float lms_mb[6] = {1, 0, 1, 0, 1, 0};
+static float lms_mb[6] = {1.f, 0.f, 1.f, 0.f, 1.f, 0.f};
 volatile bool calibrate_imu = true;
 
 using namespace BLA;
 MPU9250 mpu;
 #define SAMPLE_PERIOD_ms 50
-float T_ = 0.15; //in Sec
-uint32_t last_T__=0;
-// int Freq_acc = 1000 / SAMPLE_PERIOD_ms; //40Hz
-// char in123 = 'a';         // char for input debug
-// char incomingByte = 'a';
+float T_ = 0.15f; //in Sec
+uint32_t last_T__ = 0;
 int count = 0;            //Count for drift velocity elimination
 
 // The TinyGPS++ object
@@ -53,28 +50,15 @@ extern TinyGPSPlus gps;
 BLA::Matrix<3> acc = {0.f, 0.f, 0.f};
 BLA::Matrix<3> acc_raw = {0.f, 0.f, 0.f};
 static BLA::Matrix<3> acc_old;
-BLA::Matrix<3> Rotation_matrix; 
-// float Acc_mag[2] = {0.f, 0.f};
-// float Acc[3][2] = {{}, {}};
-// float Vel[3][2];
-// float Pos[3][2] = {{}, {}};
-// float Acc_bias[3] = {0.f, 0.f, 0.f};
-float Yaw[2];
-// float thread_G = 0.01f;
-// int stationary = 1;
-// int count_S = 0, count_v = 0;
+BLA::Matrix<3> Rotation_matrix;
+float Yaw[2] = {};
 
-float Lat_o, Lng_o;
+float Lat_o = 0.f, Lng_o = 0.f;
 
 BLA::Matrix<3> U_INS;
-// BLA::Matrix<3> Y_INS = {0, 0, 0};
 BLA::Matrix<5> X_INS;
-// BLA::Matrix<3> N_INS = {0, 0, 0};
 BLA::Matrix<3> Y_GPS;
-// BLA::Matrix<3> N_GPS = {0, 0, 0};
-// BLA::Matrix<3> Bias = {0, 0, 0};
 static BLA::Matrix<3> Bias_Predic;
-// BLA::Matrix<3> U_E = {0, 0, 0};
 static BLA::Matrix<3> Y_E;
 static BLA::Matrix<8> X_E_Predic;
 static BLA::Matrix<8, 8> P;
@@ -99,15 +83,15 @@ static void Initial_Kalman() {
   big_diag.Fill(1);
 
   //Setup initial Guess:
-  const float P_0_[8] = {10.f, 10.f, 10.f, 10.f, 90.f * PI / 180.f, 5.f, 5.f, 25 * PI / 180.f};
-  const float R_[3] = {1.5, 1.5, 1.5 * PI / 180};
-  const float Q_[3] = {0.1, 0.1, 0.1 * PI / 180};
+  const float P_0_[8] = {10.f, 10.f, 10.f, 10.f, 90.f * PI / 180.f, 5.f, 5.f, 25.f * PI / 180.f};
+  const float R_[3] = {1.5f, 1.5f, 1.5f * PI / 180.f};
+  const float Q_[3] = {0.1f, 0.1f, 0.1f * PI / 180.f};
   for(int ii = 0; ii < 8; ii++) {
-    P_0(ii, ii) = P_0_[ii]*P_0_[ii];
+    P_0(ii, ii) = P_0_[ii] * P_0_[ii];
   }
   for(int ii = 0; ii < 3; ii++) {
-    R(ii, ii) = R_[ii]*R_[ii];
-    Q(ii, ii) = Q_[ii]*Q_[ii];
+    R(ii, ii) = R_[ii] * R_[ii];
+    Q(ii, ii) = Q_[ii] * Q_[ii];
   }
   Bias_Predic = {0, 0, 0};
 
@@ -140,10 +124,9 @@ static void Initial_Kalman() {
 
 void Update_Kalman() {
   uint32_t Current_T_ = millis();
-  //T_ = (float)(Current_T_ - last_T__) /1000.f;
-  
+
   //Parameters update
-  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0]-Yaw[1])/T_};
+  const BLA::Matrix<3> U_pre = {acc(0) * 9.81f, acc(1) * 9.81f, (Yaw[0]-Yaw[1]) / T_};
   C_ = {cos(Yaw[0]), sin(Yaw[0]), -sin(Yaw[0]), cos(Yaw[0])};
   A_E = (big_zero.Submatrix<2, 2>(0, 0) && big_diag.Submatrix<2, 2>(0, 0) && big_zero.Submatrix<4, 2>(0, 0)) ||
         big_zero.Submatrix<8, 3>(0, 0) ||
@@ -179,9 +162,9 @@ void Update_Kalman() {
     Bias_0(ii + 5) = Bias_Predic(ii);
   }
   X_E_Predic = Bias_0 + G_k * Y_E;
-  float v_conf = 0.5; //How much speed should be decreased. 0.3=30% decreased. 
-  X_E_Predic(0) += X_INS(0)*v_conf;
-  X_E_Predic(1) += X_INS(1)*v_conf;
+  const float v_conf = 0.5f; //How much speed should be decreased. 0.3=30% decreased.
+  X_E_Predic(0) += X_INS(0) * v_conf;
+  X_E_Predic(1) += X_INS(1) * v_conf;
 
   X_INS -= X_E_Predic.Submatrix<5, 1>(0, 0);
   Bias_Predic = X_E_Predic.Submatrix<3, 1>(5, 0);
@@ -218,12 +201,12 @@ void update_ref_location() {
 }
 
 static const float get_diff_dist(const float oringe, const float update_) {
-  return 6372795 * PI / 180 * (update_ - oringe);
+  return (float)6372795 * PI / 180.f * (update_ - oringe);
 }
 
 void get_current_location(float * lat, float * lng) {
-  *lat = X_INS(2) * 180 / (6372795 * PI) - Lat_o; //on south earth 
-  *lng = X_INS(3) * 180 / (6372795 * PI) + Lng_o;
+  *lat = X_INS(2) * 180.f / (float)(6372795 * PI) - Lat_o; //on south earth 
+  *lng = X_INS(3) * 180.f / (float)(6372795 * PI) + Lng_o;
 }
 
 static float get_sqre(BLA::Matrix<3> x, const int n) {
@@ -242,10 +225,6 @@ void measure_gps_data() {
              get_diff_dist(Lng_o, gps.location.lng()),
              Yaw[0]
             };
-    // Y_GPS = {gps.location.lat(),
-    //          gps.location.lng(),
-    //          Yaw[0]
-    //         };
   }
   else {
     Serial << "Location: INVALID";
@@ -255,21 +234,16 @@ void measure_gps_data() {
          << " Lon: " << Y_GPS(1)
          << " angle: " << Y_GPS(2) << "\n";
 #endif // DEBUG_MODE
-  //#ifdef DEBUG_MODE
-  //  Serial << "Lat: " <<  gps.location.lat()
-  //         << " Lon: " << gps.location.lng() << "\n";
-  //#endif // DEBUG_MODE
 }
 
 //Process Acceleration data to earth frame
 void measure_imu_data() {
-  acc_raw(0) = lms_mb[0]*mpu.getAccX() + lms_mb[1]; //get from mpu
-  acc_raw(1) = lms_mb[2]*mpu.getAccY() + lms_mb[3];
-  acc_raw(2) = lms_mb[4]*mpu.getAccZ() + lms_mb[5];
+  acc_raw(0) = lms_mb[0] * mpu.getAccX() + lms_mb[1]; //get from mpu
+  acc_raw(1) = lms_mb[2] * mpu.getAccY() + lms_mb[3];
+  acc_raw(2) = lms_mb[4] * mpu.getAccZ() + lms_mb[5];
   Rotation_matrix(0) = mpu.getRoll() / 180.f * PI;
   Rotation_matrix(1) = mpu.getPitch() / 180.f * PI;
   Rotation_matrix(2) = mpu.getYaw() / 180.f * PI;
-
 }
 
 void rotate_imu_data() {
@@ -277,9 +251,11 @@ void rotate_imu_data() {
   if(acc_raw(0) >= 2.f) {
     acc_raw(0) = 2.f;
   }
+
   if(acc_raw(1) >= 2.f) {
     acc_raw(1) = 2.f;
   }
+
   if(acc_raw(2) >= 2.f) {
     acc_raw(2) = 2.f;
   }
@@ -306,11 +282,6 @@ void rotate_imu_data() {
 #endif 
   Yaw[1] = Yaw[0];
   Yaw[0] = Rotation_matrix(2);
-  // if(calibrate_imu) {
-    // for(int ii = 0; ii < 3; ii++) {
-      // acc(ii) = lms_mb[2 * ii] * acc(ii) + lms_mb[2 * ii + 1];
-    // }
-  // }
 #ifdef DEBUG_MODE
   Serial << " Acc: " << acc << " Yaw[0]: " << Rotation_matrix(2)
          << " pitch: " << Rotation_matrix(1)
@@ -320,14 +291,14 @@ void rotate_imu_data() {
 }
 
 static bool imu_update(){
-	int diff=0;
-	for(int i=0; i<3; i++){
-		if(acc(i) != acc_old(i)){
-			diff = 1;
-			acc_old(i)=acc(i);
+	bool diff = false;
+	for(int ii = 0; ii < 3; ii++) {
+		if(acc(ii) != acc_old(ii)) {
+			diff = true;
+			acc_old(ii) = acc(ii);
 		}
 	}
-	return diff; 
+	return diff;
 }
 
 static void read_imu_cali_para(const int address, float * data, const int size) {
@@ -343,9 +314,9 @@ static void print_data_name(){
 }
 
 static void print_data(){
-	float x = acc(0)*9.81;
-	float y = acc(1)*9.81;
-	float z = acc(2)*9.81;
+	const float x = acc(0) * 9.81f;
+	const float y = acc(1) * 9.81f;
+	const float z = acc(2) * 9.81f;
 	Serial << int(millis()) << " " << x << " " << y << " " << z << " "
 			<< Rotation_matrix(0) << " " << Rotation_matrix(1) << " " << Rotation_matrix(2) 
 			<< '\n';
@@ -357,8 +328,6 @@ bool init_IMU() {
   Wire.begin();
   delay(1000);
   
-  //Yaw[1] = mpu.getYaw() / 180.f * PI;
-
   //Detect if MPU setup correctly
   if(!mpu.setup(0x68)) {  // change to your own address
     Serial << "MPU connection failed. Please check your connection with `connection_check` example.\n";
@@ -390,7 +359,7 @@ bool init_IMU() {
 #ifdef PRINT_DATA_SERIAL
   //Print data by serial 
   print_data_name();
-#endif
+#endif //PRINT_DATA_SERIAL
 #ifdef WAVE_TANK_TEST
   // A sample NMEA stream.
   const char *gpsStream =
@@ -452,7 +421,6 @@ static void LMS_para(const float x[], const int n, float * m_, float * b_) {
 static void write_imu_cali_para(const int address, const float * data, const int size) {
   for(int ii = 0; ii < size; ii += sizeof(float)) {
     EEPROM.writeFloat(ii + address, data[ii / sizeof(float)]);
-    //Serial.println(lms_mb[i]);
     Serial.println(EEPROM.readFloat(ii));
   }
   EEPROM.commit();
@@ -467,12 +435,7 @@ static void calibration_mag() {
 
 static void calibration_imu() {
   int n = 50;
-  //  float accx[6 * n] = {};
-  //  float accy[6 * n] = {};
-  //  float accz[6 * n] = {};
   float acc_cal_temp[3][6 * n] = {{}, {}, {}};
-  float m_;
-  float b_;
   Serial << " Get 100 samples \n";
   for(int jj = 0; jj < 6; jj++) {
     Serial << "Press k to continue\n";
@@ -510,7 +473,6 @@ static void calibration_imu() {
   }
   //Write data into Flash
   //EEPROM.begin(24);
-  int count_lms = 0;
   write_imu_cali_para(ACC_CALI_PARA_ADDR, lms_mb, sizeof(lms_mb));
   Serial.println("Store acc para done.");
   Serial << "para:";
@@ -560,7 +522,6 @@ void read_Serial_input() {
     switch(c) {
       case 'c':
         Serial << "Run Calibration: ----------------------\n";
-        //calibration[0] = 1;
         calibration_imu();
         break;
       case 'r':

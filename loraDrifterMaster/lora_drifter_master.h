@@ -1,7 +1,6 @@
-#ifndef LORADRIFTERMASTER_H
-#define LORADRIFTERMASTER_H
+#pragma once
 
-#include "src/loraDrifterLibs/loraDrifterDataTypes.h"
+#include "src/lora_drifter_libs/lora_drifter_data_types.h"
 
 // String literal for the main web page. Alter the processor function to display 
 // different html elements on the web page. e.g. %MASTER%.
@@ -60,5 +59,3 @@ static const char index_html[] PROGMEM = R"rawliteral(
   </body>
 </html>
 )rawliteral";
-
-#endif //LORADRIFTERMASTER_H

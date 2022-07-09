@@ -1,4 +1,4 @@
-#include "loraDrifterMaster.h"
+#include "lora_drifter_master.h"
 
 #define WIFI_SSID             ("DrifterMaster")      // Wifi ssid and password
 #define WIFI_PASSWORD         ("Tracker1")
@@ -12,7 +12,7 @@ static TaskHandle_t system_monitoring_task_handle;
 static TaskHandle_t listen_task_handle;
 static TaskHandle_t web_update_task_handle;
 
-#include "src/loraDrifterLibs/loraDrifter.h"
+#include "src/lora_drifter_libs/lora_drifter.h"
 
 extern TinyGPSPlus gps;
 extern AXP20X_Class PMU;

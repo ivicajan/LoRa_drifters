@@ -12,7 +12,7 @@
 
 // Comment this out when flashing a servant node.
 // TODO: move this to a better place
-// #define MESH_MASTER_MODE
+#define MESH_MASTER_MODE
 
 // Uncommenting this prevents the master from being added to the routing table, this allows for a servant node to be
 // forced to hop nodes, to reach master.

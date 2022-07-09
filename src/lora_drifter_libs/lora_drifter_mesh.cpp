@@ -12,7 +12,7 @@
 
 // Comment this out when flashing a servant node.
 // TODO: move this to a better place
-#define MESH_MASTER_MODE
+// #define MESH_MASTER_MODE
 
 // Uncommenting this prevents the master from being added to the routing table, this allows for a servant node to be
 // forced to hop nodes, to reach master.
@@ -31,7 +31,7 @@ extern SemaphoreHandle_t servant_semaphore;
 #else
 extern Packet packet;
 extern volatile uint32_t last_packet_received_time_ms;
-// extern SemaphoreHandle_t loraSemaphore;
+extern SemaphoreHandle_t lora_semaphore;
 #endif //MESH_MASTER_MODE
 
 extern byte routing_table[ROUTING_TABLE_SIZE];
@@ -49,18 +49,18 @@ extern volatile int local_link_rssi;
 extern volatile int master_rx;
 #endif // MESH_MASTER_MODE
 
-enum class ErrorType {
-  InvalidNodeID   = -9,
-  NoACK           = -8,
-  MasterModeErr   = -6,
-  NodeModeErr     = -5,
+enum class ErrorType : int {
+  InvalidNodeID    = -9,
+  NoACK            = -8,
+  MasterModeErr    = -6,
+  NodeModeErr      = -5,
   Frame_handlerErr = -4,
-  ACKModeErr      = -3,
-  PayloadErr      = -2,
-  Invalid         = -1,
+  ACKModeErr       = -3,
+  PayloadErr       = -2,
+  Invalid          = -1,
 };
 
-enum class ResultType: int {
+enum class ResultType : int {
   Failure = 0,
   Success = 1,
 };
@@ -414,36 +414,36 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
     switch(static_cast<MessageType>(type)) {
       case MessageType::RouteBroadcastServant:
         header[7] = 0x02;           // size_payload
-        // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+        xSemaphoreTake(lora_semaphore, portMAX_DELAY);
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.write(local_hop_count);  // RS payload
         LoRa.write(local_next_hop_ID); // RS payload
         LoRa.endPacket(true);
-        // xSemaphoreGive(loraSemaphore);
+        xSemaphoreGive(lora_semaphore);
         type_to_printout(type, router);
         break;
       case MessageType::DirectPayload:
       case MessageType::RouteRequest:
         header[7] = 0x18;
-        // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+        xSemaphoreTake(lora_semaphore, portMAX_DELAY);
         LoRa.beginPacket();
         LoRa.write(header, 8);
 #ifndef MESH_MASTER_MODE // for compiling
         LoRa.write((const uint8_t *)&packet, sizeof(Packet));
 #endif // MESH_MASTER_MODE
         LoRa.endPacket(true);
-        // xSemaphoreGive(loraSemaphore);
+        xSemaphoreGive(lora_semaphore);
         type_to_printout(type, router);
         break;
       case MessageType::ACK:
       case MessageType::Restart:
         header[7] = 0x00;
-        // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+        xSemaphoreTake(lora_semaphore, portMAX_DELAY);
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
-        // xSemaphoreGive(loraSemaphore);
+        xSemaphoreGive(lora_semaphore);
         type_to_printout(type, router);
         break;
       default:
@@ -457,11 +457,11 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
       case MessageType::ACK:
       case MessageType::Restart:
         header[7] = 0x00;
-        // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+        xSemaphoreTake(lora_semaphore, portMAX_DELAY);
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
-        // xSemaphoreGive(loraSemaphore);
+        xSemaphoreGive(lora_semaphore);
         type_to_printout(type, router);
         break;
       default:
@@ -485,7 +485,7 @@ int listener(const int frame_size, const int mode) {
     return static_cast<int>(ResultType::Failure);             // nothing to receive
   }
   // Parse Header
-  // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+  xSemaphoreTake(lora_semaphore, portMAX_DELAY);
   const byte size_header = LoRa.read();
   const byte type = LoRa.read();
   const byte router = LoRa.read();
@@ -494,21 +494,21 @@ int listener(const int frame_size, const int mode) {
   const byte sender = LoRa.read();
   const byte ttl = LoRa.read();
   const byte size_payload = LoRa.read();
-  // xSemaphoreGive(loraSemaphore);
+  xSemaphoreGive(lora_semaphore);
 
-  const bool valid_header = check_frame_header(mode, size_header,type, router, source, recipient, sender, ttl, size_payload);
+  const bool valid_header = check_frame_header(mode, size_header, type, router, source, recipient, sender, ttl, size_payload);
   if(valid_header) {
     messages_received++;
     inc_node_rx_counter(source);
-      PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
-      delay(1);
-      PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
+    PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
+    delay(1);
+    PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
 
     if(type == static_cast<byte>(MessageType::DirectPayload)) { // this will go direct to master
       Serial.print("Received DirectPayload packet from: 0x");
-      Serial.println((int)sender, HEX);
+      Serial.println(static_cast<int>(sender), HEX);
       Serial.print("Routed from: 0x");
-      Serial.println((int)source, HEX);
+      Serial.println(static_cast<int>(source), HEX);
 #ifdef MESH_MASTER_MODE
       if(num_logs >= MAX_NUM_LOGS) {
         message_log = "";
@@ -526,9 +526,9 @@ int listener(const int frame_size, const int mode) {
     }
     else if(type == static_cast<byte>(MessageType::RouteRequest)) { // this is a hop
       Serial.print("Received RouteRequest packet from: 0x");
-      Serial.println((int)sender, HEX);
+      Serial.println(static_cast<int>(sender), HEX);
       Serial.print("Routed from: 0x");
-      Serial.println((int)source, HEX);
+      Serial.println(static_cast<int>(source), HEX);
     }
     return frame_handler(mode, type, router, source, recipient, sender, ttl); // 1 or E (-6 to -1)
   }
@@ -551,19 +551,15 @@ static bool wait_for_ack(const byte router) {
 
 static int ack_handshake(const int mode, const byte type, const byte router, const byte recipient, const byte sender, const byte ttl, int resend) {
   // If no ACK received, resend two more times.
-  // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
   send_frame(mode, type, router, recipient, sender, ttl);
   bool ack = wait_for_ack(router);
-  // xSemaphoreGive(loraSemaphore);
 
   while(!ack && resend < 2) {
-    // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
     send_frame(mode, type, router, recipient, sender, ttl);
     ack = wait_for_ack(router);
-    // xSemaphoreGive(loraSemaphore);
     resend++;
   }
-  return (!ack) ? static_cast<byte>(ResultType::Failure) : static_cast<byte>(ResultType::Success);
+  return !ack ? static_cast<byte>(ResultType::Failure) : static_cast<byte>(ResultType::Success);
 }
 
 int route_payload(const int mode, const byte recipient, const byte sender, const byte ttl, const int resend) {
@@ -589,10 +585,10 @@ static int frame_handler(const int mode, const byte type, const byte router, con
   if(mode == SERVANT_MODE) {
     switch(static_cast<MessageType>(type)) {
       case MessageType::RouteBroadcastMaster: {
-        // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+        xSemaphoreTake(lora_semaphore, portMAX_DELAY);
         const int rssi = LoRa.packetRssi();
         const float snr = LoRa.packetSnr();
-        // xSemaphoreGive(loraSemaphore);
+        xSemaphoreGive(lora_semaphore);
         const unsigned long time = millis();
         result = insert_routing_table(sender, 0x01, MASTER_LOCAL_ID, rssi, snr, time);
         if(result != static_cast<int>(ResultType::Success)) {
@@ -601,12 +597,12 @@ static int frame_handler(const int mode, const byte type, const byte router, con
         return set_routing_status();
       }
       case MessageType::RouteBroadcastServant: {
-        // xSemaphoreTake(loraSemaphore, portMAX_DELAY);
+        xSemaphoreTake(lora_semaphore, portMAX_DELAY);
         const byte hop_count = LoRa.read();     // Parsing Payload
         const byte next_hop_ID = LoRa.read();
         const int rssi = LoRa.packetRssi();
         const float snr = LoRa.packetSnr();
-        // xSemaphoreGive(loraSemaphore);
+        xSemaphoreGive(lora_semaphore);
         const unsigned long time = millis();
         result = insert_routing_table(sender, hop_count, next_hop_ID, rssi, snr, time);
         if(result != static_cast<int>(ResultType::Success)) {
@@ -620,7 +616,8 @@ static int frame_handler(const int mode, const byte type, const byte router, con
         if(result == static_cast<int>(ResultType::Success)) {
           send_ack_back(mode, source);
           return static_cast<int>(ResultType::Success);
-        } else {
+        }
+        else {
           return static_cast<int>(ErrorType::NoACK);
         }
       }
@@ -753,22 +750,25 @@ static int set_routing_status() {
       const byte best_route = static_cast<byte>(best_route_int);
       if(min_hop_count != 0x00 && best_route != 0x00) {
         // valid route
-        local_hop_count = min_hop_count + 1;
+        local_hop_count = min_hop_count + 0x01;
         local_next_hop_ID = best_route;
 #ifndef MESH_MASTER_MODE
         local_link_rssi =  *(int *)(&routing_table[3]);
 #endif // MESH_MASTER_MODE
         return static_cast<int>(ResultType::Success);
-      } else {
+      }
+      else {
         return static_cast<int>(ErrorType::Invalid);
       }
-    } else {
+    }
+    else {
       // master is inside the routing table
       local_next_hop_ID = MASTER_LOCAL_ID;
       local_hop_count = 0x01;
       return static_cast<int>(ResultType::Success);
-    } 
-  } else {
+    }
+  }
+  else {
     // empty table
     local_next_hop_ID = 0x00;
     local_hop_count = 0x00;

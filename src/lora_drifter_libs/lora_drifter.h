@@ -3,7 +3,7 @@
 
 #define USING_MESH        // Comment this defintion to prevent the use of mesh network functionality
 // #define DEBUG_MODE        // Additional printouts to serial port
-// #define IGNORE_GPS_INSIDE // For testing indoors, so we dont just send on only GPS second
+#define IGNORE_GPS_INSIDE // For testing indoors, so we dont just send on only GPS second
 
 // A. WiFi & Web Server
 #include <WiFi.h>

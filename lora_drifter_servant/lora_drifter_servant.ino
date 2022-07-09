@@ -22,7 +22,7 @@ SPIClass * hspi = NULL;
 
 // this shouldnt be a thing but esp32 seems very tempremental in using semaphores (RTOS),
 // using semaphores gives us thread safety
-// #define USING_SEMAPHORES
+#define USING_SEMAPHORES
 
 #ifdef USING_IMU
 #include "mpu/imu.h"
@@ -68,7 +68,7 @@ Packet packet;
 static drifter_status_t drifter_state; // status flags of the drifter state
 
 #ifdef USING_SEMAPHORES
-static SemaphoreHandle_t lora_semaphore = NULL; // only used here as its commented out elsewhere
+SemaphoreHandle_t lora_semaphore = NULL; // only used here as its commented out elsewhere
 static SemaphoreHandle_t drifter_state_mutex = NULL;
 #endif //USING_SEMAPHORES
 static TaskHandle_t send_task_handle;
@@ -441,11 +441,11 @@ static void read_config_file() {
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+    xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      drifter_state.b.config_error = 1;
+    drifter_state.b.config_error = 1;
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifter_state_mutex);
+    xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
   }
   else {
@@ -520,10 +520,8 @@ static float get_capacity_used() {
 
 void setup() {
 #ifdef USING_SEMAPHORES
-  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
   lora_semaphore = xSemaphoreCreateMutex();
   drifter_state_mutex = xSemaphoreCreateMutex();
-  xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
   init_board();
 #ifdef USING_SD_CARD
@@ -541,7 +539,7 @@ void setup() {
 #ifdef USING_SEMAPHORES
   xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-  memset(&drifter_state, 0, sizeof(drifter_status_r));
+  drifter_state.r = 0;
 #ifdef USING_IMU
   const bool init_IMU_ok = init_IMU();
   drifter_state.b.imu_used = 1;

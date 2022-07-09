@@ -410,7 +410,7 @@ static void send_task(void * params) {
   bool sent_bcast = false;
   while(1) {
 #ifdef IGNORE_GPS_INSIDE
-    if(loop_runEvery(RS_BCAST_TIME)) {
+    if(loop_run_every(RS_BCAST_TIME)) {
 #else 
     if(gps.time.second() == RS_BCAST_TIME / 1000 && !sent_bcast) { // time is in ms
 #endif // IGNORE_GPS_INSIDE

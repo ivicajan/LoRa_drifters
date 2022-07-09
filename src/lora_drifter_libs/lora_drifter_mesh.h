@@ -1,5 +1,4 @@
-#ifndef LORADRIFTERMESH_H
-#define LORADRIFTERMESH_H
+#pragma once
 
 #include "Arduino.h" // for byte type
 
@@ -88,5 +87,3 @@ int route_payload(const int mode, const byte recipient, const byte sender, const
  * @return the status of the broadcast
  */
 int bcast_routing_status(const int mode);
-
-#endif // LORADRIFTERMESH_H

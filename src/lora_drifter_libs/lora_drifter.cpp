@@ -1,4 +1,4 @@
-#include "loraDrifter.h"
+#include "lora_drifter.h"
 
 AXP20X_Class PMU;
 TinyGPSPlus gps;                      // decoder for GPS stream
@@ -8,13 +8,6 @@ AsyncWebServer server(80);            // Create AsyncWebServer object on port 80
 #define BATT_MIN_BATTERY_VOLTAGE_MV (3200.f)
 #define BATT_VOLTAGE_RANGE_MV       (BATT_MAX_BATTERY_VOLTAGE_MV - BATT_MIN_BATTERY_VOLTAGE_MV)
 
-// Note, the previous formula for calculating battery precentages was incorrect
-// In order to convert the previous precentages to an actual percent, a conversion needs to be used
-// here is the change in Python
-// magic_conversion: float = 2.380952381
-// drifter.Battery = drifter.Battery.astype(float)
-// drifter.Battery = (drifter.Battery * 100.0) / magic_conversion
-// drifter.Battery = (drifter.Battery - 3200.0) / 10.0
 float get_battery_percentage() {
     return ((PMU.getBattVoltage() - BATT_MIN_BATTERY_VOLTAGE_MV) / BATT_VOLTAGE_RANGE_MV) * 100.f;
 }
@@ -96,10 +89,10 @@ static void init_lights_and_pins() {
       * * * * */
 #if LED_ON == LOW
     gpio_hold_dis(GPIO_NUM_4);
-#endif
+#endif //LED_ON == LOW
     pinMode(BOARD_LED, OUTPUT);
     digitalWrite(BOARD_LED, LED_ON);
-#endif
+#endif //BOARD_LED
     delay(50);
     pinMode(WEB_SERVER_PIN, INPUT);
     delay(50);

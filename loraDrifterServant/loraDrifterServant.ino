@@ -1,4 +1,4 @@
-#include "src/loraDrifterLibs/loraDrifter.h"
+#include "src/lora_drifter_libs/lora_drifter.h"
 
 // #define USING_SD_CARD
 
@@ -40,9 +40,6 @@ String csv_IMU_out_str = "";
 static TaskHandle_t imu_task_handle;
 #endif // USING_IMU
 
-#define SSID     "DrifterServant"   // Wifi ssid and password
-#define PASSWORD "Tracker1"
-
 #define LAST_PACKET_TIMEOUT_ms (600000)
 volatile uint32_t last_packet_received_time_ms = 0;
 
@@ -63,6 +60,9 @@ static volatile int gps_last_second = -1;
 static String t_time = "";
 static String drifter_name = "D05";       // ID send with packet
 static volatile int drifter_time_slot_sec = 25;      // seconds after start of each GPS minute
+
+static String ssid_name = "DrifterServant";    // Wifi ssid and password
+#define SSID_PASSWORD "Tracker1"
 
 Packet packet;
 static drifter_status_t drifter_state; // status flags of the drifter state
@@ -723,7 +723,7 @@ static void start_web_server(const bool web_server_on) {
     Serial.println("Turning web server off");
   }
   else {
-    WiFi.softAP(SSID, PASSWORD);
+    WiFi.softAP(String(ssid_name + drifter_name).c_str(), SSID_PASSWORD);
     Serial.println(WiFi.softAPIP());  // Print ESP32 Local IP Address
 
     // F. Web Server Callbacks setup

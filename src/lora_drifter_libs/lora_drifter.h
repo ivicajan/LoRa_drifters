@@ -14,17 +14,14 @@
 #include <SPI.h>
 #include <LoRa.h>
 
-// B1. SPIFFS
 #include "SPIFFS.h"
 
-// C. GPS libraries
 #include <Wire.h>           // for reseting NMEA output from some T-Beam units
 #include <TinyGPS++.h>      // decoding GPS
 
-// D. Power management on the TTGo T-beam
-#include "axp20x.h"         // PMU library
+#include "axp20x.h"         // PMU library - Power management on the TTGo T-beam
 
-#include "loraDrifterDataTypes.h"
+#include "lora_drifter_data_types.h"
 
 // Defines for TTGO T Beam V1.1 with LoRa
 #define GPS_RX_PIN                  (34)
@@ -64,7 +61,7 @@
 
 
 #ifdef USING_MESH
-#include "loraDrifterMesh.h"
+#include "lora_drifter_mesh.h"
 #endif //USING_MESH
 
 /**

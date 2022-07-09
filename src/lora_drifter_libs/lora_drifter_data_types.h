@@ -1,5 +1,4 @@
-#ifndef LORADRIFTERDATATYPES_H
-#define LORADRIFTERDATATYPES_H
+#pragma once
 
 #include <TinyGPS++.h>
 
@@ -68,7 +67,6 @@ typedef struct {
 // G. Classes for Master and Servant Data
 class Servant {
   public:
-    Servant() = default;
     void decode(const Packet * const packet) {
       drifter_time_slot_sec = packet->drifter_time_slot_sec;
       last_update_master_time = millis();
@@ -108,7 +106,4 @@ class Servant {
     float bear = 0.f;
     int rssi = 0;
     bool active = false;
-    ~Servant() = default;
 };
-
-#endif //LORADRIFTERDATATYPES_H

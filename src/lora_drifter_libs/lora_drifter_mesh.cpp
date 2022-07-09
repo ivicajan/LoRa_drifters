@@ -1,12 +1,10 @@
-#include "loraDrifterMesh.h"
+#include "lora_drifter_mesh.h"
 
-#include "loraDrifterDataTypes.h"
+#include "lora_drifter_data_types.h"
 
-// B. LoRa
 #include <LoRa.h>
 
-// D. Power management on the TTGo T-beam
-#include "axp20x.h"
+#include "axp20x.h" //Power management on the TTGo T-beam
 
 // Timing Parameters
 #define DELETION_TIME             (62000)   // Reset the routing table if entry's time is older than 62s

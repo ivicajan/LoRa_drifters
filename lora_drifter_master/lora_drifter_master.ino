@@ -5,8 +5,8 @@
 
 // #define OUTPUT_SYSTEM_MONITOR
 
-SemaphoreHandle_t servant_semaphore = NULL;
-static SemaphoreHandle_t lora_semaphore = NULL;
+SemaphoreHandle_t servant_mutex = NULL;
+SemaphoreHandle_t lora_mutex = NULL;
 
 static TaskHandle_t system_monitoring_task_handle;
 static TaskHandle_t listen_task_handle;
@@ -41,7 +41,7 @@ String message_log = "";
 // Diagnostics
 volatile int messages_sent = 0;
 volatile int messages_received = 0;
-int node_rx[NUM_NODES]; // array of receiving message counts
+int node_rx[NUM_NODES] = {0}; // array of receiving message counts
 #endif // USING_MESH
 
 static String processor(const String & var) {
@@ -65,13 +65,13 @@ static String processor(const String & var) {
           <td><b>Sent</b></td>
           <td><b>Rcvd</b></td>
         )rawliteral";
-    xSemaphoreTake(servant_semaphore, portMAX_DELAY);
+    xSemaphoreTake(servant_mutex, portMAX_DELAY);
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
         diagnostic_string += "<td><b>D" + String(ii) + "</b></td>";
       }
     }
-    xSemaphoreGive(servant_semaphore);
+    xSemaphoreGive(servant_mutex);
     return diagnostic_string += "</tr>" + diagnostic_data;
   }
   else if(var == "STATUSFLAGS") {
@@ -97,7 +97,7 @@ static String processor(const String & var) {
             <td><b>Statuses</b></td>
           </tr>
           )rawliteral";
-      xSemaphoreTake(servant_semaphore, portMAX_DELAY);
+      xSemaphoreTake(servant_mutex, portMAX_DELAY);
       for(int ii = 0; ii < NUM_NODES; ii++) {
         if(servants[ii].active) {
           uint8_t status_tmp = 0;
@@ -107,7 +107,7 @@ static String processor(const String & var) {
           }
         }
       }
-      xSemaphoreGive(servant_semaphore);
+      xSemaphoreGive(servant_mutex);
       return status_string;
     }
     else{
@@ -195,7 +195,7 @@ static void on_receive(const int packet_size) {
       Serial.println("ID not in between 1 and 10");
     }
     else {
-      xSemaphoreTake(servant_semaphore, portMAX_DELAY);
+      xSemaphoreTake(servant_mutex, portMAX_DELAY);
       servants[id].ID = id;
       servants[id].decode(&packet);
       servants[id].rssi = LoRa.packetRssi();
@@ -206,7 +206,7 @@ static void on_receive(const int packet_size) {
       const String t_location = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
       csv_out_str += t_date + "," + t_time + "," + t_location + '\n';
 
-      xSemaphoreGive(servant_semaphore);
+      xSemaphoreGive(servant_mutex);
       Serial.println("RX from LoRa - decoding completed");
     }
   }
@@ -268,8 +268,8 @@ void setup() {
   delay(50);
   init_web_server();
   delay(50);
-  servant_semaphore = xSemaphoreCreateMutex();
-  lora_semaphore = xSemaphoreCreateMutex();
+  servant_mutex = xSemaphoreCreateMutex();
+  lora_mutex = xSemaphoreCreateMutex();
   xTaskCreatePinnedToCore(listen_task, "listen_task", 8000, NULL, 1, &listen_task_handle, 1);
   delay(500);
 #ifdef USING_MESH
@@ -326,7 +326,8 @@ void Master::generate_master() {
     if((this->lng != 0.0) && (this->age < 1000)) {
       csv_out_str += "Master," + t_date + "," + t_time + "," + String(this->lng, 6) + "," + String(this->lat, 6) + "," + String(this->age) + "," + String(get_battery_percentage(), 2) + '\n';
       n_samples++;
-    } else {
+    }
+    else {
       Serial.println("No GPS fix, not writing local data!");
     }
     gps_last_second = gps.time.second();
@@ -360,15 +361,10 @@ static void system_monitoring_task(void * params){
 static void listen_task(void * params) {
   (void)params;
   disableCore0WDT(); // Disable watchdog to keep process alive
-#ifdef USING_MESH
-  memset(node_rx, 0, sizeof(node_rx)); // set received array to 0s
-#endif // USING_MESH
   while(1) {
-    xSemaphoreTake(lora_semaphore, portMAX_DELAY); // when using portMAX_DELAY - we don't need to check if result == pdPASS
 #ifdef USING_MESH
     const int result = listener(LoRa.parsePacket(), MASTER_MODE);
 #endif // USING_MESH
-    xSemaphoreGive(lora_semaphore);
   }
 }
 
@@ -386,18 +382,23 @@ static String drifter_status_flag_to_string(drifter_status_t * drifter_status_in
   // if(drifter_status_in->b->mesh_used == 1){
   //   string_out += "USING MESH";
   // }
+
   if(drifter_status_in->b.config_error == 1){
     string_out += "CONFIG ERROR -  ";
   }
+
   if(drifter_status_in->b.low_battery == 1){
     string_out += "LOW BATTERY -  ";
   }
+
   if(drifter_status_in->b.low_battery == 1){
     string_out += "SAVE ERROR -  ";
   }
+
   if(drifter_status_in->b.save_error == 1){
     string_out += "SPIFFS ERROR -  ";
   }
+
   if(drifter_status_in->b.low_storage == 1){
     string_out += "LOW STORAGE -  ";
   }
@@ -415,10 +416,8 @@ static void send_task(void * params) {
     if(gps.time.second() == RS_BCAST_TIME / 1000 && !sent_bcast) { // time is in ms
 #endif // IGNORE_GPS_INSIDE
       PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
-      xSemaphoreTake(lora_semaphore, portMAX_DELAY);
       Serial.println("Route broadcast");
       bcast_routing_status(MASTER_MODE);
-      xSemaphoreGive(lora_semaphore);
       delay(50);
       PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
       sent_bcast = true;
@@ -455,7 +454,7 @@ static void web_update_task(void * params) {
     servants_data += "<td><b>Restart</b></td>";
 #endif // USING_MESH
     servants_data += "</tr>";
-    xSemaphoreTake(servant_semaphore, portMAX_DELAY);
+    xSemaphoreTake(servant_mutex, portMAX_DELAY);
     String temp_class_colour = "";
     for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
       const uint32_t last_update = (millis() - servants[ii].last_update_master_time) / 1000;
@@ -494,18 +493,18 @@ static void web_update_task(void * params) {
       }
     }
     servants_data += "</table>";
-    xSemaphoreGive(servant_semaphore);
+    xSemaphoreGive(servant_mutex);
 #ifdef USING_MESH
     diagnostic_data = "<tr>";
     diagnostic_data += "<td>" + String(messages_sent) + "</td>";
     diagnostic_data += "<td>" + String(messages_received) + "</td>";
-    xSemaphoreTake(servant_semaphore, portMAX_DELAY);
+    xSemaphoreTake(servant_mutex, portMAX_DELAY);
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
         diagnostic_data += "<td>" + String(node_rx[ii]) + "</td>";
       }
     }
-    xSemaphoreGive(servant_semaphore);
+    xSemaphoreGive(servant_mutex);
     diagnostic_data += "</tr>";
 #endif // USING_MESH
     // D. Write data to onboard flash

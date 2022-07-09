@@ -85,7 +85,7 @@ byte local_address = index_to_id(drifter_name.substring(1, 3).toInt());
 // Diagnostics
 volatile int messages_sent = 0;
 volatile int messages_received = 0;
-int node_rx[NUM_NODES] = {};
+int node_rx[NUM_NODES] = {0};
 volatile int master_rx = 0;
 #endif // USING_MESH
 

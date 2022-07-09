@@ -12,7 +12,7 @@
 
 // Comment this out when flashing a servant node.
 // TODO: move this to a better place
-// #define MESH_MASTER_MODE
+#define MESH_MASTER_MODE
 
 // Uncommenting this prevents the master from being added to the routing table, this allows for a servant node to be
 // forced to hop nodes, to reach master.
@@ -27,12 +27,12 @@ static volatile int num_logs = 0;
 extern TinyGPSPlus gps;
 extern Master master;
 extern Servant servants[NUM_MAX_SERVANTS];           // Servants data array
-extern SemaphoreHandle_t servant_semaphore;
+extern SemaphoreHandle_t servant_mutex;
 #else
 extern Packet packet;
 extern volatile uint32_t last_packet_received_time_ms;
-extern SemaphoreHandle_t lora_mutex;
 #endif //MESH_MASTER_MODE
+extern SemaphoreHandle_t lora_mutex;
 
 extern byte routing_table[ROUTING_TABLE_SIZE];
 extern byte payload[24];
@@ -69,6 +69,7 @@ static int parse_payload() {
 #ifdef MESH_MASTER_MODE
   Packet packet;
 #endif // MESH_MASTER_NODE
+  xSemaphoreTake(lora_mutex, portMAX_DELAY);
   if(LoRa.available() == sizeof(Packet)) {
     uint8_t buffer[sizeof(Packet)];
     for(size_t ii = 0; ii < sizeof(Packet); ii++) {
@@ -82,7 +83,7 @@ static int parse_payload() {
     if(!strcmp(name.substring(0, 1).c_str(), "D")) {
       Serial.println("Drifter signal found!");
       const int id = name.substring(1, 3).toInt();
-      xSemaphoreTake(servant_semaphore, portMAX_DELAY);
+      xSemaphoreTake(servant_mutex, portMAX_DELAY);
       servants[id].ID = id;
       servants[id].decode(&packet);
       servants[id].rssi = LoRa.packetRssi();
@@ -93,16 +94,18 @@ static int parse_payload() {
       const String t_time = String(servants[id].hour) + ":" + String(servants[id].minute) + ":" + String(servants[id].second);
       const String t_location = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
       csv_out_str += "D" + String(id) + "," + t_date + "," + t_time + "," + t_location  + "," + String(servants[id].batt_percent, 2) + '\n';
-
-      xSemaphoreGive(servant_semaphore);
+      xSemaphoreGive(servant_mutex);
     }
     else {
       Serial.println("Not a complete drifter packet");
+      xSemaphoreGive(lora_mutex);
       return static_cast<int>(ErrorType::PayloadErr);
     }
 #endif // MESH_MASTER_MODE
+    xSemaphoreGive(lora_mutex);
     return static_cast<int>(ResultType::Success);
   }
+  xSemaphoreGive(lora_mutex);
   return static_cast<int>(ErrorType::PayloadErr);
 }
 
@@ -237,21 +240,16 @@ bool loop_run_every(const unsigned long interval) {
 static void delete_old_entries() {
   // Reset when entry's time is older than DELETION_TIME
   const uint32_t current_time = millis();
-  long int last_time = 0;
-  int time_index = 0;
-  int difference = 0;
-  int new_index = 0;
-  
   for(int ii = 0; ii < NUM_NODES; ii++) {
-    time_index = (ii * ROUTING_TABLE_ENTRY_SIZE) + 11;
-    
-    last_time = *(long int *)(&routing_table[time_index]);
-    difference = current_time - last_time;
+    const int time_index = (ii * ROUTING_TABLE_ENTRY_SIZE) + 11;
+
+    const long int last_time = *(long int *)(&routing_table[time_index]);
+    const int difference = current_time - last_time;
 
     // Sets all 19 fields of an entry to 0x00
     if(difference > DELETION_TIME) {
       for(int jj = 0; jj < 18; jj++) {
-        new_index = (ii * ROUTING_TABLE_ENTRY_SIZE) + jj;
+        const int new_index = (ii * ROUTING_TABLE_ENTRY_SIZE) + jj;
         routing_table[new_index] = 0x00;
       }
     }
@@ -281,11 +279,10 @@ static bool is_master_in_table() {
 
 static int find_min_hop_count() {
   int min_hop_count = 255;
-  int current_hop_count = 0;
 
   for(int idx = 0; idx < NUM_NODES; idx++) {
     const byte hop_count = routing_table[(idx * ROUTING_TABLE_ENTRY_SIZE) + 1];
-    current_hop_count = static_cast<int>(hop_count);
+    const int current_hop_count = static_cast<int>(hop_count);
     if((current_hop_count != 0) && (current_hop_count < min_hop_count)) {
       min_hop_count = current_hop_count;
     }
@@ -301,30 +298,37 @@ static bool check_frame_header(const int mode, const byte size_header, const byt
     Serial.println("check_frame_header: invalid size_header");
     return false;
   }
+
   if(type < static_cast<byte>(MessageType::RouteBroadcastMaster) || type > static_cast<byte>(MessageType::Restart)) {
     Serial.println("check_frame_header: invalid type");
     return false; 
   }
+
   if(!validate_ID(router)) {
     Serial.println("check_frame_header: invalid router");
     return false;
   }
+
   if(!validate_ID(source)) {
     Serial.println("check_frame_header: invalid source");
     return false;
   }
+
   if(!validate_ID(recipient)) {
     Serial.println("check_frame_header: invalid recipient");
     return false;
   }
+
   if(!validate_ID(sender)) {
     Serial.println("check_frame_header: invalid sender");
     return false;
   }
+
   if(ttl > 0x0F || ttl == 0x00) {
     Serial.println("check_frame_header: invalid ttl");
     return false;
   }
+
   if(size_payload != 0x02 && size_payload != 0x18 && size_payload != 0x00) {
     Serial.println("check_frame_header: invalid size_payload");
     return false; 

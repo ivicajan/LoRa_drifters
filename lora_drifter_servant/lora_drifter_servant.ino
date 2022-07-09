@@ -68,7 +68,7 @@ Packet packet;
 static drifter_status_t drifter_state; // status flags of the drifter state
 
 #ifdef USING_SEMAPHORES
-SemaphoreHandle_t lora_semaphore = NULL; // only used here as its commented out elsewhere
+SemaphoreHandle_t lora_mutex = NULL; // only used here as its commented out elsewhere
 static SemaphoreHandle_t drifter_state_mutex = NULL;
 #endif //USING_SEMAPHORES
 static TaskHandle_t send_task_handle;
@@ -180,7 +180,8 @@ static void write_data_to_flash() {
     if(file.println(csv_out_str)) {
       Serial.print("Wrote data in file, current size: ");
       const uint32_t file_size_after_save = file.size();
-      Serial.println(file_size_after_save);
+      Serial.print(file_size_after_save);
+      Serial.println(" bytes");
       storage_used = file_size_after_save * 0.000001f; // convert to MB
       csv_out_str = "";
       n_samples = 0;
@@ -225,7 +226,8 @@ static void write_IMU_data_to_flash() {
   else {
     if(imu_file.println(csv_IMU_out_str)) {
       Serial.print("Wrote data in imu file, current size: ");
-      Serial.println(imu_file.size());
+      Serial.print(imu_file.size());
+      Serial.println(" bytes");
       csv_IMU_out_str = "";
       storage_used += imu_file.size() * 0.000001f; // convert to MB
     }
@@ -520,7 +522,7 @@ static float get_capacity_used() {
 
 void setup() {
 #ifdef USING_SEMAPHORES
-  lora_semaphore = xSemaphoreCreateMutex();
+  lora_mutex = xSemaphoreCreateMutex();
   drifter_state_mutex = xSemaphoreCreateMutex();
 #endif //USING_SEMAPHORES
   init_board();

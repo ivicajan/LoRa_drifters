@@ -1,6 +1,4 @@
 #pragma once
-#ifndef MPU9250_H
-#define MPU9250_H
 
 #include <Wire.h>
 
@@ -1014,5 +1012,3 @@ private:
 };
 
 using MPU9250 = MPU9250_<TwoWire>;
-
-#endif  // MPU9250_H

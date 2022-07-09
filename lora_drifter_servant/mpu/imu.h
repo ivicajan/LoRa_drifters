@@ -1,3 +1,5 @@
+#pragma once
+
 /* This code performs the MPU9250 IMU to predict the position
    The system is runing at 40Hz, the front Y-axis is pointing to West (Yaw = 0 degree)
    MPU library: https://github.com/hideakitai/MPU9250
@@ -18,8 +20,6 @@
               "d" :Increase threshold value for stationary by 0.001
               "r" :Rest position data to oringe(xyz=0,0,0).
 */
-#ifndef IMU_H
-#define IMU_H
 
 //#define PRINT_DATA_SERIAL
 #define SKIP_ROT_MAT //do not do rotation matrix
@@ -603,7 +603,5 @@ void check_stable_imu() {
 			<< " abs acc: " << fix[0]*1000
 			<< " acc: " << acc(0) << ' ' << acc(1)
 			<< '\n';
-#endif
+#endif //DEBUG_MODE
 }
-
-#endif //IMU_H

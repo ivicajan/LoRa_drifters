@@ -85,7 +85,7 @@ byte local_address = index_to_id(drifter_name.substring(1, 3).toInt());
 // Diagnostics
 volatile int messages_sent = 0;
 volatile int messages_received = 0;
-int node_rx[NUM_NODES];
+int node_rx[NUM_NODES] = {};
 volatile int master_rx = 0;
 #endif // USING_MESH
 
@@ -169,6 +169,7 @@ static void write_data_to_flash() {
     file = SPIFFS.open(csv_file_name, FILE_WRITE);
 #endif //USING_SD_CARD
   }
+
   if(!file) { // this shouldn't occur
       Serial.println("There was an error opening the file for writing");
       last_file_write = "FAILED OPEN";
@@ -216,6 +217,7 @@ static void write_IMU_data_to_flash() {
     imu_file = SPIFFS.open(csv_IMU_file_name, FILE_WRITE);
 #endif //USING_SD_CARD
   }
+
   if(!imu_file) { // this shouldn't occur
       Serial.println("There was an error opening the imu file for writing");
       ESP.restart();
@@ -328,6 +330,7 @@ static void send_task(void * params) {
     if(millis() - last_packet_received_time_ms > LAST_PACKET_TIMEOUT_ms) {
       ESP.restart();
     }
+
     if(digitalRead(BUTTON_PIN) == LOW) { //Check for button press
       if(web_server_on) {
         web_server_on = false;
@@ -364,21 +367,21 @@ static void send_task(void * params) {
     }
   if(!web_server_on) {
 #ifdef USING_MESH
-      int result = 0;
       generate_packet();
 #ifdef IGNORE_GPS_INSIDE
       if(run_every(PL_TX_TIME)) {
 #else
       if(gps.time.second() == drifter_time_slot_sec) {
 #endif //IGNORE_GPS_INSIDE
-        result = route_payload(SERVANT_MODE, MASTER_LOCAL_ID, local_address, 0x0F, 0);
+        route_payload(SERVANT_MODE, MASTER_LOCAL_ID, local_address, 0x0F, 0);
         PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
         delay(50);
         PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
       }
+
       if(loop_run_every(RS_BCAST_TIME)) {
         Serial.println("Route broadcast");
-        result = bcast_routing_status(SERVANT_MODE);   // returns 1 or -1
+        bcast_routing_status(SERVANT_MODE);   // returns 1 or -1
         PMU.setChgLEDMode(AXP20X_LED_LOW_LEVEL); // LED full on
         delay(50);
         PMU.setChgLEDMode(AXP20X_LED_OFF); // LED off
@@ -421,6 +424,7 @@ static void init_LoRa(bool default_params = false) {
     // Enable CRC --> if packet is corrupted, packet gets dropped silently
     LoRa.enableCrc();
   }
+
   if(!LoRa.begin(LORA_FREQUENCY)) {
     Serial.println("LoRa init failed. Check your connections.");
     while(true); // if failed, do nothing
@@ -610,8 +614,8 @@ static void fill_packet() {
   xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
 #ifdef DEBUG_MODE
-  Serial << "Raw Lat: " << float(packet.lat) << " Lng: " << float(packet.lng) << '\n';
-#endif
+  Serial << "Raw Lat: " << static_cast<float>(packet.lat) << " Lng: " << static_cast<float>(packet.lng) << '\n';
+#endif // DEBUG_MODE
 }
 
 #ifdef USING_MESH
@@ -658,18 +662,18 @@ static void generate_packet() {
       for(int ii = 0; ii < 5; ii++) {
         csv_IMU_out_str += String(X_INS(ii), 4)+ ",";
       }
-       for(int ii = 0; ii < 3; ii++) {
+      for(int ii = 0; ii < 3; ii++) {
          csv_IMU_out_str += String(Y_GPS(ii), 4)+ ",";
-       }
-       for(int ii = 0; ii < 3; ii++) {
-         csv_IMU_out_str += String(acc_raw(ii), 4)+ ",";
-       }
-       for(int ii = 0; ii < 3; ii++) {
-         csv_IMU_out_str += String(Rotation_matrix(ii), 4)+ ",";
-       }
-       for(int ii = 0; ii < 2; ii++) {
-         csv_IMU_out_str += String(Updated_GPS(ii), 6)+ ",";
-       }
+      }
+      for(int ii = 0; ii < 3; ii++) {
+        csv_IMU_out_str += String(acc_raw(ii), 4)+ ",";
+      }
+      for(int ii = 0; ii < 3; ii++) {
+        csv_IMU_out_str += String(Rotation_matrix(ii), 4)+ ",";
+      }
+      for(int ii = 0; ii < 2; ii++) {
+        csv_IMU_out_str += String(Updated_GPS(ii), 6)+ ",";
+      }
       csv_IMU_out_str += "\n";
 #endif //USING_IMU
       const String t_location = String(packet.lng, 6) + "," + String(packet.lat, 6) + "," + String(packet.age);
@@ -731,13 +735,14 @@ static void start_web_server(const bool web_server_on) {
       request->send_P(200, "text/html", index_html, processor);
     });
     server.on("/configure", HTTP_GET, [](AsyncWebServerRequest * request) {
-      int params_nr = request->params();
+      const int params_nr = request->params();
       Serial.println(params_nr);
       for(int ii = 0; ii < params_nr; ii++) {
         AsyncWebParameter* p = request->getParam(ii);
         if(p->name() == "drifterID") {
           drifter_name = p->value();
         }
+
         if(p->name() == "loraSendSec") {
           drifter_time_slot_sec = String(p->value()).toInt();
         }
@@ -755,11 +760,11 @@ static void start_web_server(const bool web_server_on) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+        xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      drifter_state.b.config_error = 1;
+        drifter_state.b.config_error = 1;
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifter_state_mutex);
+        xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
       }
       else {
@@ -767,11 +772,11 @@ static void start_web_server(const bool web_server_on) {
         file.close();
         request->send(200, "text/html", "<html><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
 #ifdef USING_SEMAPHORES
-      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+        xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
 #endif //USING_SEMAPHORES
-      drifter_state.b.config_error = 0;
+        drifter_state.b.config_error = 0;
 #ifdef USING_SEMAPHORES
-      xSemaphoreGive(drifter_state_mutex);
+        xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
       }
     });
@@ -797,6 +802,7 @@ static void start_web_server(const bool web_server_on) {
         Serial.println("There was an error opening the file for writing");
         return;
       }
+
       if(file.println("#FILE ERASED at " + last_file_write)) {
         Serial.println("File was created");
       }
@@ -829,6 +835,7 @@ static void start_web_server(const bool web_server_on) {
         Serial.println("There was an error opening the file for writing");
         return;
       }
+
       if(file.println("#FILE ERASED at " + last_file_write)) {
         Serial.println("File was created");
       }

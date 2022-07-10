@@ -45,10 +45,10 @@ typedef union drifter_status_r {
     } b;
 } drifter_status_t;
 
-// 3 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 + 4 + 1 = 43 bytes
+// 4 + 4 + 2 + (1 * 5) + (2 * 8) + 4 + 4 + 4 + 1 = 44 bytes
 #pragma pack(1) // Fixes padding
 typedef struct {
-  char name[3];             // e.g. D01
+  char name[4];             // e.g. {'D', '0', '1', '\0'}
   int drifter_time_slot_sec;   // e.g. 15
   uint16_t year;
   uint8_t month;

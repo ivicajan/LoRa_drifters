@@ -18,8 +18,8 @@ Each Servant node once turned on, records it's GPS location on the onboard PSRAM
 and once per minute sends it's GPS location via LoRa radio. GPS locations at a 1
 second interval are saved.
 
-The servant node is configured with an ID `String drifterName = "D06"` and a time slice
-`int drifterTimeSlotSec = 28` for to make it's LoRa transmission.
+The servant node is configured with an ID `String drifter_name = "D06"` and a time slice
+`int drifter_time_slot_sec = 28` for to make it's LoRa transmission.
 The time slice is a nominated second of the minute at which the transmission will be
 started.  GPS time is used for detection of the seconds at which to make the transmission.
 In this way, all Servants that are receiving GPS time must be configured to use a
@@ -30,10 +30,10 @@ used to activate and deactivate the `WebServer` on the Servant node.
 
 ## Mesh Network (optional)
 The LoRa Drifters implementation can work with a mesh network provided the `USING_MESH` is defined
-and not commented out (in `loraDrifterServant.ino`). In order to use the mesh network, the user
-must name set a servant drifter with a local address `byte localAddress = 0x66` to match their
-`String drifterName = "D06"`, for example. No changes need to be made to the masters implementation
-provided that `USING_MESH` is defined and not commented out (in `loraDrifterMaster.ino`).
+and not commented out (in `lora_drifter_servant.ino`). In order to use the mesh network, the user
+must name set a servant drifter with a local address `byte local_address = 0x66` to match their
+`String drifter_name = "D06"`, for example. No changes need to be made to the masters implementation
+provided that `USING_MESH` is defined and not commented out (in `lora_drifter_master.ino`).
 
 The mesh network works by having the master node and servant nodes using duplex LoRa communications.
 The nodes are receiving and transmitting based on time slots and responses to messages. This mesh

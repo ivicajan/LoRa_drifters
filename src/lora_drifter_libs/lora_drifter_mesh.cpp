@@ -12,7 +12,7 @@
 
 // Comment this out when flashing a servant node.
 // TODO: move this to a better place
-#define MESH_MASTER_MODE
+// #define MESH_MASTER_MODE
 
 // Uncommenting this prevents the master from being added to the routing table, this allows for a servant node to be
 // forced to hop nodes, to reach master.
@@ -27,12 +27,16 @@ static volatile int num_logs = 0;
 extern TinyGPSPlus gps;
 extern Master master;
 extern Servant servants[NUM_MAX_SERVANTS];           // Servants data array
+#ifdef USING_SEMAPHORES
 extern SemaphoreHandle_t servant_mutex;
+#endif //USING_SEMAPHORES
 #else
 extern Packet packet;
 extern volatile uint32_t last_packet_received_time_ms;
 #endif //MESH_MASTER_MODE
+#ifdef USING_SEMAPHORES
 extern SemaphoreHandle_t lora_mutex;
+#endif //USING_SEMAPHORES
 
 extern byte routing_table[ROUTING_TABLE_SIZE];
 extern byte payload[24];
@@ -69,9 +73,13 @@ static int parse_payload() {
 #ifdef MESH_MASTER_MODE
   Packet packet;
 #endif // MESH_MASTER_NODE
+#ifdef USING_SEMAPHORES
   xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
   if(LoRa.available() != sizeof(Packet)) {
+#ifdef USING_SEMAPHORES
     xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
     return static_cast<int>(ResultType::Failure);
   }
   uint8_t buffer[sizeof(Packet)];
@@ -87,7 +95,9 @@ static int parse_payload() {
     Serial.print(name);
     Serial.println(" found!");
     const int id = name.substring(1, 3).toInt();
+#ifdef USING_SEMAPHORES
     xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
     servants[id].ID = id;
     servants[id].decode(&packet);
     servants[id].rssi = LoRa.packetRssi();
@@ -98,15 +108,21 @@ static int parse_payload() {
     const String t_time = String(servants[id].hour) + ":" + String(servants[id].minute) + ":" + String(servants[id].second);
     const String t_location = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
     csv_out_str += "D" + String(id) + "," + t_date + "," + t_time + "," + t_location  + "," + String(servants[id].batt_percent, 2) + '\n';
+#ifdef USING_SEMAPHORES
     xSemaphoreGive(servant_mutex);
+#endif //USING_SEMAPHORES
   }
   else {
     Serial.println("Not a complete drifter packet");
+#ifdef USING_SEMAPHORES
     xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
     return static_cast<int>(ErrorType::PayloadErr);
   }
 #endif // MESH_MASTER_MODE
+#ifdef USING_SEMAPHORES
   xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
   return static_cast<int>(ResultType::Success);
 }
 
@@ -340,13 +356,16 @@ static bool check_frame_header(const int mode, const byte size_header, const byt
       Serial.println("check_frame_header: invalid type for Node Mode");
       return false;
     }
+
     if(type == static_cast<byte>(MessageType::RouteBroadcastMaster) && sender != MASTER_LOCAL_ID) {
       Serial.println("check_frame_header: Invalid Type && sender ID");
       return false;
     }
+
     if(type == static_cast<byte>(MessageType::Restart)) {
       return true;
     }
+
     if(router != local_address && router != 0xFF) {
         Serial.println("check_frame_header: Not addressed to local");
         return false;
@@ -358,6 +377,7 @@ static bool check_frame_header(const int mode, const byte size_header, const byt
     if(type != static_cast<byte>(MessageType::DirectPayload)) { // Type C: Direct Master
       return false;
     }
+
     if(router != local_address) {
       return false;
     }
@@ -367,6 +387,7 @@ static bool check_frame_header(const int mode, const byte size_header, const byt
     if(type != static_cast<byte>(MessageType::ACK)) {
       return false;
     }
+
     if(router != local_address) {
       return false;
     }
@@ -418,36 +439,48 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
     switch(static_cast<MessageType>(type)) {
       case MessageType::RouteBroadcastServant:
         header[7] = 0x02;           // size_payload
+#ifdef USING_SEMAPHORES
         xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.write(local_hop_count);  // RS payload
         LoRa.write(local_next_hop_ID); // RS payload
         LoRa.endPacket(true);
+#ifdef USING_SEMAPHORES
         xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
         type_to_printout(type, router);
         break;
       case MessageType::DirectPayload:
       case MessageType::RouteRequest:
         header[7] = 0x18;
+#ifdef USING_SEMAPHORES
         xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
         LoRa.beginPacket();
         LoRa.write(header, 8);
 #ifndef MESH_MASTER_MODE // for compiling
         LoRa.write((const uint8_t *)&packet, sizeof(Packet));
 #endif // MESH_MASTER_MODE
         LoRa.endPacket(true);
+#ifdef USING_SEMAPHORES
         xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
         type_to_printout(type, router);
         break;
       case MessageType::ACK:
       case MessageType::Restart:
         header[7] = 0x00;
+#ifdef USING_SEMAPHORES
         xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
+#ifdef USING_SEMAPHORES
         xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
         type_to_printout(type, router);
         break;
       default:
@@ -461,11 +494,15 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
       case MessageType::ACK:
       case MessageType::Restart:
         header[7] = 0x00;
+#ifdef USING_SEMAPHORES
         xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
+#ifdef USING_SEMAPHORES
         xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
         type_to_printout(type, router);
         break;
       default:
@@ -489,7 +526,9 @@ int listener(const int frame_size, const int mode) {
     return static_cast<int>(ResultType::Failure);             // nothing to receive
   }
   // Parse Header
+#ifdef USING_SEMAPHORES
   xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
   const byte size_header = LoRa.read();
   const byte type = LoRa.read();
   const byte router = LoRa.read();
@@ -498,7 +537,9 @@ int listener(const int frame_size, const int mode) {
   const byte sender = LoRa.read();
   const byte ttl = LoRa.read();
   const byte size_payload = LoRa.read();
+#ifdef USING_SEMAPHORES
   xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
 
   const bool valid_header = check_frame_header(mode, size_header, type, router, source, recipient, sender, ttl, size_payload);
   if(valid_header) {
@@ -589,10 +630,14 @@ static int frame_handler(const int mode, const byte type, const byte router, con
   if(mode == SERVANT_MODE) {
     switch(static_cast<MessageType>(type)) {
       case MessageType::RouteBroadcastMaster: {
+#ifdef USING_SEMAPHORES
         xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
         const int rssi = LoRa.packetRssi();
         const float snr = LoRa.packetSnr();
+#ifdef USING_SEMAPHORES
         xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
         const unsigned long time = millis();
         result = insert_routing_table(sender, 0x01, MASTER_LOCAL_ID, rssi, snr, time);
         if(result != static_cast<int>(ResultType::Success)) {
@@ -601,12 +646,16 @@ static int frame_handler(const int mode, const byte type, const byte router, con
         return set_routing_status();
       }
       case MessageType::RouteBroadcastServant: {
+#ifdef USING_SEMAPHORES
         xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
         const byte hop_count = LoRa.read();     // Parsing Payload
         const byte next_hop_ID = LoRa.read();
         const int rssi = LoRa.packetRssi();
         const float snr = LoRa.packetSnr();
+#ifdef USING_SEMAPHORES
         xSemaphoreGive(lora_mutex);
+#endif //USING_SEMAPHORES
         const unsigned long time = millis();
         result = insert_routing_table(sender, hop_count, next_hop_ID, rssi, snr, time);
         if(result != static_cast<int>(ResultType::Success)) {

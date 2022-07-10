@@ -3,10 +3,13 @@
 #define WIFI_SSID             ("DrifterMaster")      // Wifi ssid and password
 #define WIFI_PASSWORD         ("Tracker1")
 
-// #define OUTPUT_SYSTEM_MONITOR
+// #define USING_SEMAPHORES // Enable the use of semaphores, needs further testing on master node, as it seems to get stuck at some point using semaphores.
+// Servant nodes seem fine.
 
+#ifdef USING_SEMAPHORES
 SemaphoreHandle_t servant_mutex = NULL;
 SemaphoreHandle_t lora_mutex = NULL;
+#endif //USING_SEMAPHORES
 
 static TaskHandle_t system_monitoring_task_handle;
 static TaskHandle_t listen_task_handle;
@@ -65,13 +68,17 @@ static String processor(const String & var) {
           <td><b>Sent</b></td>
           <td><b>Rcvd</b></td>
         )rawliteral";
+#ifdef USING_SEMAPHORES
     xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
         diagnostic_string += "<td><b>D" + String(ii) + "</b></td>";
       }
     }
+#ifdef USING_SEMAPHORES
     xSemaphoreGive(servant_mutex);
+#endif //USING_SEMAPHORES
     return diagnostic_string += "</tr>" + diagnostic_data;
   }
   else if(var == "STATUSFLAGS") {
@@ -97,7 +104,9 @@ static String processor(const String & var) {
             <td><b>Statuses</b></td>
           </tr>
           )rawliteral";
+#ifdef USING_SEMAPHORES
       xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
       for(int ii = 0; ii < NUM_NODES; ii++) {
         if(servants[ii].active) {
           uint8_t status_tmp = 0;
@@ -107,7 +116,9 @@ static String processor(const String & var) {
           }
         }
       }
+#ifdef USING_SEMAPHORES
       xSemaphoreGive(servant_mutex);
+#endif //USING_SEMAPHORES
       return status_string;
     }
     else{
@@ -195,7 +206,9 @@ static void on_receive(const int packet_size) {
       Serial.println("ID not in between 1 and 10");
     }
     else {
+#ifdef USING_SEMAPHORES
       xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
       servants[id].ID = id;
       servants[id].decode(&packet);
       servants[id].rssi = LoRa.packetRssi();
@@ -206,7 +219,9 @@ static void on_receive(const int packet_size) {
       const String t_location = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
       csv_out_str += t_date + "," + t_time + "," + t_location + '\n';
 
+#ifdef USING_SEMAPHORES
       xSemaphoreGive(servant_mutex);
+#endif //USING_SEMAPHORES
       Serial.println("RX from LoRa - decoding completed");
     }
   }
@@ -268,8 +283,10 @@ void setup() {
   delay(50);
   init_web_server();
   delay(50);
+#ifdef USING_SEMAPHORES
   servant_mutex = xSemaphoreCreateMutex();
   lora_mutex = xSemaphoreCreateMutex();
+#endif //USING_SEMAPHORES
   xTaskCreatePinnedToCore(listen_task, "listen_task", 8000, NULL, 1, &listen_task_handle, 0);
   delay(500);
 #ifdef USING_MESH
@@ -456,7 +473,9 @@ static void web_update_task(void * params) {
     servants_data += "<td><b>Restart</b></td>";
 #endif // USING_MESH
     servants_data += "</tr>";
+#ifdef USING_SEMAPHORES
     xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
     String temp_class_colour = "";
     for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
       const uint32_t last_update = (millis() - servants[ii].last_update_master_time) / 1000;
@@ -495,18 +514,24 @@ static void web_update_task(void * params) {
       }
     }
     servants_data += "</table>";
+#ifdef USING_SEMAPHORES
     xSemaphoreGive(servant_mutex);
+#endif //USING_SEMAPHORES
 #ifdef USING_MESH
     diagnostic_data = "<tr>";
     diagnostic_data += "<td>" + String(messages_sent) + "</td>";
     diagnostic_data += "<td>" + String(messages_received) + "</td>";
+#ifdef USING_SEMAPHORES
     xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
+#endif //USING_SEMAPHORES
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
         diagnostic_data += "<td>" + String(node_rx[ii]) + "</td>";
       }
     }
+#ifdef USING_SEMAPHORES
     xSemaphoreGive(servant_mutex);
+#endif //USING_SEMAPHORES
     diagnostic_data += "</tr>";
 #endif // USING_MESH
     // D. Write data to onboard flash

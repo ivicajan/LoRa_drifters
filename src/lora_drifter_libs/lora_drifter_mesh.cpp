@@ -98,9 +98,6 @@ static int parse_payload() {
     const String t_location = String(servants[id].lng, 6) + "," + String(servants[id].lat, 6) + "," + String(servants[id].age);
     csv_out_str += "D" + String(id) + "," + t_date + "," + t_time + "," + t_location  + "," + String(servants[id].batt_percent, 2) + '\n';
     xSemaphoreGive(servant_mutex);
-    xSemaphoreGive(lora_mutex);
-    // return static_cast<int>(ErrorType::PayloadErr);
-    return static_cast<int>(ResultType::Success);
   }
   else {
     Serial.println("Not a complete drifter packet");
@@ -108,6 +105,8 @@ static int parse_payload() {
     return static_cast<int>(ErrorType::PayloadErr);
   }
 #endif // MESH_MASTER_MODE
+  xSemaphoreGive(lora_mutex);
+  return static_cast<int>(ResultType::Success);
 }
 
 // To help compiler

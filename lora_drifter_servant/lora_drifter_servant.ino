@@ -54,8 +54,8 @@ static volatile float storage_used = 0.f;                   // MB used in SPIFFS
 
 static volatile int gps_last_second = -1;
 static String t_time = "";
-static String drifter_name = "D08";       // ID send with packet
-static volatile int drifter_time_slot_sec = 40;      // seconds after start of each GPS minute
+static String drifter_name = "D09";       // ID send with packet
+static volatile int drifter_time_slot_sec = 45;      // seconds after start of each GPS minute
 
 static String ssid_name = "DrifterServant";    // Wifi ssid and password
 #define SSID_PASSWORD "Tracker1"
@@ -222,6 +222,7 @@ static void write_IMU_data_to_flash() {
       storage_used += imu_file.size() * 0.000001f; // convert to MB
     }
     else {
+      // cant write, restart
       ESP.restart();
     }
   }
@@ -320,6 +321,7 @@ static void send_task(void * params) {
   disableCore1WDT(); // Disable watchdog to keep process alive
   while(1) {
     if(millis() - last_packet_received_time_ms > LAST_PACKET_TIMEOUT_ms) {
+      write_data_to_flash(); // save before we restart
       ESP.restart();
     }
 
@@ -338,7 +340,8 @@ static void send_task(void * params) {
           Serial.println("Resumed imu_task_handle");
         }
 #endif //USING_IMU
-      } else {
+      }
+      else {
         Serial.println("Turning web server on");
         web_server_on = true;
 #ifdef USING_MESH

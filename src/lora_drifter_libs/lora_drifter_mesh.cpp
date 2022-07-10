@@ -211,7 +211,6 @@ static int insert_routing_table(const byte node_ID, const byte hop_count, const 
     memcpy(&routing_table[(idx * ROUTING_TABLE_ENTRY_SIZE) + 11], &current_time, sizeof(current_time));
 #ifndef MESH_MASTER_MODE
     last_packet_received_time_ms = millis();
-    delay(10); // may not need this
 #endif //MESH_MASTER_MODE
     return static_cast<int>(ResultType::Success);
   }
@@ -630,6 +629,7 @@ static int frame_handler(const int mode, const byte type, const byte router, con
         if(recipient == local_address) {
           send_ack_back(mode, source);
           Serial.println("Restarting device");
+          // write_data_to_flash(); // TODO: save data before restarting
           ESP.restart();
         }
       }

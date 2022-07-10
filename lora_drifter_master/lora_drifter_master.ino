@@ -270,15 +270,15 @@ void setup() {
   delay(50);
   servant_mutex = xSemaphoreCreateMutex();
   lora_mutex = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(listen_task, "listen_task", 8000, NULL, 1, &listen_task_handle, 1);
+  xTaskCreatePinnedToCore(listen_task, "listen_task", 8000, NULL, 1, &listen_task_handle, 0);
   delay(500);
 #ifdef USING_MESH
-  xTaskCreatePinnedToCore(send_task, "send_task", 8000, NULL, 2, &send_task_handle, 0);
+  xTaskCreatePinnedToCore(send_task, "send_task", 8000, NULL, 1, &send_task_handle, 0);
   delay(500);
 #endif //USING_MESH
-  xTaskCreatePinnedToCore(web_update_task, "web_update_task", 8000, NULL, 2, &web_update_task_handle, 0);
+  xTaskCreatePinnedToCore(web_update_task, "web_update_task", 8000, NULL, 1, &web_update_task_handle, 0);
   delay(500);
-  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
+  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 1, &system_monitoring_task_handle, 0);
   delay(500);
   // SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {
@@ -364,6 +364,7 @@ static void listen_task(void * params) {
   while(1) {
 #ifdef USING_MESH
     const int result = listener(LoRa.parsePacket(), MASTER_MODE);
+    vTaskDelay(2);
 #endif // USING_MESH
   }
 }

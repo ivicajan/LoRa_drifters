@@ -65,7 +65,7 @@ static String processor(const String & var) {
           <td><b>Sent</b></td>
           <td><b>Rcvd</b></td>
         )rawliteral";
-    xSemaphoreTake(servant_mutex, portMAX_DELAY);
+    xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
         diagnostic_string += "<td><b>D" + String(ii) + "</b></td>";
@@ -97,7 +97,7 @@ static String processor(const String & var) {
             <td><b>Statuses</b></td>
           </tr>
           )rawliteral";
-      xSemaphoreTake(servant_mutex, portMAX_DELAY);
+      xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
       for(int ii = 0; ii < NUM_NODES; ii++) {
         if(servants[ii].active) {
           uint8_t status_tmp = 0;
@@ -195,7 +195,7 @@ static void on_receive(const int packet_size) {
       Serial.println("ID not in between 1 and 10");
     }
     else {
-      xSemaphoreTake(servant_mutex, portMAX_DELAY);
+      xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
       servants[id].ID = id;
       servants[id].decode(&packet);
       servants[id].rssi = LoRa.packetRssi();
@@ -455,7 +455,7 @@ static void web_update_task(void * params) {
     servants_data += "<td><b>Restart</b></td>";
 #endif // USING_MESH
     servants_data += "</tr>";
-    xSemaphoreTake(servant_mutex, portMAX_DELAY);
+    xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
     String temp_class_colour = "";
     for(int ii = 0; ii < NUM_MAX_SERVANTS; ii++) {
       const uint32_t last_update = (millis() - servants[ii].last_update_master_time) / 1000;
@@ -499,7 +499,7 @@ static void web_update_task(void * params) {
     diagnostic_data = "<tr>";
     diagnostic_data += "<td>" + String(messages_sent) + "</td>";
     diagnostic_data += "<td>" + String(messages_received) + "</td>";
-    xSemaphoreTake(servant_mutex, portMAX_DELAY);
+    xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
     for(int ii = 0; ii < NUM_NODES; ii++) {
       if(servants[ii].active) {
         diagnostic_data += "<td>" + String(node_rx[ii]) + "</td>";

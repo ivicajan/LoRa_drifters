@@ -4,19 +4,19 @@
 
 #define NUM_MAX_SERVANTS (11)     // Maximum number of servant drifters (just for setting array size)
 
+#define SEMAPHORE_MAX_WAIT (10) // 10 ticks
+
 /**
  * @brief Class that holds the state of the master drifter and it's current position.
  * 
  */
 class Master {
 public:
-    Master() = default;
     double lng = 0.0;
     double lat = 0.0;
     uint8_t hour = 0;
     uint8_t minute = 0;
     uint8_t second = 0;
-    ~Master() = default;
     void fill_master();
     void generate_master();
 private:

@@ -54,8 +54,8 @@ static volatile float storage_used = 0.f;                   // MB used in SPIFFS
 
 static volatile int gps_last_second = -1;
 static String t_time = "";
-static String drifter_name = "D09";       // ID send with packet
-static volatile int drifter_time_slot_sec = 45;      // seconds after start of each GPS minute
+static String drifter_name = "D08";       // ID send with packet
+static volatile int drifter_time_slot_sec = 40;      // seconds after start of each GPS minute
 
 static String ssid_name = "DrifterServant";    // Wifi ssid and password
 #define SSID_PASSWORD "Tracker1"
@@ -180,7 +180,7 @@ static void write_data_to_flash() {
       csv_out_str = "";
       n_samples = 0;
       last_file_write = t_time;
-      xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+      xSemaphoreTake(drifter_state_mutex, SEMAPHORE_MAX_WAIT);
       drifter_state.b.save_error = (file_size_after_save == file_size_before_save);
       xSemaphoreGive(drifter_state_mutex);
     }
@@ -432,7 +432,7 @@ static void read_config_file() {
 #endif //USING_SD_CARD
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
-    xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+    xSemaphoreTake(drifter_state_mutex, SEMAPHORE_MAX_WAIT);
     drifter_state.b.config_error = 1;
     xSemaphoreGive(drifter_state_mutex);
   }
@@ -522,7 +522,7 @@ void setup() {
   print_volume_size();
 #endif //USING_SD_CARD
   delay(500);
-  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+  xSemaphoreTake(drifter_state_mutex, SEMAPHORE_MAX_WAIT);
   drifter_state.r = 0;
 #ifdef USING_IMU
   const bool init_IMU_ok = init_IMU();
@@ -549,7 +549,7 @@ void setup() {
   }
 #endif //USING_IMU
 #ifdef USING_MESH
-  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+  xSemaphoreTake(drifter_state_mutex, SEMAPHORE_MAX_WAIT);
   // drifter_state.b.mesh_used = 1;
   xSemaphoreGive(drifter_state_mutex);
   xTaskCreatePinnedToCore(listen_task, "listen_task", 5000, NULL, 1, &listen_task_handle, 0);
@@ -575,7 +575,7 @@ static void fill_packet() {
   packet.storage_used = storage_used;
   packet.age = gps.location.age();
   packet.batt_percent = get_battery_percentage();
-  xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+  xSemaphoreTake(drifter_state_mutex, SEMAPHORE_MAX_WAIT);
 #ifdef USING_SD_CARD
   drifter_state.b.low_storage = (get_capacity_used() > 0.75f);
   Serial.printf("%f\n", get_capacity_used());
@@ -731,7 +731,7 @@ static void start_web_server(const bool web_server_on) {
       if(!file) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
-        xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+        xSemaphoreTake(drifter_state_mutex, SEMAPHORE_MAX_WAIT);
         drifter_state.b.config_error = 1;
         xSemaphoreGive(drifter_state_mutex);
       }
@@ -739,7 +739,7 @@ static void start_web_server(const bool web_server_on) {
         file.print(drifter_name + "," + String(drifter_time_slot_sec));
         file.close();
         request->send(200, "text/html", "<html><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
-        xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
+        xSemaphoreTake(drifter_state_mutex, SEMAPHORE_MAX_WAIT);
         drifter_state.b.config_error = 0;
         xSemaphoreGive(drifter_state_mutex);
       }

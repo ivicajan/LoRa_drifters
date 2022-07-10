@@ -69,7 +69,7 @@ static int parse_payload() {
 #ifdef MESH_MASTER_MODE
   Packet packet;
 #endif // MESH_MASTER_NODE
-  xSemaphoreTake(lora_mutex, portMAX_DELAY);
+  xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
   if(LoRa.available() != sizeof(Packet)) {
     xSemaphoreGive(lora_mutex);
     return static_cast<int>(ResultType::Failure);
@@ -87,7 +87,7 @@ static int parse_payload() {
     Serial.print(name);
     Serial.println(" found!");
     const int id = name.substring(1, 3).toInt();
-    xSemaphoreTake(servant_mutex, portMAX_DELAY);
+    xSemaphoreTake(servant_mutex, SEMAPHORE_MAX_WAIT);
     servants[id].ID = id;
     servants[id].decode(&packet);
     servants[id].rssi = LoRa.packetRssi();
@@ -419,7 +419,7 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
     switch(static_cast<MessageType>(type)) {
       case MessageType::RouteBroadcastServant:
         header[7] = 0x02;           // size_payload
-        xSemaphoreTake(lora_mutex, portMAX_DELAY);
+        xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.write(local_hop_count);  // RS payload
@@ -431,7 +431,7 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
       case MessageType::DirectPayload:
       case MessageType::RouteRequest:
         header[7] = 0x18;
-        xSemaphoreTake(lora_mutex, portMAX_DELAY);
+        xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
         LoRa.beginPacket();
         LoRa.write(header, 8);
 #ifndef MESH_MASTER_MODE // for compiling
@@ -444,7 +444,7 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
       case MessageType::ACK:
       case MessageType::Restart:
         header[7] = 0x00;
-        xSemaphoreTake(lora_mutex, portMAX_DELAY);
+        xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
@@ -462,7 +462,7 @@ void send_frame(const int mode, const byte type, const byte router, const byte r
       case MessageType::ACK:
       case MessageType::Restart:
         header[7] = 0x00;
-        xSemaphoreTake(lora_mutex, portMAX_DELAY);
+        xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
         LoRa.beginPacket();
         LoRa.write(header, 8);
         LoRa.endPacket(true);
@@ -490,7 +490,7 @@ int listener(const int frame_size, const int mode) {
     return static_cast<int>(ResultType::Failure);             // nothing to receive
   }
   // Parse Header
-  xSemaphoreTake(lora_mutex, portMAX_DELAY);
+  xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
   const byte size_header = LoRa.read();
   const byte type = LoRa.read();
   const byte router = LoRa.read();
@@ -590,7 +590,7 @@ static int frame_handler(const int mode, const byte type, const byte router, con
   if(mode == SERVANT_MODE) {
     switch(static_cast<MessageType>(type)) {
       case MessageType::RouteBroadcastMaster: {
-        xSemaphoreTake(lora_mutex, portMAX_DELAY);
+        xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
         const int rssi = LoRa.packetRssi();
         const float snr = LoRa.packetSnr();
         xSemaphoreGive(lora_mutex);
@@ -602,7 +602,7 @@ static int frame_handler(const int mode, const byte type, const byte router, con
         return set_routing_status();
       }
       case MessageType::RouteBroadcastServant: {
-        xSemaphoreTake(lora_mutex, portMAX_DELAY);
+        xSemaphoreTake(lora_mutex, SEMAPHORE_MAX_WAIT);
         const byte hop_count = LoRa.read();     // Parsing Payload
         const byte next_hop_ID = LoRa.read();
         const int rssi = LoRa.packetRssi();

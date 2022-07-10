@@ -358,8 +358,8 @@ static void send_task(void * params) {
       delay(1000);
     }
   if(!web_server_on) {
-#ifdef USING_MESH
       generate_packet();
+#ifdef USING_MESH
 #ifdef IGNORE_GPS_INSIDE
       if(run_every(PL_TX_TIME)) {
 #else

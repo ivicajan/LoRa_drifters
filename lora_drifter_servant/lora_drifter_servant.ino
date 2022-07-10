@@ -20,10 +20,6 @@ SPIClass * hspi = NULL;
 // uncomment OUTPUT_SYSTEM_MONITOR to view heap and stack size
 // #define OUTPUT_SYSTEM_MONITOR
 
-// this shouldnt be a thing but esp32 seems very tempremental in using semaphores (RTOS),
-// using semaphores gives us thread safety
-#define USING_SEMAPHORES
-
 #ifdef USING_IMU
 #include "mpu/imu.h"
 extern BLA::Matrix<3> U_INS;
@@ -58,8 +54,8 @@ static volatile float storage_used = 0.f;                   // MB used in SPIFFS
 
 static volatile int gps_last_second = -1;
 static String t_time = "";
-static String drifter_name = "D05";       // ID send with packet
-static volatile int drifter_time_slot_sec = 25;      // seconds after start of each GPS minute
+static String drifter_name = "D09";       // ID send with packet
+static volatile int drifter_time_slot_sec = 45;      // seconds after start of each GPS minute
 
 static String ssid_name = "DrifterServant";    // Wifi ssid and password
 #define SSID_PASSWORD "Tracker1"
@@ -67,10 +63,8 @@ static String ssid_name = "DrifterServant";    // Wifi ssid and password
 Packet packet;
 static drifter_status_t drifter_state; // status flags of the drifter state
 
-#ifdef USING_SEMAPHORES
-SemaphoreHandle_t lora_mutex = NULL; // only used here as its commented out elsewhere
+SemaphoreHandle_t lora_mutex = NULL;
 static SemaphoreHandle_t drifter_state_mutex = NULL;
-#endif //USING_SEMAPHORES
 static TaskHandle_t send_task_handle;
 static TaskHandle_t system_monitoring_task_handle;
 
@@ -186,13 +180,9 @@ static void write_data_to_flash() {
       csv_out_str = "";
       n_samples = 0;
       last_file_write = t_time;
-#ifdef USING_SEMAPHORES
       xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
-#endif //USING_SEMAPHORES
       drifter_state.b.save_error = (file_size_after_save == file_size_before_save);
-#ifdef USING_SEMAPHORES
       xSemaphoreGive(drifter_state_mutex);
-#endif //USING_SEMAPHORES
     }
     else {
       last_file_write = "FAILED WRITE, RESTARTING";
@@ -442,13 +432,9 @@ static void read_config_file() {
 #endif //USING_SD_CARD
   if(!file) {
     Serial.println("Failed to open config.txt configuration file");
-#ifdef USING_SEMAPHORES
     xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
-#endif //USING_SEMAPHORES
     drifter_state.b.config_error = 1;
-#ifdef USING_SEMAPHORES
     xSemaphoreGive(drifter_state_mutex);
-#endif //USING_SEMAPHORES
   }
   else {
     const String inData = file.readStringUntil('\n');
@@ -521,10 +507,8 @@ static float get_capacity_used() {
 #endif //USING_SD_CARD
 
 void setup() {
-#ifdef USING_SEMAPHORES
   lora_mutex = xSemaphoreCreateMutex();
   drifter_state_mutex = xSemaphoreCreateMutex();
-#endif //USING_SEMAPHORES
   init_board();
 #ifdef USING_SD_CARD
   hspi = new SPIClass(HSPI);
@@ -538,9 +522,7 @@ void setup() {
   print_volume_size();
 #endif //USING_SD_CARD
   delay(500);
-#ifdef USING_SEMAPHORES
   xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
-#endif //USING_SEMAPHORES
   drifter_state.r = 0;
 #ifdef USING_IMU
   const bool init_IMU_ok = init_IMU();
@@ -548,9 +530,7 @@ void setup() {
   drifter_state.b.imu_error = !init_IMU_ok;
   delay(500);
 #endif // USING_IMU
-#ifdef USING_SEMAPHORES
   xSemaphoreGive(drifter_state_mutex);
-#endif //USING_SEMAPHORES
   if(!SPIFFS.begin(true)) {
     // TODO: this should attempt to fix SPIFFS
     Serial.println("SPIFFS error has occured");
@@ -569,13 +549,9 @@ void setup() {
   }
 #endif //USING_IMU
 #ifdef USING_MESH
-#ifdef USING_SEMAPHORES
   xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
-#endif //USING_SEMAPHORES
   // drifter_state.b.mesh_used = 1;
-#ifdef USING_SEMAPHORES
   xSemaphoreGive(drifter_state_mutex);
-#endif //USING_SEMAPHORES
   xTaskCreatePinnedToCore(listen_task, "listen_task", 5000, NULL, 1, &listen_task_handle, 0);
   delay(500);
 #endif //USING_MESH
@@ -599,9 +575,7 @@ static void fill_packet() {
   packet.storage_used = storage_used;
   packet.age = gps.location.age();
   packet.batt_percent = get_battery_percentage();
-#ifdef USING_SEMAPHORES
   xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
-#endif //USING_SEMAPHORES
 #ifdef USING_SD_CARD
   drifter_state.b.low_storage = (get_capacity_used() > 0.75f);
   Serial.printf("%f\n", get_capacity_used());
@@ -610,9 +584,7 @@ static void fill_packet() {
 #endif //USING_SD_CARD
   drifter_state.b.low_battery = (packet.batt_percent < 50.f); // if we are below 50% battery we show the flag 1 (error)
   packet.drifter_state = drifter_state;
-#ifdef USING_SEMAPHORES
   xSemaphoreGive(drifter_state_mutex);
-#endif //USING_SEMAPHORES
 #ifdef DEBUG_MODE
   Serial << "Raw Lat: " << static_cast<float>(packet.lat) << " Lng: " << static_cast<float>(packet.lng) << '\n';
 #endif // DEBUG_MODE
@@ -759,25 +731,17 @@ static void start_web_server(const bool web_server_on) {
       if(!file) {
         Serial.println("Could not open config.txt for writing");
         request->send(200, "text/plain", "Failed writing configuration file config.txt!");
-#ifdef USING_SEMAPHORES
         xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
-#endif //USING_SEMAPHORES
         drifter_state.b.config_error = 1;
-#ifdef USING_SEMAPHORES
         xSemaphoreGive(drifter_state_mutex);
-#endif //USING_SEMAPHORES
       }
       else {
         file.print(drifter_name + "," + String(drifter_time_slot_sec));
         file.close();
         request->send(200, "text/html", "<html><a href=\"http://" + ip_address_to_string(WiFi.softAPIP()) + "\">Success!  BACK </a></html>");
-#ifdef USING_SEMAPHORES
         xSemaphoreTake(drifter_state_mutex, portMAX_DELAY);
-#endif //USING_SEMAPHORES
         drifter_state.b.config_error = 0;
-#ifdef USING_SEMAPHORES
         xSemaphoreGive(drifter_state_mutex);
-#endif //USING_SEMAPHORES
       }
     });
 

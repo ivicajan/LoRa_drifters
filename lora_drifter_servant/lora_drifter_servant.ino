@@ -576,11 +576,11 @@ void setup() {
 #ifdef USING_SEMAPHORES
   xSemaphoreGive(drifter_state_mutex);
 #endif //USING_SEMAPHORES
-  xTaskCreatePinnedToCore(listen_task, "listen_task", 5000, NULL, 2, &listen_task_handle, 0);
+  xTaskCreatePinnedToCore(listen_task, "listen_task", 5000, NULL, 1, &listen_task_handle, 0);
   delay(500);
 #endif //USING_MESH
-  xTaskCreatePinnedToCore(send_task, "send_task", 8000, NULL, 2, &send_task_handle, 1);
-  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 2, &system_monitoring_task_handle, tskIDLE_PRIORITY);
+  xTaskCreatePinnedToCore(send_task, "send_task", 8000, NULL, 1, &send_task_handle, 1);
+  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 1, &system_monitoring_task_handle, 1);
   delay(500);
   Serial.println("Initialization complete.");
 }
@@ -643,12 +643,12 @@ static void generate_packet() {
 #else 
   if(gps.time.second() != gps_last_second) {
 #endif // IGNORE_GPS_INSIDE
-    Serial.print("New GPS record from: ");
-    Serial.println(drifter_name);
+    // Serial.print("New GPS record from: ");
+    // Serial.println(drifter_name);
     fill_packet();
     gps_last_second = gps.time.second();
-    Serial.print("samples: ");
-    Serial.println(n_samples);
+    // Serial.print("samples: ");
+    // Serial.println(n_samples);
 #ifdef IGNORE_GPS_INSIDE
     if(true) {
 #else 

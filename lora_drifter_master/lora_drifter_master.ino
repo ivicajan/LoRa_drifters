@@ -426,6 +426,7 @@ static void send_task(void * params) {
     else if(gps.time.second() != RS_BCAST_TIME / 1000) {
       sent_bcast = false;
     }
+    vTaskDelay(10);
   }
 }
 #endif // USING_MESH

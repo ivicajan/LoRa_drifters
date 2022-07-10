@@ -12,7 +12,7 @@
 
 // Comment this out when flashing a servant node.
 // TODO: move this to a better place
-// #define MESH_MASTER_MODE
+#define MESH_MASTER_MODE
 
 // Uncommenting this prevents the master from being added to the routing table, this allows for a servant node to be
 // forced to hop nodes, to reach master.
@@ -82,9 +82,10 @@ static int parse_payload() {
 #ifdef MESH_MASTER_MODE
   // Get ID and then send to class for decoding
   const String name = String(packet.name);
-  Serial.println(name);
   if(!strcmp(name.substring(0, 1).c_str(), "D")) {
-    Serial.println("Drifter signal found!");
+    Serial.print("Drifter ");
+    Serial.print(name);
+    Serial.println(" found!");
     const int id = name.substring(1, 3).toInt();
     xSemaphoreTake(servant_mutex, portMAX_DELAY);
     servants[id].ID = id;

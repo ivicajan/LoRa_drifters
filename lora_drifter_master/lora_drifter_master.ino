@@ -16,7 +16,6 @@
 #define HSPI_MISO (4)
 #define HSPI_MOSI (13)
 #define HSPI_CS   (2)
-SPIClass * hspi = NULL;
 #endif //USING_SD_CARD
 
 #ifdef USING_SEMAPHORES
@@ -327,12 +326,12 @@ void setup() {
   init_board();
   delay(500);
 #ifdef USING_SD_CARD
-  hspi = new SPIClass(HSPI);
-  hspi->begin(HSPI_SCLK, HSPI_MISO, HSPI_MOSI, HSPI_CS); //SCLK, MISO, MOSI, SS
+  SPIClass hspi(HSPI);
+  hspi.begin(HSPI_SCLK, HSPI_MISO, HSPI_MOSI, HSPI_CS); //SCLK, MISO, MOSI, SS
   pinMode(HSPI_CS, OUTPUT); //HSPI SS
 
   // see if the card is present and can be initialized:
-  if(!SD.begin(HSPI_CS, *hspi)) {
+  if(!SD.begin(HSPI_CS, hspi)) {
     Serial.println("SD Card failed, or not not present");
   }
   print_volume_size();

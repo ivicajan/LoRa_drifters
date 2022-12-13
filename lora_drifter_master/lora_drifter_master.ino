@@ -350,9 +350,9 @@ void setup() {
   xTaskCreatePinnedToCore(send_task, "send_task", 8000, NULL, 1, &send_task_handle, 0);
   delay(500);
 #endif //USING_MESH
-  xTaskCreatePinnedToCore(web_update_task, "web_update_task", 8000, NULL, 1, &web_update_task_handle, 0);
+  xTaskCreatePinnedToCore(web_update_task, "web_update_task", 8000, NULL, 1, &web_update_task_handle, 1);
   delay(500);
-  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 1, &system_monitoring_task_handle, 0);
+  xTaskCreatePinnedToCore(system_monitoring_task, "system_monitoring_task", 3000, NULL, 1, &system_monitoring_task_handle, 1);
   delay(500);
   // SPIFFS to write data to onboard Flash
   if(!SPIFFS.begin(true)) {

@@ -6,6 +6,19 @@
 // #define USING_SEMAPHORES // Enable the use of semaphores, needs further testing on master node, as it seems to get stuck at some point using semaphores.
 // Servant nodes seem fine.
 
+#define USING_SD_CARD
+#ifdef USING_SD_CARD
+// Note, the SD card library we are using is from not the library downloaded from 
+// the library manager, it is the library from the ESP32 specific files (see README)
+#include <SD.h>
+// HSPI
+#define HSPI_SCLK (14)
+#define HSPI_MISO (4)
+#define HSPI_MOSI (13)
+#define HSPI_CS   (2)
+SPIClass * hspi = NULL;
+#endif //USING_SD_CARD
+
 #ifdef USING_SEMAPHORES
 SemaphoreHandle_t servant_mutex = NULL;
 SemaphoreHandle_t lora_mutex = NULL;
@@ -276,9 +289,54 @@ static void init_web_server() {
   server.begin();
 }
 
+#ifdef USING_SD_CARD
+static void print_volume_size() {
+    const uint8_t card_type = SD.cardType();
+
+    if(card_type == CARD_NONE) {
+        Serial.println("No SD card attached");
+        return;
+    }
+
+    Serial.print("SD Card Type: ");
+    if(card_type == CARD_MMC) {
+        Serial.println("MMC");
+    }
+    else if(card_type == CARD_SD) {
+        Serial.println("SDSC");
+    }
+    else if(card_type == CARD_SDHC) {
+        Serial.println("SDHC");
+    }
+    else {
+        Serial.println("UNKNOWN");
+    }
+
+    const uint64_t card_size = SD.cardSize() / (1024 * 1024);
+    Serial.printf("SD Card Size: %lluMB\n", card_size);
+    Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
+    Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+}
+
+static float get_capacity_used() {
+  return (float)(SD.usedBytes() / SD.totalBytes());
+}
+#endif //USING_SD_CARD
+
 void setup() {
   init_board();
   delay(500);
+#ifdef USING_SD_CARD
+  hspi = new SPIClass(HSPI);
+  hspi->begin(HSPI_SCLK, HSPI_MISO, HSPI_MOSI, HSPI_CS); //SCLK, MISO, MOSI, SS
+  pinMode(HSPI_CS, OUTPUT); //HSPI SS
+
+  // see if the card is present and can be initialized:
+  if(!SD.begin(HSPI_CS, *hspi)) {
+    Serial.println("SD Card failed, or not not present");
+  }
+  print_volume_size();
+#endif //USING_SD_CARD
   init_LoRa();
   delay(50);
   init_web_server();
